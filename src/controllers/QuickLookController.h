@@ -7,6 +7,9 @@
 #include <QVariantList>
 #include <QColor>
 #include <atomic>
+#include <memory>
+
+namespace PreviewInternal { struct RemotePreviewArtifact; }
 
 #include "../preview/text/TextPreviewController.h"
 
@@ -306,6 +309,7 @@ private:
     QString m_materializedPreviewDir;
     QString m_materializedPreviewLeaseId;
     QString m_materializedPreviewFile;
+    std::shared_ptr<PreviewInternal::RemotePreviewArtifact> m_cachedPreviewArtifact;
     TextPreviewController m_textPreviewController;
     bool m_usingTextPreviewController = false;
     QString m_textPreviewSourcePath;
@@ -313,7 +317,7 @@ private:
     void previewPath(const QString &path, bool forceReload);
     int beginPreviewGeneration();
     bool previewVirtualRoot(const QString &path);
-    void previewLocalOrMaterializedFile(const QString &path, int previewGeneration, bool keepVisible);
+    void previewLocalOrMaterializedFile(const QString &path, int previewGeneration, bool keepVisible, bool forceReload);
     void previewArchiveEntry(const QString &path, int previewGeneration);
     bool imageMetadataRequested() const;
     void requestImageMetadata();

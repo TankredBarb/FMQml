@@ -75,6 +75,7 @@ Item {
     property bool adaptiveImageLayout: false
     property string imageBaseViewMode: "adaptive"
     property int imageBackgroundMode: 0
+    property int remoteImageStatus: Image.Null
     readonly property bool remotePreview: root.isRemoteProviderPath(root.path)
                                          || root.path.toLowerCase().indexOf("telegram://") === 0
     property bool detailsPanelRaised: false
@@ -122,6 +123,11 @@ Item {
                                                    && path !== "favorites://"
                                                    && path !== "gdrive://"
                                                    && path !== "selection://"
+    readonly property bool previewLocalProcessing: remotePreview
+                                                   && !loadingPlaceholderType
+                                                   && type === "image"
+                                                   && (remoteImageStatus === Image.Null
+                                                       || remoteImageStatus === Image.Loading)
     readonly property bool iconType: type === "info" && !loadingPlaceholderType && !archiveLimitedType
                                     && !folderType && !virtualOverviewType
     readonly property bool showLocalAttributes: Qt.platform.os === "windows"
@@ -555,6 +561,9 @@ Item {
             onBackgroundModeChangedByUser: (mode) => root.imageBackgroundModeChangedByUser(mode)
             onHideMetadataRequested: root.hideImageMetadataRequested()
             onShowMetadataRequested: root.showImageMetadataRequested()
+            onImageStatusChanged: root.remoteImageStatus = imageStatus
+            Component.onCompleted: root.remoteImageStatus = imageStatus
+            Component.onDestruction: root.remoteImageStatus = Image.Null
         }
     }
 
@@ -790,8 +799,10 @@ Item {
 
                 Label {
                     Layout.fillWidth: true
-                    visible: root.previewTransferActive
-                    text: root.previewTransferPreparing
+                    visible: root.previewTransferActive || root.previewLocalProcessing
+                    text: root.previewLocalProcessing
+                          ? "Processing locally…"
+                          : root.previewTransferPreparing
                           ? "Preparing preview…"
                           : (root.previewTransferTotal > 0
                              ? "Downloading preview — "
@@ -933,6 +944,14 @@ Item {
                     visible: !root.loadingPlaceholderType && root.type === "image"
                     active: visible
                     sourceComponent: zoomableImagePreviewComponent
+                }
+
+                Loader {
+                    anchors.fill: parent
+                    z: 1
+                    visible: root.previewLocalProcessing
+                    active: visible
+                    sourceComponent: loadingPreviewComponent
                 }
 
                 MediaPreview {

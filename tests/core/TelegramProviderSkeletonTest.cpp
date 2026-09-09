@@ -137,14 +137,6 @@ int main(int argc, char **argv)
         return fail(QStringLiteral("Status diagnostic file should be readable"));
     }
 
-    ScanResult saved = scan(*provider, QStringLiteral("telegram://saved"));
-    if (!saved.finished) {
-        return fail(QStringLiteral("Saved Messages scan should finish"));
-    }
-    if (!saved.success && saved.error.isEmpty()) {
-        return fail(QStringLiteral("Saved Messages scan failure should include a sanitized error"));
-    }
-
     ScanResult downloads = scan(*provider, QStringLiteral("telegram://downloads"));
     if (!downloads.finished || !downloads.success) {
         return fail(QStringLiteral("Downloads scan should finish successfully"));

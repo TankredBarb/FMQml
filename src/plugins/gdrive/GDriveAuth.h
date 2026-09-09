@@ -49,6 +49,7 @@ struct AccountInfo {
 OAuthClientConfig loadOAuthClientConfig();
 QString validSessionAccessToken();
 QString sessionRefreshToken();
+QString previewSessionScope();
 bool hasSavedAuthorization();
 AccountInfo savedAccountInfo();
 void rememberAccessToken(const QString &accessToken, QDateTime expiresAt);

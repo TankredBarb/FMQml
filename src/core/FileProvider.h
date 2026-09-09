@@ -171,6 +171,13 @@ public:
         }
         return {};
     }
+    // Opt in only with an account/session-scoped, versioned identity. Empty
+    // disables reuse of full downloaded previews for this provider.
+    virtual QString previewCacheIdentity(const QString &path) const
+    {
+        Q_UNUSED(path)
+        return {};
+    }
     // Returns a stable cache identity for the path based on already-known
     // provider metadata (no network/SDK I/O). Used by ThumbnailProvider to hit
     // the in-memory cache before calling thumbnailForPath. Empty means "cannot

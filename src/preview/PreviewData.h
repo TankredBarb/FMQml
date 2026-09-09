@@ -3,8 +3,11 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
+#include <memory>
 
 namespace PreviewInternal {
+
+struct RemotePreviewArtifact;
 
 inline constexpr qint64 kTextPreviewLimit = 8192;
 inline constexpr qint64 kTextFullLoadLimit = 1024 * 1024;
@@ -51,6 +54,7 @@ struct ImageMetadataData {
 };
 
 struct LocalPreviewData {
+    std::shared_ptr<RemotePreviewArtifact> cachedArtifact;
     QString content;
     QString type;
     QString extension;

@@ -36,12 +36,10 @@ public:
         request.setRawHeader("Accept", "image/jpeg,image/png,image/*;q=0.8,*/*;q=0.5");
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 
-        // Keep the network manager local to the worker-thread method. A member
-        // QNetworkAccessManager may be constructed in the caller thread before
-        // the worker is moved, which makes QNetworkReply creation warn/fail
-        // when thumbnails are requested from QQuickPixmapReader.
-        QNetworkAccessManager network;
-        QNetworkReply *reply = network.get(request);
+        // Initialize after moveToThread, on the worker itself, so subsequent
+        // requests can reuse connections without crossing QObject threads.
+        if (!m_network) m_network = new QNetworkAccessManager(this);
+        QNetworkReply *reply = m_network->get(request);
         if (!reply) {
             return result;
         }
@@ -71,12 +69,17 @@ public:
 
         result.httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         result.networkError = reply->error();
-        result.body = reply->readAll();
+        if (reply->isReadable()) {
+            result.body = reply->readAll();
+        }
         result.timedOut = timedOut;
         result.oversize = oversize;
         delete reply;
         return result;
     }
+
+private:
+    QNetworkAccessManager *m_network = nullptr;
 };
 
 const QVector<NetworkWorker *> &networkWorkers()

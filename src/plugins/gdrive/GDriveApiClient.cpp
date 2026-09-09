@@ -86,7 +86,7 @@ QString errorMessage(const QByteArray &body, const QString &fallback)
 
 QByteArray safeReadAll(QIODevice *device)
 {
-    return device && device->isOpen() ? device->readAll() : QByteArray{};
+    return device && device->isReadable() ? device->readAll() : QByteArray{};
 }
 
 QUrl driveFileMetadataUrl(const QString &fileId = {})

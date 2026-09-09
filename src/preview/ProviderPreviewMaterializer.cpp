@@ -50,6 +50,7 @@
 #endif
 
 #include "PreviewInternal.h"
+#include "RemotePreviewCache.h"
 
 namespace PreviewInternal {
 namespace {
@@ -84,7 +85,8 @@ QString remoteAccessSummary(FileProvider &provider, const FileEntry &entry, cons
 LocalPreviewData loadProviderPreviewData(
     const QString &path,
     const std::function<void(const QString &)> &nameReady,
-    const std::function<bool(qint64, qint64, bool)> &progressReady)
+    const std::function<bool(qint64, qint64, bool)> &progressReady,
+    bool allowCache)
 {
     LocalPreviewData data;
     data.type = QStringLiteral("info");
@@ -154,132 +156,166 @@ LocalPreviewData loadProviderPreviewData(
         return data;
     }
 
-    const QString root = remotePreviewRoot(true);
-    if (root.isEmpty()) {
-        data.content = QStringLiteral("Cannot create remote preview staging folder.");
-        return data;
-    }
-
-    const QString cleanupDir = QDir(root).filePath(QUuid::createUuid().toString(QUuid::WithoutBraces));
-    if (!QDir().mkpath(cleanupDir)) {
-        data.content = QStringLiteral("Cannot create remote preview staging folder.");
-        return data;
-    }
-
+    if (progressReady && !progressReady(0, entry->size, true)) return data;
+    const QString cacheIdentity = provider->previewCacheIdentity(normalized);
+    auto artifact = allowCache ? RemotePreviewCache::instance().find(cacheIdentity)
+                               : std::shared_ptr<RemotePreviewArtifact>{};
+    QString cleanupDir;
     QString previewLeaseId;
-    CleanupSubsystem::instance().registerArtifact(
-        CleanupArtifactKind::RemotePreview,
-        cleanupDir,
-        root,
-        true,
-        &previewLeaseId);
-    if (previewLeaseId.isEmpty()) {
-        removeRemotePreviewDir(cleanupDir);
-        data.content = QStringLiteral("Cannot register remote preview for cleanup.");
-        return data;
-    }
+    QString materializedPath;
+    if (artifact) {
+        cleanupDir = artifact->directory;
+        materializedPath = artifact->path;
+    } else {
 
-    const QString localCopyName = provider->localCopyFileName(normalized).trimmed();
-    QString materializedName = safePreviewFileName(localCopyName.isEmpty() ? entry->name : localCopyName);
-    const QString materializedSuffix = materializedPreviewSuffix(*entry);
-    if (QFileInfo(materializedName).suffix().isEmpty() && !materializedSuffix.isEmpty()) {
-        materializedName += QLatin1Char('.') + materializedSuffix;
-    }
-    const QString materializedPath = QDir(cleanupDir).filePath(materializedName);
-    const QString stagingMaterializedPath = QDir(cleanupDir).filePath(QStringLiteral(".staging-") + materializedName);
-    bool exceededLimit = false;
-    QString error;
-    bool copied = false;
-    bool cancelledByProgress = false;
-    const qint64 metadataTotal = entry->size > 0 ? entry->size : 0;
-    if (progressReady) {
-        (void)progressReady(0, metadataTotal, true);
-    }
-    for (int attempt = 0; attempt < 2 && !copied; ++attempt) {
-        QFile::remove(stagingMaterializedPath);
-        error.clear();
-        QElapsedTimer progressTimer;
-        progressTimer.start();
-        const bool staged = provider->copyToLocalFileForPreview(
-            normalized,
-            stagingMaterializedPath,
-            [&exceededLimit, &cancelledByProgress, &progressReady, &progressTimer, metadataTotal](qint64 processed, qint64 total) {
-                if (processed > kRemotePreviewMaterializeLimit) {
-                    exceededLimit = true;
-                    return false;
-                }
-                const qint64 effectiveTotal = total > 0 ? total : metadataTotal;
-                if (progressReady
-                    && (processed == 0
-                        || (effectiveTotal > 0 && processed >= effectiveTotal)
-                        || progressTimer.elapsed() >= 100)) {
-                    if (!progressReady(processed, effectiveTotal, processed <= 0)) {
-                        cancelledByProgress = true;
+        const QString root = remotePreviewRoot(true);
+        if (root.isEmpty()) {
+            data.content = QStringLiteral("Cannot create remote preview staging folder.");
+            return data;
+        }
+
+        cleanupDir = QDir(root).filePath(QUuid::createUuid().toString(QUuid::WithoutBraces));
+        if (!QDir().mkpath(cleanupDir)) {
+            data.content = QStringLiteral("Cannot create remote preview staging folder.");
+            return data;
+        }
+
+        CleanupSubsystem::instance().registerArtifact(
+            CleanupArtifactKind::RemotePreview,
+            cleanupDir,
+            root,
+            true,
+            &previewLeaseId);
+        if (previewLeaseId.isEmpty()) {
+            removeRemotePreviewDir(cleanupDir);
+            data.content = QStringLiteral("Cannot register remote preview for cleanup.");
+            return data;
+        }
+
+        const QString localCopyName = provider->localCopyFileName(normalized).trimmed();
+        QString materializedName = safePreviewFileName(localCopyName.isEmpty() ? entry->name : localCopyName);
+        const QString materializedSuffix = materializedPreviewSuffix(*entry);
+        if (QFileInfo(materializedName).suffix().isEmpty() && !materializedSuffix.isEmpty()) {
+            materializedName += QLatin1Char('.') + materializedSuffix;
+        }
+        materializedPath = QDir(cleanupDir).filePath(materializedName);
+        const QString stagingMaterializedPath = QDir(cleanupDir).filePath(QStringLiteral(".staging-") + materializedName);
+        bool exceededLimit = false;
+        QString error;
+        bool copied = false;
+        bool cancelledByProgress = false;
+        const qint64 metadataTotal = entry->size > 0 ? entry->size : 0;
+        if (progressReady) {
+            if (!progressReady(0, metadataTotal, true)) {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(previewLeaseId);
+                return data;
+            }
+        }
+        for (int attempt = 0; attempt < 2 && !copied; ++attempt) {
+            QFile::remove(stagingMaterializedPath);
+            error.clear();
+            QElapsedTimer progressTimer;
+            progressTimer.start();
+            const bool staged = provider->copyToLocalFileForPreview(
+                normalized,
+                stagingMaterializedPath,
+                [&exceededLimit, &cancelledByProgress, &progressReady, &progressTimer, metadataTotal](qint64 processed, qint64 total) {
+                    if (processed > kRemotePreviewMaterializeLimit) {
+                        exceededLimit = true;
                         return false;
                     }
-                    progressTimer.restart();
-                }
-                return true;
-            },
-            &error);
+                    const qint64 effectiveTotal = total > 0 ? total : metadataTotal;
+                    if (progressReady
+                        && (processed == 0
+                            || (effectiveTotal > 0 && processed >= effectiveTotal)
+                            || progressTimer.elapsed() >= 100)) {
+                        if (!progressReady(processed, effectiveTotal, processed <= 0)) {
+                            cancelledByProgress = true;
+                            return false;
+                        }
+                        progressTimer.restart();
+                    }
+                    return true;
+                },
+                &error);
 
-        if (!staged) {
-            if (!cancelledByProgress) {
-                qWarning() << "[QuickLook] remote preview copy failed"
+            if (!staged) {
+                if (!cancelledByProgress) {
+                    qWarning() << "[QuickLook] remote preview copy failed"
+                               << "source:" << redactedPreviewPathForLog(normalized)
+                               << "destination:" << stagingMaterializedPath
+                               << "error:" << error;
+                }
+                QFile::remove(stagingMaterializedPath);
+                break;
+            }
+
+            if (progressReady && !progressReady(QFileInfo(stagingMaterializedPath).size(), metadataTotal, true)) {
+                cancelledByProgress = true;
+                QFile::remove(stagingMaterializedPath);
+                break;
+            }
+
+            if (!materializedRemotePreviewLooksUsable(stagingMaterializedPath, *entry)) {
+                qWarning() << "[QuickLook] remote preview validation failed"
                            << "source:" << redactedPreviewPathForLog(normalized)
                            << "destination:" << stagingMaterializedPath
-                           << "error:" << error;
+                           << "bytes:" << QFileInfo(stagingMaterializedPath).size();
+                QFile::remove(stagingMaterializedPath);
+                error = QStringLiteral("Cannot decode materialized remote preview.");
+                continue;
             }
-            QFile::remove(stagingMaterializedPath);
-            break;
+
+            QFile::remove(materializedPath);
+            if (!QFile::rename(stagingMaterializedPath, materializedPath)) {
+                QFile::remove(stagingMaterializedPath);
+                error = QStringLiteral("Cannot finalize remote preview file.");
+                break;
+            }
+            if (quickLookPreviewTraceEnabled()) {
+                qWarning() << "[QuickLook] remote preview materialized"
+                           << "source:" << redactedPreviewPathForLog(normalized)
+                           << "path:" << materializedPath
+                           << "bytes:" << QFileInfo(materializedPath).size();
+            }
+            copied = true;
         }
 
-        if (!materializedRemotePreviewLooksUsable(stagingMaterializedPath, *entry)) {
-            qWarning() << "[QuickLook] remote preview validation failed"
-                       << "source:" << redactedPreviewPathForLog(normalized)
-                       << "destination:" << stagingMaterializedPath
-                       << "bytes:" << QFileInfo(stagingMaterializedPath).size();
-            QFile::remove(stagingMaterializedPath);
-            error = QStringLiteral("Cannot decode materialized remote preview.");
-            continue;
+        if (copied && progressReady) {
+            (void)progressReady(metadataTotal, metadataTotal, true);
         }
 
-        QFile::remove(materializedPath);
-        if (!QFile::rename(stagingMaterializedPath, materializedPath)) {
-            QFile::remove(stagingMaterializedPath);
-            error = QStringLiteral("Cannot finalize remote preview file.");
-            break;
+        if (!copied) {
+            if (!previewLeaseId.isEmpty()) {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(previewLeaseId);
+            } else {
+                removeRemotePreviewDir(cleanupDir);
+            }
+            data.content = exceededLimit
+                ? remotePreviewTooLargeText(*entry)
+                : (error.trimmed().isEmpty()
+                    ? QStringLiteral("Cannot materialize remote preview.")
+                    : error.trimmed());
+            return data;
         }
-        if (quickLookPreviewTraceEnabled()) {
-            qWarning() << "[QuickLook] remote preview materialized"
-                       << "source:" << redactedPreviewPathForLog(normalized)
-                       << "path:" << materializedPath
-                       << "bytes:" << QFileInfo(materializedPath).size();
-        }
-        copied = true;
-    }
 
-    if (copied && progressReady) {
-        (void)progressReady(metadataTotal, metadataTotal, true);
-    }
-
-    if (!copied) {
-        if (!previewLeaseId.isEmpty()) {
-            CleanupSubsystem::instance().scheduleDeleteOnFailure(previewLeaseId);
-        } else {
-            removeRemotePreviewDir(cleanupDir);
+        // Publish only a fully validated file, and only if its provider session and
+        // metadata still describe the request we started with.
+        if (!cacheIdentity.isEmpty() && provider->previewCacheIdentity(normalized) == cacheIdentity
+            && (!progressReady || progressReady(metadataTotal, metadataTotal, true))) {
+            artifact = std::make_shared<RemotePreviewArtifact>();
+            artifact->path = materializedPath;
+            artifact->directory = cleanupDir;
+            artifact->leaseId = previewLeaseId;
+            artifact->bytes = QFileInfo(materializedPath).size();
+            RemotePreviewCache::instance().insert(cacheIdentity, artifact);
         }
-        data.content = exceededLimit
-            ? remotePreviewTooLargeText(*entry)
-            : (error.trimmed().isEmpty()
-                ? QStringLiteral("Cannot materialize remote preview.")
-                : error.trimmed());
-        return data;
     }
 
     data = loadLocalPreviewData(materializedPath, false);
-    data.cleanupDir = cleanupDir;
-    data.cleanupLeaseId = previewLeaseId;
+    data.cachedArtifact = artifact;
+    data.cleanupDir = artifact ? QString{} : cleanupDir;
+    data.cleanupLeaseId = artifact ? QString{} : previewLeaseId;
     data.materializedPath = materializedPath;
     data.metadataPath = materializedPath;
     if (data.type == QLatin1String("audio")) {

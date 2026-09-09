@@ -1,4 +1,5 @@
 #include "GDriveTransferClient.h"
+#include "../../core/PreviewDownloadCancellation.h"
 
 #include "GDriveApiClient.h"
 #include "GDriveExportPolicy.h"
@@ -150,7 +151,8 @@ bool downloadFileToLocalFileImpl(QNetworkAccessManager &network,
                                   const QString &accessToken,
                                   const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
                                   QString *error,
-                                  const QString &resourceKey)
+                                  const QString &resourceKey,
+                                  bool pollPreviewCancellation = false)
 {
     const QUrl url = driveDownloadUrl(sourcePath, mimeType, destinationFilePath);
     if (!url.isValid()) {
@@ -191,6 +193,11 @@ bool downloadFileToLocalFileImpl(QNetworkAccessManager &network,
     bool timedOut = false;
     QTimer idleTimeout;
     idleTimeout.setSingleShot(true);
+    PreviewDownloadCancellation cancellationPoll(reply,
+        pollPreviewCancellation ? progress : std::function<bool(qint64, qint64)>{}, [&]() {
+            canceled = true;
+            reply->abort();
+        });
 
     auto consumeReadyRead = [&]() {
         if (!reply->isOpen()) {
@@ -233,6 +240,7 @@ bool downloadFileToLocalFileImpl(QNetworkAccessManager &network,
     QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
     idleTimeout.start(TransferIdleTimeoutMs);
     loop.exec();
+    cancellationPoll.stop();
     idleTimeout.stop();
     consumeReadyRead();
 
@@ -1136,10 +1144,19 @@ bool downloadFileToLocalFile(QNetworkAccessManager &network,
                              const QString &accessToken,
                              const std::function<bool(qint64, qint64)> &progress,
                              QString *error,
-                             const QString &resourceKey)
+                             const QString &resourceKey,
+                             bool pollPreviewCancellation)
 {
     return downloadFileToLocalFileImpl(network, sourcePath, mimeType, destinationFilePath,
-                                       accessToken, progress, error, resourceKey);
+                                       accessToken, progress, error, resourceKey, pollPreviewCancellation);
+}
+
+QNetworkAccessManager &previewNetwork()
+{
+    // Quick Look creates a provider per file. Keep connections on the worker
+    // thread instead, until that pool thread expires.
+    thread_local QNetworkAccessManager network;
+    return network;
 }
 
 bool uploadFileBlockingWithRetry(QNetworkAccessManager &network,

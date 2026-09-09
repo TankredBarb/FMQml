@@ -380,6 +380,8 @@ qt_add_executable(fm
     src/preview/PreviewInternal.h
     src/preview/ProviderPreviewMaterializer.cpp
     src/preview/ProviderPreviewMaterializer.h
+    src/preview/RemotePreviewCache.cpp
+    src/preview/RemotePreviewCache.h
     src/preview/TextPreviewLoader.cpp
     src/preview/TextPreviewLoader.h
     src/preview/text/TextPreviewReader.cpp
@@ -2274,6 +2276,42 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(thumbnail_controller_test PRIVATE src/core src/controllers)
     target_link_libraries(thumbnail_controller_test PRIVATE Qt6::Core Qt6::Gui)
     add_test(NAME thumbnail_controller_test COMMAND thumbnail_controller_test)
+
+    add_executable(remote_preview_cache_test
+        tests/core/RemotePreviewCacheTest.cpp
+        src/preview/RemotePreviewCache.cpp
+        src/core/CleanupSubsystem.cpp
+        src/core/CleanupSubsystem.h
+    )
+    target_include_directories(remote_preview_cache_test PRIVATE src)
+    target_link_libraries(remote_preview_cache_test PRIVATE Qt6::Core Qt6::Concurrent)
+    add_test(NAME remote_preview_cache_test COMMAND remote_preview_cache_test)
+
+    add_executable(preview_download_cancellation_test tests/core/PreviewDownloadCancellationTest.cpp)
+    target_include_directories(preview_download_cancellation_test PRIVATE src/core)
+    target_link_libraries(preview_download_cancellation_test PRIVATE Qt6::Core Qt6::Network)
+    add_test(NAME preview_download_cancellation_test COMMAND preview_download_cancellation_test)
+
+    add_executable(provider_preview_materializer_test
+        tests/core/ProviderPreviewMaterializerTest.cpp
+        src/preview/ProviderPreviewMaterializer.cpp
+        src/preview/RemotePreviewCache.cpp
+        src/core/CleanupSubsystem.cpp
+        src/core/CleanupSubsystem.h
+        src/core/FileProvider.h
+    )
+    target_include_directories(provider_preview_materializer_test PRIVATE src src/controllers)
+    target_link_libraries(provider_preview_materializer_test PRIVATE Qt6::Core Qt6::Gui Qt6::Concurrent)
+    add_test(NAME provider_preview_materializer_test COMMAND provider_preview_materializer_test)
+
+    add_executable(gdrive_thumbnail_network_test
+        tests/core/GDriveThumbnailNetworkTest.cpp
+        src/plugins/gdrive/GDriveThumbnailLoader.cpp
+    )
+    target_include_directories(gdrive_thumbnail_network_test PRIVATE src/plugins/gdrive)
+    target_link_libraries(gdrive_thumbnail_network_test PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
+    add_test(NAME gdrive_thumbnail_network_test COMMAND gdrive_thumbnail_network_test)
+    set_tests_properties(gdrive_thumbnail_network_test PROPERTIES TIMEOUT 15)
 
     add_executable(folder_preview_controller_test
         tests/core/FolderPreviewControllerTest.cpp

@@ -13,6 +13,8 @@ class QNetworkAccessManager;
 
 namespace GDriveTransferClient {
 
+QNetworkAccessManager &previewNetwork();
+
 struct UploadLogContext
 {
     QString batchId;
@@ -48,7 +50,8 @@ bool downloadFileToLocalFile(QNetworkAccessManager &network,
                              const QString &accessToken,
                              const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
                              QString *error,
-                             const QString &resourceKey = {});
+                             const QString &resourceKey = {},
+                             bool pollPreviewCancellation = false);
 bool uploadFileBlockingWithRetry(QNetworkAccessManager &network,
                                  const QString &sourceFilePath,
                                  const QString &parentId,

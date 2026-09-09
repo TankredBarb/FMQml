@@ -9,7 +9,7 @@
 
 #include "FileProvider.h"
 
-inline constexpr int FM_FILE_PROVIDER_PLUGIN_API_VERSION = 2;
+inline constexpr int FM_FILE_PROVIDER_PLUGIN_API_VERSION = 3;
 
 class FileProviderPlugin
 {

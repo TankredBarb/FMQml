@@ -1,4 +1,5 @@
 #include "QuickLookController.h"
+#include "../preview/RemotePreviewCache.h"
 #include <QFileInfo>
 #include <QFileDevice>
 #include <QFile>
@@ -128,6 +129,9 @@ QuickLookController::~QuickLookController()
     m_taskPool.clear();
     m_taskPool.waitForDone();
     clearMaterializedPreview();
+    // Release reuse-only leases while the application and cleanup workers are
+    // still alive. Other open previews retain their shared artifact ownership.
+    PreviewInternal::RemotePreviewCache::instance().clear();
 }
 
 int QuickLookController::beginPreviewGeneration()
@@ -589,6 +593,7 @@ void QuickLookController::requestMetadata(const QString &path, int previewGenera
 
 void QuickLookController::clearMaterializedPreview()
 {
+    m_cachedPreviewArtifact.reset();
     m_materializedPreviewFile.clear();
     const QString leaseId = std::move(m_materializedPreviewLeaseId);
     m_materializedPreviewLeaseId.clear();
@@ -1442,13 +1447,13 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     m_path = path;
     const bool archivePath = ArchiveSupport::isArchivePath(path);
     if (!archivePath) {
-        previewLocalOrMaterializedFile(path, myGen, keepVisible);
+        previewLocalOrMaterializedFile(path, myGen, keepVisible, forceReload);
         return;
     }
     previewArchiveEntry(path, myGen);
 }
 
-void QuickLookController::previewLocalOrMaterializedFile(const QString &path, int myGen, bool keepVisible)
+void QuickLookController::previewLocalOrMaterializedFile(const QString &path, int myGen, bool keepVisible, bool forceReload)
 {
     if (keepVisible) {
         if (!m_loading) {
@@ -1521,7 +1526,7 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
     }
 
         QPointer<QuickLookController> self(this);
-        (void)QtConcurrent::run(&m_taskPool, [self, path, myGen, keepVisible]() {
+        (void)QtConcurrent::run(&m_taskPool, [self, path, myGen, keepVisible, forceReload]() {
             const bool adminLocalPreview = !QFileInfo(path).isReadable()
                 && !LinuxAdminBroker::activeSessionNonce().isEmpty();
             const bool pluginProviderPreview = FileProviderFactory::hasPluginProviderForPath(path);
@@ -1563,7 +1568,7 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
                         self->m_name = name;
                         emit self->nameChanged();
                     }, Qt::QueuedConnection);
-                }, progressReady)
+                }, progressReady, !forceReload)
                 : loadLocalPreviewData(path, false);
             if (!self) {
                 if (!data.cleanupLeaseId.isEmpty()) {
@@ -1593,6 +1598,7 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
                 self->m_materializedPreviewDir = std::move(data.cleanupDir);
                 self->m_materializedPreviewLeaseId = std::move(data.cleanupLeaseId);
                 self->m_materializedPreviewFile = std::move(data.materializedPath);
+                self->m_cachedPreviewArtifact = std::move(data.cachedArtifact);
                 self->m_content = useTextPreviewController ? QString() : std::move(data.content);
                 self->m_type = std::move(data.type);
                 self->m_extension = std::move(data.extension);

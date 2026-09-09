@@ -32,7 +32,15 @@ Window {
             root.normalPopup.fullscreenActive = false
             root.normalPopup.opacity = 1
             root.normalPopup.enabled = true
-            Qt.callLater(() => root.normalPopup.contentItem.forceActiveFocus())
+            if (root.hostWindow) {
+                root.hostWindow.requestActivate()
+            }
+            Qt.callLater(() => {
+                if (root.hostWindow) {
+                    root.hostWindow.requestActivate()
+                }
+                root.normalPopup.contentItem.forceActiveFocus(Qt.ShortcutFocusReason)
+            })
         }
     }
 

@@ -42,6 +42,7 @@ QtObject {
     }
 
     readonly property bool canUsePanelShortcuts: root.appVisible
+                                                 && root.appActive
                                                  && !root.anyOverlayOpen
                                                  && !root.editorActive
     readonly property bool canUseFileViewShortcuts: root.canUsePanelShortcuts

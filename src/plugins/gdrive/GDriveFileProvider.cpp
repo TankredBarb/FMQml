@@ -495,6 +495,23 @@ public:
         return gdriveThumbnailCacheIdentity(normalized);
     }
 
+    QString previewCacheIdentity(const QString &path) const override
+    {
+        const QString normalized = normalizedPath(path);
+        const auto entry = entryInfo(normalized);
+        const QString sessionScope = GDriveAuth::previewSessionScope();
+        // Shortcuts and native Google documents need their own target/export
+        // revision policy; do not reuse them based on the wrapper's metadata.
+        if (!entry || entry->isDirectory || entry->isShortcut || !entry->modified.isValid()
+            || entry->mimeType.startsWith(QStringLiteral("application/vnd.google-apps."))
+            || sessionScope.isEmpty()) return {};
+        const auto capabilities = sharedCapabilities(normalized);
+        if (!capabilities || !capabilities->canDownload) return {};
+        return QStringLiteral("gdrive-preview:") + sessionScope + QLatin1Char('|') + normalized
+            + QLatin1Char('|') + QString::number(entry->modified.toMSecsSinceEpoch())
+            + QLatin1Char('|') + QString::number(entry->size);
+    }
+
     ProviderThumbnailResult thumbnailForPath(const QString &path,
                                              const QSize &requestedSize,
                                              QString *error) const override
@@ -872,6 +889,26 @@ public:
                          const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
                          QString *error) const override
     {
+        return copyToLocalFileImpl(sourcePath, destinationFilePath, progress, error, false);
+    }
+
+    bool copyToLocalFileForPreview(const QString &sourcePath,
+                                   const QString &destinationFilePath,
+                                   const std::function<bool(qint64, qint64)> &progress,
+                                   QString *error) const override
+    {
+        if (progress && !progress(0, 0)) {
+            if (error) *error = QStringLiteral("Google Drive preview canceled");
+            return false;
+        }
+        return copyToLocalFileImpl(sourcePath, destinationFilePath, progress, error, true);
+    }
+
+    bool copyToLocalFileImpl(const QString &sourcePath,
+                             const QString &destinationFilePath,
+                             const std::function<bool(qint64, qint64)> &progress,
+                             QString *error, bool preview) const
+    {
         clearLastError();
 
         GDrivePreparedDownloadItem prepared;
@@ -895,14 +932,18 @@ public:
         }
 
         QString downloadError;
-        if (!downloadFileToLocalFile(m_network,
+        if (preview && progress && !progress(0, 0)) {
+            if (error) *error = QStringLiteral("Google Drive preview canceled");
+            return false;
+        }
+        if (!GDriveTransferClient::downloadFileToLocalFile(preview ? GDriveTransferClient::previewNetwork() : m_network,
                                           prepared.downloadPath,
                                           prepared.mimeType,
                                           destinationFilePath,
                                           accessToken,
                                           progress,
                                           &downloadError,
-                                          prepared.resourceKey)) {
+                                          prepared.resourceKey, preview)) {
             setLastError(downloadError);
             if (error) {
                 *error = downloadError;

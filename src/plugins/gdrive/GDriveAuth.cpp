@@ -10,6 +10,7 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QNetworkAccessManager>
+#include <QUuid>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QTimer>
@@ -34,6 +35,7 @@ constexpr QLatin1StringView RefreshTokenCredentialTarget{"FMQml/GoogleDrive/OAut
 constexpr QLatin1StringView AccountInfoCredentialTarget{"FMQml/GoogleDrive/AccountInfo"};
 
 struct GDriveAuthSession {
+    QString previewScope = QUuid::createUuid().toString(QUuid::WithoutBraces);
     QString accessToken;
     QDateTime accessTokenExpiresAt;
     QString refreshToken;
@@ -451,6 +453,7 @@ bool rememberRefreshToken(const QString &refreshToken)
 
     QMutexLocker locker(&authSessionMutex());
     GDriveAuthSession &session = authSession();
+    if (session.refreshToken != refreshToken) session.previewScope = QUuid::createUuid().toString(QUuid::WithoutBraces);
     session.refreshToken = refreshToken;
     session.refreshTokenLoaded = true;
     return true;
@@ -470,6 +473,7 @@ bool clearSavedAuthorization()
     const bool accountInfoDeleted = deleteCredentialText(AccountInfoCredentialTarget);
     QMutexLocker locker(&authSessionMutex());
     GDriveAuthSession &session = authSession();
+    session.previewScope = QUuid::createUuid().toString(QUuid::WithoutBraces);
     session.accessToken.clear();
     session.accessTokenExpiresAt = {};
     session.refreshToken.clear();
@@ -505,6 +509,14 @@ QString accessTokenForBlockingRequest(QString *error)
         return {};
     }
     return accessToken;
+}
+
+QString previewSessionScope()
+{
+    if (sessionRefreshToken().isEmpty()) return {};
+    QMutexLocker locker(&authSessionMutex());
+    const GDriveAuthSession &session = authSession();
+    return session.refreshToken.isEmpty() ? QString{} : session.previewScope;
 }
 
 } // namespace GDriveAuth
