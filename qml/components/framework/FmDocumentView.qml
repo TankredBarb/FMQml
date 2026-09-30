@@ -48,6 +48,7 @@ Item {
 
     WheelHandler {
         target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         blocking: true
         onWheel: (event) => {
             const horizontal = (event.modifiers & Qt.ShiftModifier) !== 0

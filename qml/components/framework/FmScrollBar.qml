@@ -90,6 +90,7 @@ ScrollBar {
     WheelHandler {
         enabled: root.scrollNeeded && root.wheelTarget !== null
         target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         orientation: Qt.Vertical
         blocking: true
         onWheel: (event) => root.routeWheel(event)
