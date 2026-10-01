@@ -1,5 +1,8 @@
 #include "NavigationBenchmark.h"
 #include "SelectionBenchmark.h"
+#ifdef FM_ENABLE_RESIZE_BENCHMARK
+#include "PanelResizeBenchmark.h"
+#endif
 
 #include "../app/AppServices.h"
 #include "../controllers/FilePanelController.h"
@@ -786,6 +789,15 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
     while (!window.property("workspaceStateRestored").toBool() && startupWait.elapsed() < 3000) {
         QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
         QThread::msleep(1);
+    }
+
+    if (app.arguments().contains(QStringLiteral("--resize"))) {
+#ifdef FM_ENABLE_RESIZE_BENCHMARK
+        return PanelResizeBenchmark::run(services, window, datasets.at(1).path);
+#else
+        std::fputs("Resize benchmark requires BUILD_TESTING on Linux\n", stderr);
+        return 2;
+#endif
     }
 
     WorkspaceController *workspace = services.workspace();

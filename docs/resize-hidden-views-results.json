@@ -1,0 +1,3860 @@
+{
+  "date": "2026-10-01",
+  "change": "Only anchor StorageView and FavoritesView while visible",
+  "normalTiming": "Independent Wayland processes; 1800x900; 300 PNGs; three seconds sine drag; first 500ms excluded from steadyFrameIntervalMs; XDG_CONFIG_HOME isolated, data and OS caches retained",
+  "profileTiming": "Separate temporary QQmlDebuggingEnabler instrumentation; last 2.5s before console.profileEnd; profile timing excluded from normal timing comparison",
+  "selfTimeMethod": "GUI duration ranges sorted by start, then descending end; subtract directly nested ranges; no partial overlap detected",
+  "finalSourceSha256": {
+    "qml/components/FilePanel.qml": "8fd789661dcf4cc8f9f7309122b73c8a890a59dd74a914c4bd75cbc87b3168f8",
+    "src/tools/PanelResizeBenchmark.cpp": "2caa2a4710d788e52832a23dab8b81e2f67c7c6068cffb6225e98d38b074c611",
+    "src/main.cpp": "b924e3b7d64528845f9e95c1624f614b9a02476214166e3d0f738176ab6f53c1"
+  },
+  "profiles": {
+    "before": {
+      "phase": "last 2.5 seconds before console.profileEnd; excludes initial transition",
+      "overlappingRanges": 0,
+      "selfMsByType": {
+        "Binding": 225.36991900000012,
+        "Javascript": 159.95010099999996,
+        "Creating": 53.42791599999999,
+        "HandlingSignal": 1.1481240000000001
+      },
+      "hiddenViews": {
+        "StorageDriveGrid.qml": {
+          "rangeCountIncludingNested": 7157,
+          "selfMs": 81.47192
+        },
+        "QuickAccessGrid.qml": {
+          "rangeCountIncludingNested": 13742,
+          "selfMs": 59.491057
+        },
+        "FavoritesRowDelegate.qml": {
+          "rangeCountIncludingNested": 16860,
+          "selfMs": 10.782347999999999
+        }
+      },
+      "topRows": [
+        {
+          "index": 9743,
+          "count": 1587,
+          "inclusiveMs": 81.759888,
+          "selfMs": 75.730231,
+          "displayname": "StorageDriveGrid.qml:77",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/storage/StorageDriveGrid.qml",
+          "line": "77",
+          "column": "17",
+          "bindingType": "-1"
+        },
+        {
+          "index": 9936,
+          "count": 3792,
+          "inclusiveMs": 54.236459,
+          "selfMs": 50.242926,
+          "displayname": "QuickAccessGrid.qml:72",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/storage/QuickAccessGrid.qml",
+          "line": "72",
+          "column": "17",
+          "bindingType": "-1"
+        },
+        {
+          "index": 4364,
+          "count": 5031,
+          "inclusiveMs": 31.963785,
+          "selfMs": 31.963785,
+          "displayname": "TranslucentSurface.qml:59",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/common/TranslucentSurface.qml",
+          "line": "59",
+          "column": "9",
+          "details": "expression for sourceRect"
+        },
+        {
+          "index": 4434,
+          "count": 576,
+          "inclusiveMs": 55.246949,
+          "selfMs": 24.705669,
+          "displayname": "FilePanel.qml:74",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/FilePanel.qml",
+          "line": "74",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 8832,
+          "count": 4924,
+          "inclusiveMs": 8.868065,
+          "selfMs": 8.868065,
+          "displayname": "FmProgressBar.qml:23",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/framework/FmProgressBar.qml",
+          "line": "23",
+          "column": "9",
+          "details": "expression for textureSize"
+        },
+        {
+          "index": 7932,
+          "count": 576,
+          "inclusiveMs": 7.962076,
+          "selfMs": 6.556035,
+          "displayname": "PathBar.qml:21",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/PathBar.qml",
+          "line": "21",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 5980,
+          "count": 576,
+          "inclusiveMs": 17.539849,
+          "selfMs": 5.667151,
+          "displayname": "FilePanel.qml:3311",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/FilePanel.qml",
+          "line": "3311",
+          "column": "17",
+          "bindingType": "-1"
+        },
+        {
+          "index": 5418,
+          "count": 582,
+          "inclusiveMs": 61.357011,
+          "selfMs": 5.546814,
+          "displayname": "QuickAccessGrid.qml:57",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/storage/QuickAccessGrid.qml",
+          "line": "57",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 310,
+          "count": 308,
+          "inclusiveMs": 5.227716,
+          "selfMs": 5.227716,
+          "displayname": "Label.qml:9",
+          "type": "Creating",
+          "filename": "qrc:/qt-project.org/imports/QtQuick/Controls/Basic/Label.qml",
+          "line": "9",
+          "column": "1",
+          "details": "QtQuick.Templates/Label"
+        },
+        {
+          "index": 1636,
+          "count": 308,
+          "inclusiveMs": 5.042311,
+          "selfMs": 5.042311,
+          "displayname": "FileIconCell.qml:307",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FileIconCell.qml",
+          "line": "307",
+          "column": "5",
+          "details": "QtQuick/Image"
+        },
+        {
+          "index": 11098,
+          "count": 52,
+          "inclusiveMs": 4.823902,
+          "selfMs": 4.823902,
+          "displayname": "FmScrollBar.qml:27",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/framework/FmScrollBar.qml",
+          "line": "27",
+          "column": "22"
+        },
+        {
+          "index": 11261,
+          "count": 5620,
+          "inclusiveMs": 7.221561,
+          "selfMs": 4.685334,
+          "displayname": "FavoritesRowDelegate.qml:97",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/favorites/FavoritesRowDelegate.qml",
+          "line": "97",
+          "column": "21",
+          "bindingType": "-1"
+        },
+        {
+          "index": 4363,
+          "count": 5031,
+          "inclusiveMs": 38.816199,
+          "selfMs": 4.428526,
+          "displayname": "TranslucentSurface.qml:59",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/common/TranslucentSurface.qml",
+          "line": "59",
+          "column": "9",
+          "bindingType": "-1"
+        },
+        {
+          "index": 2326,
+          "count": 6930,
+          "inclusiveMs": 6.033306,
+          "selfMs": 4.427904,
+          "displayname": "Theme.qml:39",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/style/Theme.qml",
+          "line": "39",
+          "column": "5",
+          "details": "luminance"
+        },
+        {
+          "index": 11812,
+          "count": 154,
+          "inclusiveMs": 13.191996,
+          "selfMs": 3.894732,
+          "displayname": "FilePanelGridDelegate.qml:549",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FilePanelGridDelegate.qml",
+          "line": "549",
+          "column": "5",
+          "details": "QtQuick.Layouts/ColumnLayout"
+        },
+        {
+          "index": 1634,
+          "count": 308,
+          "inclusiveMs": 15.758662,
+          "selfMs": 3.621901,
+          "displayname": "FileIconCell.qml:7",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FileIconCell.qml",
+          "line": "7",
+          "column": "1",
+          "details": "QtQuick/Item"
+        },
+        {
+          "index": 11183,
+          "count": 5620,
+          "inclusiveMs": 3.560787,
+          "selfMs": 3.560787,
+          "displayname": "FavoritesRowDelegate.qml:33",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/favorites/FavoritesRowDelegate.qml",
+          "line": "33",
+          "column": "5",
+          "details": "expression for width"
+        },
+        {
+          "index": 166,
+          "count": 1386,
+          "inclusiveMs": 3.178002,
+          "selfMs": 3.178002,
+          "displayname": "Theme.qml:15",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/style/Theme.qml",
+          "line": "15",
+          "column": "5",
+          "details": "withAlpha"
+        },
+        {
+          "index": 5472,
+          "count": 587,
+          "inclusiveMs": 86.089824,
+          "selfMs": 3.14074,
+          "displayname": "StorageDriveGrid.qml:61",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/storage/StorageDriveGrid.qml",
+          "line": "61",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 8831,
+          "count": 4924,
+          "inclusiveMs": 11.798621,
+          "selfMs": 2.930556,
+          "displayname": "FmProgressBar.qml:23",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/framework/FmProgressBar.qml",
+          "line": "23",
+          "column": "9",
+          "bindingType": "-1"
+        },
+        {
+          "index": 4435,
+          "count": 576,
+          "inclusiveMs": 2.827526,
+          "selfMs": 2.827526,
+          "displayname": "FilePanel.qml:74",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/FilePanel.qml",
+          "line": "74",
+          "column": "5",
+          "details": "expression for hoverPreviewAnchorRect"
+        },
+        {
+          "index": 4432,
+          "count": 576,
+          "inclusiveMs": 16.604002,
+          "selfMs": 2.615089,
+          "displayname": "FilePanelOverlayHost.qml:73",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FilePanelOverlayHost.qml",
+          "line": "73",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 11262,
+          "count": 5620,
+          "inclusiveMs": 2.536227,
+          "selfMs": 2.536227,
+          "displayname": "FavoritesRowDelegate.qml:97",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/favorites/FavoritesRowDelegate.qml",
+          "line": "97",
+          "column": "21",
+          "details": "expression for maximumWidth"
+        },
+        {
+          "index": 11790,
+          "count": 154,
+          "inclusiveMs": 31.987205,
+          "selfMs": 2.496384,
+          "displayname": "FilePanelGridDelegate.qml:9",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FilePanelGridDelegate.qml",
+          "line": "9",
+          "column": "1",
+          "details": "QtQuick/Item"
+        },
+        {
+          "index": 8031,
+          "count": 202,
+          "inclusiveMs": 3.269734,
+          "selfMs": 2.144587,
+          "displayname": "PathBar.qml:116",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/PathBar.qml",
+          "line": "116",
+          "column": "13",
+          "bindingType": "-1"
+        },
+        {
+          "index": 11805,
+          "count": 154,
+          "inclusiveMs": 12.145638,
+          "selfMs": 2.106905,
+          "displayname": "FileGridResizeDelegate.qml:59",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/FileGridResizeDelegate.qml",
+          "line": "59",
+          "column": "5",
+          "details": "QtQuick.Layouts/ColumnLayout"
+        },
+        {
+          "index": 4821,
+          "count": 717,
+          "inclusiveMs": 8.330153,
+          "selfMs": 2.049144,
+          "displayname": "FileHoverPreviewCard.qml:108",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FileHoverPreviewCard.qml",
+          "line": "108",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 11803,
+          "count": 154,
+          "inclusiveMs": 13.438129,
+          "selfMs": 2.047711,
+          "displayname": "FileGridResizeDelegate.qml:7",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/FileGridResizeDelegate.qml",
+          "line": "7",
+          "column": "1",
+          "details": "QtQuick/Item"
+        },
+        {
+          "index": 4594,
+          "count": 576,
+          "inclusiveMs": 10.80019,
+          "selfMs": 2.03828,
+          "displayname": "FolderHoverPreviewCard.qml:32",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FolderHoverPreviewCard.qml",
+          "line": "32",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 332,
+          "count": 308,
+          "inclusiveMs": 3.11384,
+          "selfMs": 2.010758,
+          "displayname": "Theme.qml:164",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/style/Theme.qml",
+          "line": "164",
+          "column": "5",
+          "details": "iconMaterialEdge"
+        }
+      ]
+    },
+    "after": {
+      "phase": "last 2.5 seconds before console.profileEnd; excludes initial transition",
+      "overlappingRanges": 0,
+      "selfMsByType": {
+        "Binding": 109.60197899999999,
+        "Javascript": 151.41037200000014,
+        "Creating": 59.809486999999976,
+        "HandlingSignal": 1.398908
+      },
+      "hiddenViews": {
+        "StorageDriveGrid.qml": {
+          "rangeCountIncludingNested": 0,
+          "selfMs": 0
+        },
+        "QuickAccessGrid.qml": {
+          "rangeCountIncludingNested": 0,
+          "selfMs": 0
+        },
+        "FavoritesRowDelegate.qml": {
+          "rangeCountIncludingNested": 0,
+          "selfMs": 0
+        }
+      },
+      "topRows": [
+        {
+          "index": 4434,
+          "count": 604,
+          "inclusiveMs": 82.567537,
+          "selfMs": 39.138967,
+          "displayname": "FilePanel.qml:74",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/FilePanel.qml",
+          "line": "74",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 4364,
+          "count": 5286,
+          "inclusiveMs": 38.693173,
+          "selfMs": 38.693173,
+          "displayname": "TranslucentSurface.qml:59",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/common/TranslucentSurface.qml",
+          "line": "59",
+          "column": "9",
+          "details": "expression for sourceRect"
+        },
+        {
+          "index": 7932,
+          "count": 604,
+          "inclusiveMs": 10.955171,
+          "selfMs": 8.92693,
+          "displayname": "PathBar.qml:21",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/PathBar.qml",
+          "line": "21",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 5980,
+          "count": 604,
+          "inclusiveMs": 21.524791,
+          "selfMs": 7.128523,
+          "displayname": "FilePanel.qml:3311",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/FilePanel.qml",
+          "line": "3311",
+          "column": "17",
+          "bindingType": "-1"
+        },
+        {
+          "index": 310,
+          "count": 308,
+          "inclusiveMs": 5.835818,
+          "selfMs": 5.835818,
+          "displayname": "Label.qml:9",
+          "type": "Creating",
+          "filename": "qrc:/qt-project.org/imports/QtQuick/Controls/Basic/Label.qml",
+          "line": "9",
+          "column": "1",
+          "details": "QtQuick.Templates/Label"
+        },
+        {
+          "index": 4363,
+          "count": 5286,
+          "inclusiveMs": 47.78578,
+          "selfMs": 5.732388,
+          "displayname": "TranslucentSurface.qml:59",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/common/TranslucentSurface.qml",
+          "line": "59",
+          "column": "9",
+          "bindingType": "-1"
+        },
+        {
+          "index": 1636,
+          "count": 308,
+          "inclusiveMs": 5.531235,
+          "selfMs": 5.531235,
+          "displayname": "FileIconCell.qml:307",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FileIconCell.qml",
+          "line": "307",
+          "column": "5",
+          "details": "QtQuick/Image"
+        },
+        {
+          "index": 2326,
+          "count": 6930,
+          "inclusiveMs": 6.25843,
+          "selfMs": 4.590702,
+          "displayname": "Theme.qml:39",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/style/Theme.qml",
+          "line": "39",
+          "column": "5",
+          "details": "luminance"
+        },
+        {
+          "index": 4435,
+          "count": 604,
+          "inclusiveMs": 4.468184,
+          "selfMs": 4.468184,
+          "displayname": "FilePanel.qml:74",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/FilePanel.qml",
+          "line": "74",
+          "column": "5",
+          "details": "expression for hoverPreviewAnchorRect"
+        },
+        {
+          "index": 11808,
+          "count": 154,
+          "inclusiveMs": 14.408432,
+          "selfMs": 4.253885,
+          "displayname": "FilePanelGridDelegate.qml:549",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FilePanelGridDelegate.qml",
+          "line": "549",
+          "column": "5",
+          "details": "QtQuick.Layouts/ColumnLayout"
+        },
+        {
+          "index": 1634,
+          "count": 308,
+          "inclusiveMs": 17.436603,
+          "selfMs": 3.997726,
+          "displayname": "FileIconCell.qml:7",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FileIconCell.qml",
+          "line": "7",
+          "column": "1",
+          "details": "QtQuick/Item"
+        },
+        {
+          "index": 4432,
+          "count": 604,
+          "inclusiveMs": 23.772526,
+          "selfMs": 3.720566,
+          "displayname": "FilePanelOverlayHost.qml:73",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FilePanelOverlayHost.qml",
+          "line": "73",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 8031,
+          "count": 211,
+          "inclusiveMs": 5.720362,
+          "selfMs": 3.637242,
+          "displayname": "PathBar.qml:116",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/PathBar.qml",
+          "line": "116",
+          "column": "13",
+          "bindingType": "-1"
+        },
+        {
+          "index": 166,
+          "count": 1386,
+          "inclusiveMs": 3.383264,
+          "selfMs": 3.383264,
+          "displayname": "Theme.qml:15",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/style/Theme.qml",
+          "line": "15",
+          "column": "5",
+          "details": "withAlpha"
+        },
+        {
+          "index": 11094,
+          "count": 41,
+          "inclusiveMs": 3.016765,
+          "selfMs": 3.016765,
+          "displayname": "FmScrollBar.qml:27",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/framework/FmScrollBar.qml",
+          "line": "27",
+          "column": "22"
+        },
+        {
+          "index": 11786,
+          "count": 154,
+          "inclusiveMs": 36.00471,
+          "selfMs": 2.989689,
+          "displayname": "FilePanelGridDelegate.qml:9",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FilePanelGridDelegate.qml",
+          "line": "9",
+          "column": "1",
+          "details": "QtQuick/Item"
+        },
+        {
+          "index": 4594,
+          "count": 604,
+          "inclusiveMs": 15.52452,
+          "selfMs": 2.946246,
+          "displayname": "FolderHoverPreviewCard.qml:32",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FolderHoverPreviewCard.qml",
+          "line": "32",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 4821,
+          "count": 755,
+          "inclusiveMs": 11.305939,
+          "selfMs": 2.819954,
+          "displayname": "FileHoverPreviewCard.qml:108",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FileHoverPreviewCard.qml",
+          "line": "108",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 5879,
+          "count": 1208,
+          "inclusiveMs": 2.639312,
+          "selfMs": 2.639312,
+          "displayname": "FilePanel.qml:52",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/FilePanel.qml",
+          "line": "52",
+          "column": "5",
+          "details": "expression for gridCellWidth"
+        },
+        {
+          "index": 4610,
+          "count": 604,
+          "inclusiveMs": 15.18786,
+          "selfMs": 2.368187,
+          "displayname": "FilePanelOverlayHost.qml:44",
+          "type": "Binding",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FilePanelOverlayHost.qml",
+          "line": "44",
+          "column": "5",
+          "bindingType": "-1"
+        },
+        {
+          "index": 4366,
+          "count": 1812,
+          "inclusiveMs": 2.899827,
+          "selfMs": 2.348345,
+          "displayname": "TranslucentSurface.qml:86",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/common/TranslucentSurface.qml",
+          "line": "86",
+          "column": "9",
+          "details": "expression for onSourceRectChanged"
+        },
+        {
+          "index": 11801,
+          "count": 154,
+          "inclusiveMs": 13.634601,
+          "selfMs": 2.33928,
+          "displayname": "FileGridResizeDelegate.qml:59",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/FileGridResizeDelegate.qml",
+          "line": "59",
+          "column": "5",
+          "details": "QtQuick.Layouts/ColumnLayout"
+        },
+        {
+          "index": 11799,
+          "count": 154,
+          "inclusiveMs": 15.148485,
+          "selfMs": 2.269053,
+          "displayname": "FileGridResizeDelegate.qml:7",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/FileGridResizeDelegate.qml",
+          "line": "7",
+          "column": "1",
+          "details": "QtQuick/Item"
+        },
+        {
+          "index": 333,
+          "count": 616,
+          "inclusiveMs": 2.170262,
+          "selfMs": 2.170262,
+          "displayname": "Theme.qml:23",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/style/Theme.qml",
+          "line": "23",
+          "column": "5",
+          "details": "mixColors"
+        },
+        {
+          "index": 332,
+          "count": 308,
+          "inclusiveMs": 3.412069,
+          "selfMs": 2.108383,
+          "displayname": "Theme.qml:164",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/style/Theme.qml",
+          "line": "164",
+          "column": "5",
+          "details": "iconMaterialEdge"
+        },
+        {
+          "index": 1649,
+          "count": 308,
+          "inclusiveMs": 2.082711,
+          "selfMs": 2.082711,
+          "displayname": "FileIconCell.qml:489",
+          "type": "Creating",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FileIconCell.qml",
+          "line": "489",
+          "column": "9",
+          "details": "QtQuick/Text"
+        },
+        {
+          "index": 336,
+          "count": 308,
+          "inclusiveMs": 2.895708,
+          "selfMs": 2.029132,
+          "displayname": "Theme.qml:170",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/style/Theme.qml",
+          "line": "170",
+          "column": "5",
+          "details": "iconMaterialHighlight"
+        },
+        {
+          "index": 4591,
+          "count": 1208,
+          "inclusiveMs": 1.98827,
+          "selfMs": 1.98827,
+          "displayname": "FolderHoverPreviewCard.qml:30",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FolderHoverPreviewCard.qml",
+          "line": "30",
+          "column": "5",
+          "details": "expression for placeLeft"
+        },
+        {
+          "index": 8702,
+          "count": 512,
+          "inclusiveMs": 1.909338,
+          "selfMs": 1.909338,
+          "displayname": "FmButton.qml:53",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/framework/FmButton.qml",
+          "line": "53",
+          "column": "9",
+          "details": "expression for textureSize"
+        },
+        {
+          "index": 3725,
+          "count": 154,
+          "inclusiveMs": 2.518872,
+          "selfMs": 1.901116,
+          "displayname": "FileIconCell.qml:459",
+          "type": "Javascript",
+          "filename": "qrc:/qt/qml/FM/qml/components/filepanel/FileIconCell.qml",
+          "line": "459",
+          "column": "9",
+          "details": "expression for color"
+        }
+      ]
+    }
+  },
+  "regressionBefore": {
+    "hiddenGeometryStable": false,
+    "virtualViewsRestored": true,
+    "allOtherAcceptanceFlags": true
+  },
+  "records": [
+    {
+      "cohort": "before",
+      "file": "wayland-panels-0-0.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 52,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "favoritesWidth": 782,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 782,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 786,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 773,
+                "cellWidth": 0,
+                "children": 43,
+                "favoritesWidth": 849,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 849,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 849,
+                "width": 851
+              },
+              "right": {
+                "cacheBuffer": 773,
+                "cellWidth": 0,
+                "children": 42,
+                "favoritesWidth": 719,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 719,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 719,
+                "width": 721
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 32.38550099999986,
+            "frameIntervalMs": {
+              "count": 358,
+              "max": 34.23096599999985,
+              "p50": 7.07974699999977,
+              "p95": 13.593290000000025,
+              "p99": 26.487563000000137
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 338,
+              "max": 41.652755999999954,
+              "p50": 10.592644999999948,
+              "p95": 20.43151499999999,
+              "p99": 24.225265000000036
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 230,
+              "max": 37.16599,
+              "p50": 0.03198,
+              "p95": 10.895248,
+              "p99": 18.011525
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 338,
+              "max": 16,
+              "p50": 0,
+              "p95": 11,
+              "p99": 14
+            },
+            "pressMs": 27.763494,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 85,
+              "max": 39.058614000000034,
+              "p50": 6.943215999999666,
+              "p95": 7.664582000000337,
+              "p99": 23.67275999999947
+            },
+            "recoveryHeartbeatMs": {
+              "count": 106,
+              "max": 33.45291900000029,
+              "p50": 6.7128139999995255,
+              "p95": 11.318971999999121,
+              "p99": 22.80473400000028
+            },
+            "releaseMs": 24.472787,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 360,
+              "max": 7.224847999999838,
+              "p50": 0.8557969999997113,
+              "p95": 2.2712980000001153,
+              "p99": 2.9223340000000917
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 9,
+              "max": 33.511090000000195,
+              "p50": 20.214563,
+              "p95": 26.511852999999974,
+              "p99": 26.511852999999974
+            },
+            "steadyFrameIntervalMs": {
+              "count": 318,
+              "max": 26.487563000000137,
+              "p50": 7.07974699999977,
+              "p95": 12.579581999999846,
+              "p99": 15.7527070000001
+            },
+            "synchronizationMs": {
+              "count": 360,
+              "max": 6.735994000000119,
+              "p50": 2.342478999999912,
+              "p95": 3.5860680000000684,
+              "p99": 3.9404420000000755
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before",
+      "file": "wayland-panels-0-1.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 59,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "favoritesWidth": 782,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 782,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 786,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 400,
+                "cellWidth": 0,
+                "children": 33,
+                "favoritesWidth": 844,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 844,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 844,
+                "width": 846
+              },
+              "right": {
+                "cacheBuffer": 400,
+                "cellWidth": 0,
+                "children": 32,
+                "favoritesWidth": 724,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 724,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 724,
+                "width": 726
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 31.432943000000023,
+            "frameIntervalMs": {
+              "count": 392,
+              "max": 35.22889299999997,
+              "p50": 7.028497000000243,
+              "p95": 16.26756099999966,
+              "p99": 21.36943199999996
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 367,
+              "max": 50.60153700000001,
+              "p50": 10.202781999999843,
+              "p95": 16.22742100000005,
+              "p99": 23.64899000000014
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 252,
+              "max": 19.473847,
+              "p50": 0.02571,
+              "p95": 10.360463,
+              "p99": 15.383764
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 367,
+              "max": 14,
+              "p50": 0,
+              "p95": 10,
+              "p99": 12
+            },
+            "pressMs": 26.672635,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 83,
+              "max": 43.18319699999938,
+              "p50": 6.934706000000006,
+              "p95": 9.08088300000054,
+              "p99": 14.329165999999532
+            },
+            "recoveryHeartbeatMs": {
+              "count": 126,
+              "max": 23.857732000000397,
+              "p50": 4.954609999999775,
+              "p95": 9.17988400000013,
+              "p99": 13.022764999999708
+            },
+            "releaseMs": 23.859162,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 393,
+              "max": 4.439445999999862,
+              "p50": 0.9028080000002774,
+              "p95": 2.0447869999998147,
+              "p99": 2.758032000000185
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 17,
+              "max": 19.726387999999815,
+              "p50": 7.831323000000111,
+              "p95": 18.878971999999976,
+              "p99": 18.878971999999976
+            },
+            "steadyFrameIntervalMs": {
+              "count": 337,
+              "max": 35.22889299999997,
+              "p50": 7.020905999999741,
+              "p95": 15.147852000000057,
+              "p99": 20.094912000000022
+            },
+            "synchronizationMs": {
+              "count": 393,
+              "max": 13.661090000000058,
+              "p50": 2.4416490000000977,
+              "p95": 3.5338890000000447,
+              "p99": 3.87829099999999
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before",
+      "file": "wayland-panels-1-0.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 63,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 61,
+                "thumbnailReady": 61,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 132,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 130,
+                "thumbnailReady": 100,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "favoritesWidth": 782,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 782,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "favoritesWidth": 786,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 163,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 163,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 27,
+                "cellWidth": 92,
+                "children": 59,
+                "favoritesWidth": 858,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 858,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 819,
+                "width": 860
+              },
+              "right": {
+                "cacheBuffer": 27,
+                "cellWidth": 93,
+                "children": 52,
+                "favoritesWidth": 710,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 710,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 671,
+                "width": 712
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 37.40458000000001,
+            "frameIntervalMs": {
+              "count": 406,
+              "max": 26.741754000000128,
+              "p50": 6.955625999999938,
+              "p95": 14.252185000000281,
+              "p99": 23.027174999999943
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 429,
+              "max": 31.040548999999828,
+              "p50": 6.770383999999922,
+              "p95": 14.31662499999993,
+              "p99": 24.785928999999896
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 397,
+              "max": 23.275877,
+              "p50": 0.01562,
+              "p95": 9.449156,
+              "p99": 10.677136
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 429,
+              "max": 16,
+              "p50": 0,
+              "p95": 6,
+              "p99": 11
+            },
+            "pressMs": 33.127076,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 87,
+              "max": 21.903015999999297,
+              "p50": 6.96300599999995,
+              "p95": 7.944244000000253,
+              "p99": 16.97738600000048
+            },
+            "recoveryHeartbeatMs": {
+              "count": 165,
+              "max": 24.15373400000044,
+              "p50": 2.291308000000754,
+              "p95": 6.72818400000051,
+              "p99": 16.333310999999412
+            },
+            "releaseMs": 20.277953,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 407,
+              "max": 3.7745199999999386,
+              "p50": 0.8403470000000652,
+              "p95": 1.5897429999999986,
+              "p99": 1.985145999999986
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 20,
+              "max": 17.06800700000008,
+              "p50": 6.447012000000086,
+              "p95": 12.964413999999806,
+              "p99": 12.964413999999806
+            },
+            "steadyFrameIntervalMs": {
+              "count": 346,
+              "max": 26.741754000000128,
+              "p50": 6.95384600000034,
+              "p95": 13.62673900000027,
+              "p99": 23.027174999999943
+            },
+            "synchronizationMs": {
+              "count": 408,
+              "max": 5.2165919999999915,
+              "p50": 2.1579169999999976,
+              "p95": 3.307506000000103,
+              "p99": 4.171282999999676
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before",
+      "file": "wayland-panels-1-1.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 65,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 64,
+                "thumbnailReady": 61,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 111,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "favoritesWidth": 782,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 782,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "favoritesWidth": 786,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 163,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 163,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 92,
+                "children": 57,
+                "favoritesWidth": 863,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 863,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 824,
+                "width": 865
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 93,
+                "children": 50,
+                "favoritesWidth": 705,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 705,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 666,
+                "width": 707
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 35.71006599999987,
+            "frameIntervalMs": {
+              "count": 387,
+              "max": 34.97230999999965,
+              "p50": 6.965326000000005,
+              "p95": 15.185152000000016,
+              "p99": 24.946270999999797
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 445,
+              "max": 44.335835999999745,
+              "p50": 6.62142300000005,
+              "p95": 14.06750299999976,
+              "p99": 24.562167000000045
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 434,
+              "max": 13.479749,
+              "p50": 0.01285,
+              "p95": 7.719512,
+              "p99": 9.956579
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 445,
+              "max": 17,
+              "p50": 0,
+              "p95": 7,
+              "p99": 14
+            },
+            "pressMs": 33.902971,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 90,
+              "max": 22.259867999999642,
+              "p50": 6.948826000000736,
+              "p95": 7.719732000000022,
+              "p99": 8.066955000000235
+            },
+            "recoveryHeartbeatMs": {
+              "count": 166,
+              "max": 20.57998499999985,
+              "p50": 2.32200899999998,
+              "p95": 6.72619399999985,
+              "p99": 6.893305999999939
+            },
+            "releaseMs": 20.580765,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 388,
+              "max": 4.742569000000003,
+              "p50": 0.8949470000002293,
+              "p95": 1.6748540000003231,
+              "p99": 2.0410260000001017
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 20,
+              "max": 19.40633600000001,
+              "p50": 6.642522999999983,
+              "p95": 15.7992270000002,
+              "p99": 15.7992270000002
+            },
+            "steadyFrameIntervalMs": {
+              "count": 331,
+              "max": 34.97230999999965,
+              "p50": 6.964596000000256,
+              "p95": 12.864424000000326,
+              "p99": 23.33521699999983
+            },
+            "synchronizationMs": {
+              "count": 389,
+              "max": 5.713635999999951,
+              "p50": 2.1609779999998864,
+              "p95": 3.2723759999998947,
+              "p99": 4.057312000000138
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before",
+      "file": "wayland-panels-2-0.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 104,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 59,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "favoritesWidth": 782,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 782,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "favoritesWidth": 786,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "favoritesWidth": 858,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 858,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 839,
+                "width": 860
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "favoritesWidth": 710,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 710,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 691,
+                "width": 712
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 75.91585800000007,
+            "frameIntervalMs": {
+              "count": 427,
+              "max": 61.1864599999999,
+              "p50": 6.945126000000073,
+              "p95": 8.64053899999999,
+              "p99": 16.267860000000383
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 410,
+              "max": 53.12955600000009,
+              "p50": 6.842314999999871,
+              "p95": 14.108432999999877,
+              "p99": 20.165602000000035
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 346,
+              "max": 10.446994,
+              "p50": 0.017271,
+              "p95": 9.880499,
+              "p99": 10.240152
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 410,
+              "max": 14,
+              "p50": 0,
+              "p95": 5,
+              "p99": 9
+            },
+            "pressMs": 64.89836,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 81,
+              "max": 57.94895400000041,
+              "p50": 6.976216000000022,
+              "p95": 9.974390000000312,
+              "p99": 13.15742599999976
+            },
+            "recoveryHeartbeatMs": {
+              "count": 78,
+              "max": 37.330009000000246,
+              "p50": 7.018627000000379,
+              "p95": 15.067670999999791,
+              "p99": 23.55261799999971
+            },
+            "releaseMs": 42.210508,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 428,
+              "max": 6.597663000000011,
+              "p50": 1.1833889999998064,
+              "p95": 2.580641000000014,
+              "p99": 3.2360960000000887
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 9,
+              "max": 61.1864599999999,
+              "p50": 6.894514999999956,
+              "p95": 15.9491680000001,
+              "p99": 15.9491680000001
+            },
+            "steadyFrameIntervalMs": {
+              "count": 379,
+              "max": 30.411873999999898,
+              "p50": 6.9457360000001245,
+              "p95": 8.32838700000002,
+              "p99": 12.214187999999922
+            },
+            "synchronizationMs": {
+              "count": 428,
+              "max": 9.901658999999881,
+              "p50": 2.200988000000052,
+              "p95": 3.1405760000002374,
+              "p99": 3.40657699999997
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before",
+      "file": "wayland-panels-2-1.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 102,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 59,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "favoritesWidth": 782,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 782,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "favoritesWidth": 786,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "favoritesWidth": 782,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 782,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "favoritesWidth": 786,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 786,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "favoritesWidth": 856,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 856,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 837,
+                "width": 858
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "favoritesWidth": 712,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 712,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 693,
+                "width": 714
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 69.92858999999999,
+            "frameIntervalMs": {
+              "count": 434,
+              "max": 60.55526400000008,
+              "p50": 6.938695999999709,
+              "p95": 8.626908999999841,
+              "p99": 16.70344299999988
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 378,
+              "max": 48.96747200000004,
+              "p50": 7.030895999999757,
+              "p95": 14.326744999999846,
+              "p99": 23.661468999999897
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 340,
+              "max": 11.876455,
+              "p50": 0.01543,
+              "p95": 9.90685,
+              "p99": 10.190361
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 378,
+              "max": 37,
+              "p50": 0,
+              "p95": 5,
+              "p99": 9
+            },
+            "pressMs": 61.504282,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 85,
+              "max": 59.90941000000021,
+              "p50": 6.9366259999997055,
+              "p95": 9.954388999999537,
+              "p99": 12.016486000000441
+            },
+            "recoveryHeartbeatMs": {
+              "count": 73,
+              "max": 38.51948900000025,
+              "p50": 7.061775999999554,
+              "p95": 18.834129999999277,
+              "p99": 30.071240999999645
+            },
+            "releaseMs": 43.65766,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 435,
+              "max": 7.622191000000157,
+              "p50": 1.1943590000000768,
+              "p95": 2.5121100000001206,
+              "p99": 4.169922999999926
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 10,
+              "max": 60.55526400000008,
+              "p50": 6.858315000000175,
+              "p95": 15.605474000000186,
+              "p99": 15.605474000000186
+            },
+            "steadyFrameIntervalMs": {
+              "count": 382,
+              "max": 23.30207600000017,
+              "p50": 6.944066000000021,
+              "p95": 8.13479499999994,
+              "p99": 15.979546999999911
+            },
+            "synchronizationMs": {
+              "count": 435,
+              "max": 8.233404999999948,
+              "p50": 2.1920780000000377,
+              "p95": 3.2542359999999917,
+              "p99": 3.796480999999858
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "after",
+      "file": "wayland-panels-0-0.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 27,
+                "cellWidth": 0,
+                "children": 23,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 861,
+                "width": 863
+              },
+              "right": {
+                "cacheBuffer": 27,
+                "cellWidth": 0,
+                "children": 22,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 707,
+                "width": 709
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 25.027518999999984,
+            "frameIntervalMs": {
+              "count": 427,
+              "max": 29.777466000000004,
+              "p50": 6.947484999999688,
+              "p95": 7.9958030000000235,
+              "p99": 17.199906000000283
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 473,
+              "max": 27.832900999999993,
+              "p50": 6.869323999999779,
+              "p95": 8.953641000000061,
+              "p99": 15.842164999999795
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 485,
+              "max": 14.055282,
+              "p50": 0.01137,
+              "p95": 5.207951,
+              "p99": 9.138853
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 473,
+              "max": 10,
+              "p50": 0,
+              "p95": 5,
+              "p99": 6
+            },
+            "pressMs": 21.39409,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 84,
+              "max": 31.27038800000082,
+              "p50": 6.953634999999849,
+              "p95": 9.008001999999578,
+              "p99": 12.000324999999975
+            },
+            "recoveryHeartbeatMs": {
+              "count": 115,
+              "max": 20.016249000000244,
+              "p50": 6.529671999999664,
+              "p95": 8.675289000000703,
+              "p99": 12.386937999999645
+            },
+            "releaseMs": 11.32851,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 428,
+              "max": 3.192295999999942,
+              "p50": 0.9737179999997352,
+              "p95": 2.227828000000045,
+              "p99": 2.5743099999999686
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 23,
+              "max": 16.355170000000044,
+              "p50": 5.954976999999872,
+              "p95": 14.489424999999983,
+              "p99": 15.727835000000141
+            },
+            "steadyFrameIntervalMs": {
+              "count": 364,
+              "max": 29.777466000000004,
+              "p50": 6.947484999999688,
+              "p95": 7.851183000000219,
+              "p99": 14.247463000000153
+            },
+            "synchronizationMs": {
+              "count": 428,
+              "max": 3.416987000000063,
+              "p50": 1.1546290000001136,
+              "p95": 1.642312999999831,
+              "p99": 2.0941569999999956
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "after",
+      "file": "wayland-panels-0-1.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 48,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 120,
+                "cellWidth": 0,
+                "children": 25,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 862,
+                "width": 864
+              },
+              "right": {
+                "cacheBuffer": 120,
+                "cellWidth": 0,
+                "children": 24,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 706,
+                "width": 708
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 25.556602999999996,
+            "frameIntervalMs": {
+              "count": 410,
+              "max": 25.997935999999754,
+              "p50": 6.937355000000025,
+              "p95": 9.281673999999839,
+              "p99": 17.04133499999989
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 471,
+              "max": 34.158881000000065,
+              "p50": 6.8484950000001845,
+              "p95": 7.749811000000136,
+              "p99": 15.278830999999855
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 478,
+              "max": 15.755815,
+              "p50": 0.01093,
+              "p95": 0.04357,
+              "p99": 8.288315
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 471,
+              "max": 15,
+              "p50": 0,
+              "p95": 5,
+              "p99": 6
+            },
+            "pressMs": 21.822203,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 83,
+              "max": 33.95043999999962,
+              "p50": 6.9482349999998405,
+              "p95": 8.460657999999967,
+              "p99": 14.623305999999502
+            },
+            "recoveryHeartbeatMs": {
+              "count": 105,
+              "max": 33.17165399999976,
+              "p50": 6.718552999999702,
+              "p95": 8.337156000000505,
+              "p99": 22.15144599999985
+            },
+            "releaseMs": 11.871344,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 411,
+              "max": 4.256354000000101,
+              "p50": 0.976568000000043,
+              "p95": 2.945213999999851,
+              "p99": 3.4829580000000533
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 21,
+              "max": 16.096938000000137,
+              "p50": 6.905975000000126,
+              "p95": 15.520153000000164,
+              "p99": 15.520153000000164
+            },
+            "steadyFrameIntervalMs": {
+              "count": 349,
+              "max": 25.997935999999754,
+              "p50": 6.944066000000021,
+              "p95": 8.667729000000008,
+              "p99": 17.04133499999989
+            },
+            "synchronizationMs": {
+              "count": 411,
+              "max": 3.520328000000063,
+              "p50": 1.1070979999999508,
+              "p95": 1.7202539999998407,
+              "p99": 1.8530350000000908
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "after",
+      "file": "wayland-panels-1-0.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 63,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 61,
+                "thumbnailReady": 61,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 143,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 142,
+                "thumbnailReady": 98,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 163,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 163,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 120,
+                "cellWidth": 92,
+                "children": 65,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 812,
+                "width": 853
+              },
+              "right": {
+                "cacheBuffer": 120,
+                "cellWidth": 93,
+                "children": 57,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 678,
+                "width": 719
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 35.53273100000001,
+            "frameIntervalMs": {
+              "count": 410,
+              "max": 25.29748100000006,
+              "p50": 6.947065000000066,
+              "p95": 11.122658000000001,
+              "p99": 22.17148599999996
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 1075,
+              "max": 25.508552000000236,
+              "p50": 2.1236369999996896,
+              "p95": 4.708427000000029,
+              "p99": 19.201152000000093
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 639,
+              "max": 8.747859,
+              "p50": 0.0121,
+              "p95": 2.181448,
+              "p99": 8.201325
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 1075,
+              "max": 21,
+              "p50": 1,
+              "p95": 5,
+              "p99": 10
+            },
+            "pressMs": 32.79463,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 86,
+              "max": 19.079160999999658,
+              "p50": 6.941095000000132,
+              "p95": 8.575928000000204,
+              "p99": 11.50112100000024
+            },
+            "recoveryHeartbeatMs": {
+              "count": 141,
+              "max": 35.90508500000033,
+              "p50": 2.6834020000005694,
+              "p95": 7.970822999999655,
+              "p99": 12.821590999999898
+            },
+            "releaseMs": 10.592784,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 411,
+              "max": 2.7887620000001334,
+              "p50": 0.8699970000000121,
+              "p95": 1.4995519999999942,
+              "p99": 1.7968539999999393
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 20,
+              "max": 24.644986000000017,
+              "p50": 6.91441500000019,
+              "p95": 8.917731000000003,
+              "p99": 8.917731000000003
+            },
+            "steadyFrameIntervalMs": {
+              "count": 351,
+              "max": 25.29748100000006,
+              "p50": 6.946694999999636,
+              "p95": 8.411387000000104,
+              "p99": 21.213508000000047
+            },
+            "synchronizationMs": {
+              "count": 412,
+              "max": 5.274631999999883,
+              "p50": 0.7230359999998655,
+              "p95": 1.553171999999904,
+              "p99": 1.9551350000001548
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "after",
+      "file": "wayland-panels-1-1.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 63,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 62,
+                "thumbnailReady": 62,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 160,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 159,
+                "thumbnailReady": 105,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 163,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 163,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 27,
+                "cellWidth": 92,
+                "children": 59,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 814,
+                "width": 855
+              },
+              "right": {
+                "cacheBuffer": 27,
+                "cellWidth": 93,
+                "children": 52,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 676,
+                "width": 717
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 35.36016100000006,
+            "frameIntervalMs": {
+              "count": 401,
+              "max": 28.27392400000008,
+              "p50": 6.9346449999998185,
+              "p95": 10.607074000000011,
+              "p99": 20.57710300000008
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 986,
+              "max": 25.640352999999777,
+              "p50": 2.128567000000203,
+              "p95": 6.504672000000028,
+              "p99": 18.420746000000236
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 586,
+              "max": 11.961535,
+              "p50": 0.01254,
+              "p95": 4.019322,
+              "p99": 8.368367
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 986,
+              "max": 11,
+              "p50": 1,
+              "p95": 4,
+              "p99": 6
+            },
+            "pressMs": 33.597767,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 86,
+              "max": 21.103747000000112,
+              "p50": 6.933324999999968,
+              "p95": 8.102904000000308,
+              "p99": 16.723433000000114
+            },
+            "recoveryHeartbeatMs": {
+              "count": 160,
+              "max": 29.429933999999776,
+              "p50": 2.2854480000000876,
+              "p95": 6.71298299999944,
+              "p99": 13.582138000000214
+            },
+            "releaseMs": 13.584058,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 402,
+              "max": 2.3855180000000473,
+              "p50": 0.8260769999999411,
+              "p95": 1.519702000000052,
+              "p99": 1.919484999999895
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 21,
+              "max": 20.20581900000002,
+              "p50": 6.937535000000025,
+              "p95": 11.024257000000034,
+              "p99": 11.024257000000034
+            },
+            "steadyFrameIntervalMs": {
+              "count": 339,
+              "max": 28.27392400000008,
+              "p50": 6.9340540000002875,
+              "p95": 7.9629720000002635,
+              "p99": 20.57710300000008
+            },
+            "synchronizationMs": {
+              "count": 402,
+              "max": 5.086430999999948,
+              "p50": 0.6817759999998998,
+              "p95": 1.6538539999999102,
+              "p99": 2.043995999999879
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "after",
+      "file": "wayland-panels-2-0.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 102,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 59,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 845,
+                "width": 866
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 685,
+                "width": 706
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 63.525102999999945,
+            "frameIntervalMs": {
+              "count": 434,
+              "max": 53.87597600000004,
+              "p50": 6.944555000000037,
+              "p95": 7.135286000000178,
+              "p99": 14.506554000000051
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 1267,
+              "max": 47.10735199999999,
+              "p50": 2.1402870000001712,
+              "p95": 4.089252000000215,
+              "p99": 4.956349000000046
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 738,
+              "max": 8.060964,
+              "p50": 0.01061,
+              "p95": 0.02353,
+              "p99": 2.53067
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 1267,
+              "max": 7,
+              "p50": 2,
+              "p95": 5,
+              "p99": 6
+            },
+            "pressMs": 55.64284,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 85,
+              "max": 42.86675900000046,
+              "p50": 6.938724999999977,
+              "p95": 8.467757000000347,
+              "p99": 13.791599000000133
+            },
+            "recoveryHeartbeatMs": {
+              "count": 47,
+              "max": 26.533620000000155,
+              "p50": 13.781379000000015,
+              "p95": 22.877691000000596,
+              "p99": 24.137580999999955
+            },
+            "releaseMs": 28.933139,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 435,
+              "max": 7.348347999999987,
+              "p50": 1.2200900000000274,
+              "p95": 1.8737739999996847,
+              "p99": 2.684061000000156
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 14,
+              "max": 53.87597600000004,
+              "p50": 6.929785000000038,
+              "p95": 10.567654000000175,
+              "p99": 10.567654000000175
+            },
+            "steadyFrameIntervalMs": {
+              "count": 378,
+              "max": 24.901456999999937,
+              "p50": 6.944605000000138,
+              "p95": 7.101675999999998,
+              "p99": 13.979949999999917
+            },
+            "synchronizationMs": {
+              "count": 435,
+              "max": 7.151676999999836,
+              "p50": 0.7091860000000452,
+              "p95": 1.2609999999999673,
+              "p99": 1.4438610000001972
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "after",
+      "file": "wayland-panels-2-1.json",
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 102,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 59,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "storageWidth": 0,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "favoritesWidth": 0,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 838,
+                "width": 859
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "favoritesWidth": 0,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "storageWidth": 0,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 692,
+                "width": 713
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 64.85031200000003,
+            "frameIntervalMs": {
+              "count": 420,
+              "max": 53.15093999999999,
+              "p50": 6.939674999999625,
+              "p95": 7.190937000000304,
+              "p99": 15.019858999999997
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 1226,
+              "max": 47.77103699999998,
+              "p50": 2.1289670000001024,
+              "p95": 4.066282000000228,
+              "p99": 5.049050000000079
+            },
+            "hiddenGeometryChecked": false,
+            "hiddenGeometryStable": true,
+            "inputCallMs": {
+              "count": 719,
+              "max": 8.068234,
+              "p50": 0.01051,
+              "p95": 0.02184,
+              "p99": 2.468679
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 1226,
+              "max": 7,
+              "p50": 2,
+              "p95": 6,
+              "p99": 6
+            },
+            "pressMs": 56.358115,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 85,
+              "max": 46.875579999999445,
+              "p50": 6.9537049999999,
+              "p95": 9.333953999999721,
+              "p99": 14.890916999999718
+            },
+            "recoveryHeartbeatMs": {
+              "count": 79,
+              "max": 25.186898999999812,
+              "p50": 7.012794999999642,
+              "p95": 16.834262999999737,
+              "p99": 21.950263000000632
+            },
+            "releaseMs": 30.288929,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 421,
+              "max": 7.468118999999888,
+              "p50": 1.0156680000000051,
+              "p95": 2.0027659999998377,
+              "p99": 2.5323100000000522
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 13,
+              "max": 53.15093999999999,
+              "p50": 6.932655000000068,
+              "p95": 12.856502000000091,
+              "p99": 12.856502000000091
+            },
+            "steadyFrameIntervalMs": {
+              "count": 365,
+              "max": 24.441203999999743,
+              "p50": 6.940185000000383,
+              "p95": 7.09746599999994,
+              "p99": 10.619783999999981
+            },
+            "synchronizationMs": {
+              "count": 421,
+              "max": 7.736891000000014,
+              "p50": 0.6750250000000051,
+              "p95": 1.2090990000001511,
+              "p99": 1.4243309999999383
+            },
+            "virtualViewsRestored": true
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    }
+  ],
+  "validation": {
+    "normalBuild": "passed",
+    "focusedCtestPassed": 8,
+    "focusedCtestSeconds": 78.81,
+    "normalWaylandAccepted": 12,
+    "redTest": "panel_resize_geometry_1: hiddenGeometryStable=false; other criteria passed",
+    "greenTests": "panel_resize_geometry_0/1/2 including virtual-page restoration and resizing passed",
+    "diffCheck": "passed"
+  }
+}

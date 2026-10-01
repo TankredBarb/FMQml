@@ -1,0 +1,6149 @@
+{
+  "date": "2026-10-01",
+  "inputRoute": "QTest QWindow public API; call timings include processEvents",
+  "repetitions": "Independent process and temporary XDG_CONFIG_HOME for each report; OS/data caches not cleared",
+  "excludedControl": "ineffective-animation-control kept cacheBuffer=1600: restart ran before the target binding updated; not evidence about gradual trimming",
+  "finalSourceSha256": {
+    "qml/components/FilePanel.qml": "23ab7b9bef0bd6eed5c4991d31643668868e56f2e16eafc931974e2daf02250f",
+    "src/tools/PanelResizeBenchmark.cpp": "848c7fb228a65fe18b3bdc38f05b87dddbba66a0b5a0c75358e3fe61b83d60d6",
+    "scripts/panel-resize-benchmark.py": "0c46d86f9497076b9e41bb2acbfef91fbb3e172050a6175e1edb5fc794ea355b"
+  },
+  "records": [
+    {
+      "cohort": "before",
+      "file": "wayland-panels-0-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 35,
+                "cellWidth": 0,
+                "children": 22,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 20,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 22,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 862,
+                "width": 864
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 21,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 706,
+                "width": 708
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 34.43104600000004,
+            "frameIntervalMs": {
+              "count": 403,
+              "max": 30.546800000000076,
+              "p50": 7.042394000000058,
+              "p95": 13.33856199999991,
+              "p99": 20.620959000000312
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 321,
+              "max": 29.60349099999985,
+              "p50": 12.100560999999743,
+              "p95": 14.615463999999974,
+              "p99": 16.69161299999996
+            },
+            "inputCallMs": {
+              "count": 245,
+              "max": 15.075868,
+              "p50": 0.027971,
+              "p95": 10.189103,
+              "p99": 11.116452
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 321,
+              "max": 17,
+              "p50": 0,
+              "p95": 14,
+              "p99": 16
+            },
+            "pressMs": 63.508202,
+            "recovered": true,
+            "releaseMs": 23.579456,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 405,
+              "max": 4.308859999999868,
+              "p50": 1.0224600000001374,
+              "p95": 2.156709999999748,
+              "p99": 2.6508649999998397
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "synchronizationMs": {
+              "count": 405,
+              "max": 5.2402179999999134,
+              "p50": 2.2728809999998703,
+              "p95": 3.463991999999962,
+              "p99": 3.9398459999997613
+            }
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before",
+      "file": "wayland-panels-0-1.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 21,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 20,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 22,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 863,
+                "width": 865
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 21,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 705,
+                "width": 707
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 35.90849700000001,
+            "frameIntervalMs": {
+              "count": 386,
+              "max": 31.660409000000072,
+              "p50": 7.055843999999979,
+              "p95": 13.003538000000162,
+              "p99": 19.595308999999816
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 351,
+              "max": 27.089525999999978,
+              "p50": 11.013341000000082,
+              "p95": 15.444151000000147,
+              "p99": 23.40179399999988
+            },
+            "inputCallMs": {
+              "count": 245,
+              "max": 17.389099,
+              "p50": 0.030981,
+              "p95": 10.94271,
+              "p99": 16.809204
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 351,
+              "max": 18,
+              "p50": 0,
+              "p95": 15,
+              "p99": 17
+            },
+            "pressMs": 66.100163,
+            "recovered": true,
+            "releaseMs": 24.917147,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 387,
+              "max": 7.4976080000001275,
+              "p50": 1.1223110000000815,
+              "p95": 2.07063799999969,
+              "p99": 3.086217999999917
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "synchronizationMs": {
+              "count": 379,
+              "max": 5.402809999999818,
+              "p50": 2.2177499999997963,
+              "p95": 3.571561999999858,
+              "p99": 3.97553599999992
+            }
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before",
+      "file": "wayland-panels-1-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 140,
+                "cellWidth": 92,
+                "children": 61,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 93,
+                "children": 57,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 92,
+                "children": 57,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 819,
+                "width": 860
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 93,
+                "children": 50,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 671,
+                "width": 712
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 29.890200999999934,
+            "frameIntervalMs": {
+              "count": 413,
+              "max": 43.32660299999998,
+              "p50": 6.973522999999659,
+              "p95": 12.458322999999837,
+              "p99": 22.37866299999996
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 455,
+              "max": 32.06641099999979,
+              "p50": 6.859461999999894,
+              "p95": 13.859345000000303,
+              "p99": 24.255079999999907
+            },
+            "inputCallMs": {
+              "count": 436,
+              "max": 24.23622,
+              "p50": 0.013901,
+              "p95": 6.944203,
+              "p99": 9.830589
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 455,
+              "max": 17,
+              "p50": 0,
+              "p95": 6,
+              "p99": 9
+            },
+            "pressMs": 70.857092,
+            "recovered": true,
+            "releaseMs": 21.303453,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 414,
+              "max": 2.429832000000033,
+              "p50": 0.9732589999998709,
+              "p95": 1.6331049999998868,
+              "p99": 1.9545670000002247
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "synchronizationMs": {
+              "count": 414,
+              "max": 6.123556000000008,
+              "p50": 2.2730799999999363,
+              "p95": 3.2222900000001573,
+              "p99": 3.8596050000001014
+            }
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before",
+      "file": "wayland-panels-1-1.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 105,
+                "cellWidth": 92,
+                "children": 60,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 93,
+                "children": 57,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 92,
+                "children": 57,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 819,
+                "width": 860
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 93,
+                "children": 50,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 671,
+                "width": 712
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 3.852215000000001,
+            "frameIntervalMs": {
+              "count": 414,
+              "max": 34.652432999999974,
+              "p50": 6.983523999999761,
+              "p95": 10.639715999999908,
+              "p99": 22.17334000000028
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 453,
+              "max": 29.95477000000028,
+              "p50": 6.633589999999913,
+              "p95": 14.617581999999857,
+              "p99": 26.452658000000156
+            },
+            "inputCallMs": {
+              "count": 389,
+              "max": 22.492632,
+              "p50": 0.01729,
+              "p95": 9.845828,
+              "p99": 10.215452
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 453,
+              "max": 19,
+              "p50": 0,
+              "p95": 9,
+              "p99": 16
+            },
+            "pressMs": 73.941557,
+            "recovered": true,
+            "releaseMs": 20.565656,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 414,
+              "max": 2.9714369999999235,
+              "p50": 1.0318700000000263,
+              "p95": 1.8131160000000364,
+              "p99": 2.178658999999925
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "synchronizationMs": {
+              "count": 405,
+              "max": 6.288596999999982,
+              "p50": 2.2176100000001497,
+              "p95": 3.384469999999965,
+              "p99": 3.792603999999983
+            }
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before",
+      "file": "wayland-panels-2-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 70,
+                "cellWidth": 381,
+                "children": 61,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 383,
+                "children": 59,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 763,
+                "children": 30,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 838,
+                "width": 859
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 767,
+                "children": 30,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 692,
+                "width": 713
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 49.55760500000008,
+            "frameIntervalMs": {
+              "count": 413,
+              "max": 73.99849299999983,
+              "p50": 6.962402000000111,
+              "p95": 9.703457000000071,
+              "p99": 18.237912999999935
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 426,
+              "max": 24.547669999999925,
+              "p50": 6.8333410000000185,
+              "p95": 13.99824499999977,
+              "p99": 14.496949999999742
+            },
+            "inputCallMs": {
+              "count": 381,
+              "max": 10.422344,
+              "p50": 0.015911,
+              "p95": 9.833768,
+              "p99": 10.254851
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 426,
+              "max": 13,
+              "p50": 0,
+              "p95": 6,
+              "p99": 10
+            },
+            "pressMs": 104.84646,
+            "recovered": true,
+            "releaseMs": 142.662319,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 415,
+              "max": 7.770050000000083,
+              "p50": 1.5075230000002193,
+              "p95": 3.292738999999983,
+              "p99": 3.9274749999999585
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "synchronizationMs": {
+              "count": 415,
+              "max": 7.949101000000155,
+              "p50": 2.220600000000104,
+              "p95": 3.200909000000138,
+              "p99": 3.567062999999962
+            }
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before",
+      "file": "wayland-panels-2-1.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 35,
+                "cellWidth": 381,
+                "children": 60,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 383,
+                "children": 59,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 763,
+                "children": 30,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 843,
+                "width": 864
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 767,
+                "children": 30,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 687,
+                "width": 708
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 48.767285000000015,
+            "frameIntervalMs": {
+              "count": 438,
+              "max": 75.968208,
+              "p50": 6.9486020000001645,
+              "p95": 7.977770999999848,
+              "p99": 14.93352300000015
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 364,
+              "max": 24.49609899999996,
+              "p50": 7.167103999999654,
+              "p95": 14.072904999999992,
+              "p99": 17.8587100000002
+            },
+            "inputCallMs": {
+              "count": 332,
+              "max": 16.643348,
+              "p50": 0.018,
+              "p95": 9.969439,
+              "p99": 10.297281
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 364,
+              "max": 10,
+              "p50": 0,
+              "p95": 5,
+              "p99": 8
+            },
+            "pressMs": 104.529643,
+            "recovered": true,
+            "releaseMs": 146.785829,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 439,
+              "max": 6.3113069999999425,
+              "p50": 1.2209609999999884,
+              "p95": 2.0831179999997858,
+              "p99": 2.759954999999991
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "synchronizationMs": {
+              "count": 437,
+              "max": 8.322334999999839,
+              "p50": 2.3043310000000474,
+              "p95": 3.12480800000003,
+              "p99": 3.596223000000009
+            }
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before-with-recovery",
+      "file": "wayland-panels-0-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 56,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 22,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 21,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 22,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 853,
+                "width": 855
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 0,
+                "children": 21,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 715,
+                "width": 717
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 41.81629399999997,
+            "frameIntervalMs": {
+              "count": 358,
+              "max": 34.421100000000024,
+              "p50": 8.09101099999998,
+              "p95": 14.043181999999888,
+              "p99": 19.65788099999986
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 358,
+              "max": 39.05460999999991,
+              "p50": 10.42343099999971,
+              "p95": 14.935140000000047,
+              "p99": 21.175625000000082
+            },
+            "inputCallMs": {
+              "count": 250,
+              "max": 14.754868,
+              "p50": 0.02757,
+              "p95": 11.060326,
+              "p99": 12.65182
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 358,
+              "max": 17,
+              "p50": 0,
+              "p95": 13,
+              "p99": 16
+            },
+            "pressMs": 69.269633,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 80,
+              "max": 42.985134000000016,
+              "p50": 6.958641000000171,
+              "p95": 12.26923699999952,
+              "p99": 14.38251500000024
+            },
+            "recoveryHeartbeatMs": {
+              "count": 112,
+              "max": 24.16074000000026,
+              "p50": 6.64086800000041,
+              "p95": 9.022288000000117,
+              "p99": 9.522321999999804
+            },
+            "releaseMs": 24.16191,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 360,
+              "max": 5.406326999999919,
+              "p50": 0.9698790000002191,
+              "p95": 2.6603030000001127,
+              "p99": 3.4030689999999595
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 12,
+              "max": 34.421100000000024,
+              "p50": 8.221780999999964,
+              "p95": 23.374833999999964,
+              "p99": 23.374833999999964
+            },
+            "synchronizationMs": {
+              "count": 360,
+              "max": 5.514408000000003,
+              "p50": 2.512221999999838,
+              "p95": 3.464100000000144,
+              "p99": 4.02212499999996
+            }
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before-with-recovery",
+      "file": "wayland-panels-1-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 149,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 92,
+                "children": 57,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 93,
+                "children": 57,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 92,
+                "children": 57,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 825,
+                "width": 866
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 93,
+                "children": 50,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 665,
+                "width": 706
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 29.793448000000012,
+            "frameIntervalMs": {
+              "count": 409,
+              "max": 42.36462699999993,
+              "p50": 6.947879999999941,
+              "p95": 13.263514999999643,
+              "p99": 22.380593999999974
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 471,
+              "max": 25.222429000000147,
+              "p50": 6.770658000000367,
+              "p95": 13.715408999999909,
+              "p99": 22.897268000000167
+            },
+            "inputCallMs": {
+              "count": 449,
+              "max": 10.293369,
+              "p50": 0.01315,
+              "p95": 6.069332,
+              "p99": 9.486242
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 471,
+              "max": 18,
+              "p50": 0,
+              "p95": 6,
+              "p99": 15
+            },
+            "pressMs": 69.365071,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 82,
+              "max": 59.423775000000205,
+              "p50": 6.947599999999511,
+              "p95": 7.094332000000577,
+              "p99": 22.63120499999968
+            },
+            "recoveryHeartbeatMs": {
+              "count": 102,
+              "max": 33.17538799999966,
+              "p50": 2.6688730000005307,
+              "p95": 15.826347000000169,
+              "p99": 20.747780000000603
+            },
+            "releaseMs": 20.75042,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 411,
+              "max": 3.5624900000000252,
+              "p50": 0.9162579999999707,
+              "p95": 1.540072999999893,
+              "p99": 1.9728370000000268
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 20,
+              "max": 42.36462699999993,
+              "p50": 6.945040000000063,
+              "p95": 7.10105099999987,
+              "p99": 7.10105099999987
+            },
+            "synchronizationMs": {
+              "count": 411,
+              "max": 6.2242040000001,
+              "p50": 2.247949999999946,
+              "p95": 3.145527000000129,
+              "p99": 3.5909119999998893
+            }
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "before-with-recovery",
+      "file": "wayland-panels-2-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 65,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 150,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 763,
+                "children": 30,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 767,
+                "children": 30,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 0,
+                "cellWidth": 763,
+                "children": 30,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 843,
+                "width": 864
+              },
+              "right": {
+                "cacheBuffer": 0,
+                "cellWidth": 767,
+                "children": 30,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 687,
+                "width": 708
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 55.605710000000045,
+            "frameIntervalMs": {
+              "count": 439,
+              "max": 66.39562299999989,
+              "p50": 6.942919999999958,
+              "p95": 8.486523000000034,
+              "p99": 13.893019999999979
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 422,
+              "max": 24.059987999999976,
+              "p50": 6.925438999999869,
+              "p95": 14.013991000000033,
+              "p99": 14.97184900000002
+            },
+            "inputCallMs": {
+              "count": 374,
+              "max": 19.281627,
+              "p50": 0.01702,
+              "p95": 9.858075,
+              "p99": 10.128788
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 422,
+              "max": 12,
+              "p50": 0,
+              "p95": 7,
+              "p99": 9
+            },
+            "pressMs": 102.927918,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 72,
+              "max": 167.2731220000005,
+              "p50": 6.972760000000562,
+              "p95": 12.92366099999981,
+              "p99": 45.82311500000014
+            },
+            "recoveryHeartbeatMs": {
+              "count": 92,
+              "max": 144.09455199999957,
+              "p50": 6.865649000000303,
+              "p95": 13.965100999999777,
+              "p99": 46.245428000000175
+            },
+            "releaseMs": 144.098742,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 440,
+              "max": 14.059751000000006,
+              "p50": 1.3339720000001307,
+              "p95": 2.251220000000103,
+              "p99": 2.508241999999882
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 12,
+              "max": 66.39562299999989,
+              "p50": 6.904459999999972,
+              "p95": 17.728002999999944,
+              "p99": 17.728002999999944
+            },
+            "synchronizationMs": {
+              "count": 440,
+              "max": 8.022939999999835,
+              "p50": 2.2548299999998562,
+              "p95": 3.092536999999993,
+              "p99": 3.5200009999998656
+            }
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "keep-all-cache-control",
+      "file": "wayland-panels-0-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 849,
+                "width": 851
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 719,
+                "width": 721
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 29.8670249999999,
+            "frameIntervalMs": {
+              "count": 290,
+              "max": 32.029883000000154,
+              "p50": 9.24800899999991,
+              "p95": 20.238902999999937,
+              "p99": 25.09664399999997
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 174,
+              "max": 37.99112500000001,
+              "p50": 19.78479900000002,
+              "p95": 22.448851000000104,
+              "p99": 29.34675100000004
+            },
+            "inputCallMs": {
+              "count": 157,
+              "max": 19.87682,
+              "p50": 0.02657,
+              "p95": 15.404882,
+              "p99": 16.713962
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 174,
+              "max": 19,
+              "p50": 0,
+              "p95": 7,
+              "p99": 17
+            },
+            "pressMs": 25.456817,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 77,
+              "max": 56.604403000000275,
+              "p50": 6.941518999999971,
+              "p95": 7.09255100000064,
+              "p99": 51.131406000000425
+            },
+            "recoveryHeartbeatMs": {
+              "count": 288,
+              "max": 34.21837199999982,
+              "p50": 2.0624870000001465,
+              "p95": 2.6421730000001844,
+              "p99": 2.8903150000005553
+            },
+            "releaseMs": 34.220982,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 291,
+              "max": 5.672177999999803,
+              "p50": 1.2483899999997448,
+              "p95": 2.891175000000203,
+              "p99": 3.416088999999829
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 17,
+              "max": 20.694887000000108,
+              "p50": 8.87414600000011,
+              "p95": 19.92516099999989,
+              "p99": 19.92516099999989
+            },
+            "synchronizationMs": {
+              "count": 292,
+              "max": 5.478006999999934,
+              "p50": 2.1145980000001146,
+              "p95": 3.4300990000001548,
+              "p99": 3.8766729999999825
+            }
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "keep-all-cache-control",
+      "file": "wayland-panels-0-1.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 843,
+                "width": 845
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 725,
+                "width": 727
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 36.28348899999992,
+            "frameIntervalMs": {
+              "count": 292,
+              "max": 44.67757000000006,
+              "p50": 8.298231000000214,
+              "p95": 21.471102999999857,
+              "p99": 27.78171599999996
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 184,
+              "max": 37.13425499999994,
+              "p50": 19.662217000000055,
+              "p95": 23.178736999999728,
+              "p99": 35.29599099999996
+            },
+            "inputCallMs": {
+              "count": 158,
+              "max": 34.819016,
+              "p50": 0.02664,
+              "p95": 17.320247,
+              "p99": 19.801249
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 184,
+              "max": 18,
+              "p50": 0,
+              "p95": 11,
+              "p99": 17
+            },
+            "pressMs": 36.828623,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 59,
+              "max": 60.62173499999972,
+              "p50": 6.936658999999963,
+              "p95": 7.343243000000257,
+              "p99": 58.69166800000039
+            },
+            "recoveryHeartbeatMs": {
+              "count": 289,
+              "max": 36.602850999999646,
+              "p50": 2.0654969999995956,
+              "p95": 2.6454520000006596,
+              "p99": 2.9797150000003967
+            },
+            "releaseMs": 36.604841,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 293,
+              "max": 4.933731999999964,
+              "p50": 1.0862700000000132,
+              "p95": 2.969184999999925,
+              "p99": 3.5287000000000717
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 13,
+              "max": 44.67757000000006,
+              "p50": 7.760296000000153,
+              "p95": 27.78171599999996,
+              "p99": 27.78171599999996
+            },
+            "synchronizationMs": {
+              "count": 293,
+              "max": 5.10871300000008,
+              "p50": 1.3463310000001911,
+              "p95": 3.593329999999696,
+              "p99": 4.021833999999899
+            }
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "keep-all-cache-control",
+      "file": "wayland-panels-1-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 823,
+                "width": 864
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 144,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 667,
+                "width": 708
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 38.36248499999999,
+            "frameIntervalMs": {
+              "count": 381,
+              "max": 28.894364000000223,
+              "p50": 7.033908999999767,
+              "p95": 14.091010000000097,
+              "p99": 18.830749999999853
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 385,
+              "max": 26.884026999999605,
+              "p50": 6.970369000000119,
+              "p95": 16.4280389999999,
+              "p99": 19.716816999999992
+            },
+            "inputCallMs": {
+              "count": 314,
+              "max": 22.600582,
+              "p50": 0.01627,
+              "p95": 16.287148,
+              "p99": 19.711837
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 385,
+              "max": 19,
+              "p50": 0,
+              "p95": 4,
+              "p99": 10
+            },
+            "pressMs": 35.770663,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 68,
+              "max": 33.73246500000005,
+              "p50": 6.9587590000001,
+              "p95": 7.543634000000566,
+              "p99": 12.428125000000364
+            },
+            "recoveryHeartbeatMs": {
+              "count": 232,
+              "max": 35.388928999999735,
+              "p50": 2.070076999999401,
+              "p95": 7.154131000000234,
+              "p99": 9.122316999999384
+            },
+            "releaseMs": 35.389959,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 382,
+              "max": 3.3617589999998927,
+              "p50": 1.1910600000001068,
+              "p95": 2.236808999999994,
+              "p99": 2.8181340000001
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 23,
+              "max": 9.768853000000036,
+              "p50": 6.929147999999941,
+              "p95": 8.76870400000007,
+              "p99": 9.021595999999818
+            },
+            "synchronizationMs": {
+              "count": 382,
+              "max": 5.798469000000068,
+              "p50": 1.993916999999783,
+              "p95": 3.185197000000244,
+              "p99": 3.928973000000042
+            }
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "keep-all-cache-control",
+      "file": "wayland-panels-1-1.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 818,
+                "width": 859
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 144,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 672,
+                "width": 713
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 37.377575999999976,
+            "frameIntervalMs": {
+              "count": 393,
+              "max": 30.176285000000007,
+              "p50": 7.015679000000091,
+              "p95": 13.653065000000424,
+              "p99": 19.750547000000097
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 402,
+              "max": 26.180761000000075,
+              "p50": 6.911267999999836,
+              "p95": 15.980335000000196,
+              "p99": 21.840464999999995
+            },
+            "inputCallMs": {
+              "count": 323,
+              "max": 26.174151,
+              "p50": 0.01523,
+              "p95": 15.924354,
+              "p99": 22.331638
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 402,
+              "max": 19,
+              "p50": 0,
+              "p95": 4,
+              "p99": 9
+            },
+            "pressMs": 35.378829,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 67,
+              "max": 33.68403399999988,
+              "p50": 6.940789000000223,
+              "p95": 10.034704000000602,
+              "p99": 14.659333999999944
+            },
+            "recoveryHeartbeatMs": {
+              "count": 218,
+              "max": 35.03165499999977,
+              "p50": 2.0708770000001095,
+              "p95": 7.083039999999528,
+              "p99": 17.666128999999273
+            },
+            "releaseMs": 35.032925,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 394,
+              "max": 3.3156880000001365,
+              "p50": 1.1132800000000316,
+              "p95": 1.9166960000000017,
+              "p99": 2.7383629999999357
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 23,
+              "max": 8.87195500000007,
+              "p50": 6.957398999999896,
+              "p95": 8.531021999999894,
+              "p99": 8.785464000000047
+            },
+            "synchronizationMs": {
+              "count": 394,
+              "max": 5.785689000000048,
+              "p50": 2.0230470000001333,
+              "p95": 3.156145999999808,
+              "p99": 3.614330000000109
+            }
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "keep-all-cache-control",
+      "file": "wayland-panels-2-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 112,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 842,
+                "width": 863
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 688,
+                "width": 709
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 70.9587570000001,
+            "frameIntervalMs": {
+              "count": 428,
+              "max": 35.91149199999995,
+              "p50": 6.95392800000036,
+              "p95": 8.956834999999955,
+              "p99": 15.903953999999885
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 451,
+              "max": 48.06359500000008,
+              "p50": 6.726807000000008,
+              "p95": 13.982457999999951,
+              "p99": 15.994554999999991
+            },
+            "inputCallMs": {
+              "count": 375,
+              "max": 10.222006,
+              "p50": 0.01575,
+              "p95": 9.839732,
+              "p99": 10.103305
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 451,
+              "max": 11,
+              "p50": 0,
+              "p95": 7,
+              "p99": 10
+            },
+            "pressMs": 59.185818,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 80,
+              "max": 60.85924100000011,
+              "p50": 6.962597999999161,
+              "p95": 13.833376000000499,
+              "p99": 18.815758000000642
+            },
+            "recoveryHeartbeatMs": {
+              "count": 53,
+              "max": 38.78651599999921,
+              "p50": 13.411153000000013,
+              "p95": 17.139374000000316,
+              "p99": 22.852062000000842
+            },
+            "releaseMs": 44.09064,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 430,
+              "max": 9.307968999999957,
+              "p50": 1.2801599999997961,
+              "p95": 2.3390600000000177,
+              "p99": 2.8572039999999106
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 14,
+              "max": 35.91149199999995,
+              "p50": 6.966728999999987,
+              "p95": 15.736781999999948,
+              "p99": 15.736781999999948
+            },
+            "synchronizationMs": {
+              "count": 430,
+              "max": 8.083708000000115,
+              "p50": 2.2116290000003573,
+              "p95": 3.0564959999999246,
+              "p99": 3.2984670000000733
+            }
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "keep-all-cache-control",
+      "file": "wayland-panels-2-1.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 97,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 844,
+                "width": 865
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 686,
+                "width": 707
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 69.51539300000013,
+            "frameIntervalMs": {
+              "count": 425,
+              "max": 38.77972399999999,
+              "p50": 6.962558000000172,
+              "p95": 9.368498999999701,
+              "p99": 15.564779999999928
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 410,
+              "max": 48.603746999999885,
+              "p50": 6.903747000000294,
+              "p95": 14.030747999999676,
+              "p99": 16.232876000000033
+            },
+            "inputCallMs": {
+              "count": 358,
+              "max": 10.651749,
+              "p50": 0.01626,
+              "p95": 9.925043,
+              "p99": 10.252696
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 410,
+              "max": 40,
+              "p50": 0,
+              "p95": 7,
+              "p99": 12
+            },
+            "pressMs": 59.360547,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 79,
+              "max": 58.81711300000006,
+              "p50": 6.933877999999822,
+              "p95": 14.726303000000371,
+              "p99": 21.39267899999959
+            },
+            "recoveryHeartbeatMs": {
+              "count": 75,
+              "max": 38.0852189999996,
+              "p50": 7.128460000000814,
+              "p95": 17.965100000000348,
+              "p99": 24.10029200000008
+            },
+            "releaseMs": 42.093163,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 426,
+              "max": 9.560580000000073,
+              "p50": 1.3512120000000323,
+              "p95": 3.052584999999908,
+              "p99": 3.477468999999928
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 14,
+              "max": 38.77972399999999,
+              "p50": 6.843076999999994,
+              "p95": 15.848703000000114,
+              "p99": 15.848703000000114
+            },
+            "synchronizationMs": {
+              "count": 426,
+              "max": 8.12785800000006,
+              "p50": 2.224909000000025,
+              "p95": 3.061584999999468,
+              "p99": 3.569719999999961
+            }
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "ineffective-animation-control",
+      "file": "wayland-panels-0-0.json",
+      "timingIncluded": false,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 855,
+                "width": 857
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 713,
+                "width": 715
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 30.600193000000104,
+            "frameIntervalMs": {
+              "count": 256,
+              "max": 28.195842999999968,
+              "p50": 15.964512000000013,
+              "p95": 20.29056800000012,
+              "p99": 24.562112999999954
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 244,
+              "max": 39.55586699999981,
+              "p50": 18.351032000000032,
+              "p95": 21.772339999999986,
+              "p99": 26.10869600000001
+            },
+            "inputCallMs": {
+              "count": 175,
+              "max": 22.98498,
+              "p50": 0.026241,
+              "p95": 17.435344,
+              "p99": 18.950457
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 244,
+              "max": 22,
+              "p50": 0,
+              "p95": 19,
+              "p99": 21
+            },
+            "pressMs": 25.833174,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 85,
+              "max": 55.31438799999978,
+              "p50": 6.966608000000633,
+              "p95": 7.097708000000239,
+              "p99": 7.634504000000561
+            },
+            "recoveryHeartbeatMs": {
+              "count": 290,
+              "max": 35.967057000000295,
+              "p50": 2.06540700000005,
+              "p95": 2.682992000000013,
+              "p99": 3.0061149999992267
+            },
+            "releaseMs": 35.971397,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 257,
+              "max": 4.303785000000062,
+              "p50": 1.5292929999995977,
+              "p95": 2.726372000000083,
+              "p99": 4.002793000000111
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 14,
+              "max": 20.29056800000012,
+              "p50": 8.230988000000025,
+              "p95": 19.700552000000016,
+              "p99": 19.700552000000016
+            },
+            "synchronizationMs": {
+              "count": 258,
+              "max": 4.698959000000059,
+              "p50": 2.694441999999981,
+              "p95": 3.7020510000002105,
+              "p99": 3.9780830000004244
+            }
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "ineffective-animation-control",
+      "file": "wayland-panels-0-1.json",
+      "timingIncluded": false,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 846,
+                "width": 848
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 722,
+                "width": 724
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 28.979968999999983,
+            "frameIntervalMs": {
+              "count": 291,
+              "max": 27.201233999999886,
+              "p50": 7.096708999999919,
+              "p95": 19.964264999999614,
+              "p99": 25.114826999999877
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 193,
+              "max": 31.18159700000001,
+              "p50": 19.583372000000054,
+              "p95": 21.67449899999997,
+              "p99": 24.971355999999787
+            },
+            "inputCallMs": {
+              "count": 160,
+              "max": 20.046455,
+              "p50": 0.02669,
+              "p95": 14.362628,
+              "p99": 16.98398
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 193,
+              "max": 18,
+              "p50": 0,
+              "p95": 13,
+              "p99": 18
+            },
+            "pressMs": 24.807475,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 68,
+              "max": 60.63294900000028,
+              "p50": 6.936407000000145,
+              "p95": 7.084058000000368,
+              "p99": 7.436031000000185
+            },
+            "recoveryHeartbeatMs": {
+              "count": 289,
+              "max": 36.04941699999972,
+              "p50": 2.0632869999999457,
+              "p95": 2.7108820000003107,
+              "p99": 2.8414539999994304
+            },
+            "releaseMs": 36.051217,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 292,
+              "max": 5.799078000000009,
+              "p50": 0.7939069999999901,
+              "p95": 2.915273999999954,
+              "p99": 4.24804499999982
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 17,
+              "max": 19.447871000000077,
+              "p50": 1.6589329999999336,
+              "p95": 19.40370999999982,
+              "p99": 19.40370999999982
+            },
+            "synchronizationMs": {
+              "count": 293,
+              "max": 3.749911000000111,
+              "p50": 0.6308750000002874,
+              "p95": 3.4989989999999125,
+              "p99": 3.6868309999999838
+            }
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "ineffective-animation-control",
+      "file": "wayland-panels-1-0.json",
+      "timingIncluded": false,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 821,
+                "width": 862
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 144,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 669,
+                "width": 710
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 37.43370799999991,
+            "frameIntervalMs": {
+              "count": 359,
+              "max": 26.86764099999982,
+              "p50": 7.168408999999883,
+              "p95": 18.43939100000034,
+              "p99": 23.87488600000006
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 381,
+              "max": 33.21180299999969,
+              "p50": 7.094728000000032,
+              "p95": 16.925648999999794,
+              "p99": 23.72898400000031
+            },
+            "inputCallMs": {
+              "count": 288,
+              "max": 22.677407,
+              "p50": 0.02141,
+              "p95": 16.159223,
+              "p99": 19.672022
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 381,
+              "max": 21,
+              "p50": 0,
+              "p95": 6,
+              "p99": 14
+            },
+            "pressMs": 35.372231,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 79,
+              "max": 34.074689999999464,
+              "p50": 6.938876999999593,
+              "p95": 9.714629999999488,
+              "p99": 15.75405899999987
+            },
+            "recoveryHeartbeatMs": {
+              "count": 199,
+              "max": 35.404090999999426,
+              "p50": 2.070987000000059,
+              "p95": 7.678962999999385,
+              "p99": 20.785571000000346
+            },
+            "releaseMs": 35.407041,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 360,
+              "max": 3.050294999999778,
+              "p50": 1.3393209999999272,
+              "p95": 2.1648669999999584,
+              "p99": 2.719372000000021
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 24,
+              "max": 9.171225999999933,
+              "p50": 6.9276760000000195,
+              "p95": 8.35475899999983,
+              "p99": 8.671011000000135
+            },
+            "synchronizationMs": {
+              "count": 360,
+              "max": 5.79495699999984,
+              "p50": 2.0783870000000206,
+              "p95": 3.3195780000000923,
+              "p99": 3.825391999999738
+            }
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "ineffective-animation-control",
+      "file": "wayland-panels-1-1.json",
+      "timingIncluded": false,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 815,
+                "width": 856
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 144,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 675,
+                "width": 716
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 37.584648000000016,
+            "frameIntervalMs": {
+              "count": 402,
+              "max": 25.71396999999979,
+              "p50": 7.027407999999923,
+              "p95": 14.005525000000034,
+              "p99": 17.889276999999993
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 377,
+              "max": 25.16959699999984,
+              "p50": 7.03038800000013,
+              "p95": 17.179320999999618,
+              "p99": 21.21768400000019
+            },
+            "inputCallMs": {
+              "count": 304,
+              "max": 22.244132,
+              "p50": 0.016921,
+              "p95": 16.009131,
+              "p99": 20.569698
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 377,
+              "max": 13,
+              "p50": 0,
+              "p95": 4,
+              "p99": 9
+            },
+            "pressMs": 35.649782,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 67,
+              "max": 32.976230000000214,
+              "p50": 6.936727000000246,
+              "p95": 10.059551999999712,
+              "p99": 14.300337000000582
+            },
+            "recoveryHeartbeatMs": {
+              "count": 224,
+              "max": 34.45559300000059,
+              "p50": 2.0685870000006616,
+              "p95": 6.734055000000808,
+              "p99": 12.490501999999651
+            },
+            "releaseMs": 34.456593,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 403,
+              "max": 3.2787869999997383,
+              "p50": 1.2290699999994104,
+              "p95": 2.0233569999998053,
+              "p99": 2.6700019999998403
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 22,
+              "max": 8.784631999999874,
+              "p50": 6.9633470000001125,
+              "p95": 7.2110589999999775,
+              "p99": 7.877123999999867
+            },
+            "synchronizationMs": {
+              "count": 403,
+              "max": 6.199931000000106,
+              "p50": 1.8938160000000153,
+              "p95": 3.1692860000000564,
+              "p99": 3.714531000000079
+            }
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "ineffective-animation-control",
+      "file": "wayland-panels-2-0.json",
+      "timingIncluded": false,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 94,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 842,
+                "width": 863
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 688,
+                "width": 709
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 75.73726899999986,
+            "frameIntervalMs": {
+              "count": 420,
+              "max": 34.93572500000005,
+              "p50": 6.937276999999995,
+              "p95": 8.5233989999997,
+              "p99": 15.880169999999907
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 411,
+              "max": 48.56123700000012,
+              "p50": 6.894125999999687,
+              "p95": 13.969853999999941,
+              "p99": 20.794959999999946
+            },
+            "inputCallMs": {
+              "count": 355,
+              "max": 13.026576,
+              "p50": 0.01653,
+              "p95": 9.88698,
+              "p99": 10.140643
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 411,
+              "max": 36,
+              "p50": 0,
+              "p95": 5,
+              "p99": 8
+            },
+            "pressMs": 61.892656,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 85,
+              "max": 56.099878000000444,
+              "p50": 6.9132870000003095,
+              "p95": 7.976215000000593,
+              "p99": 13.206768000000011
+            },
+            "recoveryHeartbeatMs": {
+              "count": 75,
+              "max": 40.114946999999574,
+              "p50": 6.978866999999809,
+              "p95": 14.621498999999858,
+              "p99": 29.46904100000029
+            },
+            "releaseMs": 40.116747,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 422,
+              "max": 8.659220999999889,
+              "p50": 1.300590999999713,
+              "p95": 2.1681879999998728,
+              "p99": 2.9142739999999776
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 13,
+              "max": 34.93572500000005,
+              "p50": 6.941777000000002,
+              "p95": 18.632062000000133,
+              "p99": 18.632062000000133
+            },
+            "synchronizationMs": {
+              "count": 422,
+              "max": 8.568799999999783,
+              "p50": 2.2203380000000834,
+              "p95": 3.006605000000036,
+              "p99": 3.3162670000001526
+            }
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "ineffective-animation-control",
+      "file": "wayland-panels-2-1.json",
+      "timingIncluded": false,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 107,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 837,
+                "width": 858
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 693,
+                "width": 714
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 67.841362,
+            "frameIntervalMs": {
+              "count": 422,
+              "max": 37.74888799999985,
+              "p50": 6.952645999999731,
+              "p95": 8.46864000000005,
+              "p99": 13.586189999999988
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 388,
+              "max": 45.046796000000086,
+              "p50": 7.017137000000275,
+              "p95": 14.014263999999912,
+              "p99": 15.565476999999646
+            },
+            "inputCallMs": {
+              "count": 334,
+              "max": 15.880099,
+              "p50": 0.01774,
+              "p95": 10.012991,
+              "p99": 10.189593
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 388,
+              "max": 11,
+              "p50": 0,
+              "p95": 6,
+              "p99": 10
+            },
+            "pressMs": 58.703518,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 85,
+              "max": 55.17711899999995,
+              "p50": 6.940677000000505,
+              "p95": 9.46452700000009,
+              "p99": 13.494989000000714
+            },
+            "recoveryHeartbeatMs": {
+              "count": 77,
+              "max": 37.49041499999976,
+              "p50": 7.221118000000388,
+              "p95": 12.921415000000707,
+              "p99": 25.60034900000028
+            },
+            "releaseMs": 42.596367,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 424,
+              "max": 8.472919000000047,
+              "p50": 1.1940490000001773,
+              "p95": 2.3635289999999713,
+              "p99": 2.7713719999999284
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 14,
+              "max": 37.74888799999985,
+              "p50": 6.989157000000205,
+              "p95": 13.586189999999988,
+              "p99": 13.586189999999988
+            },
+            "synchronizationMs": {
+              "count": 424,
+              "max": 8.251166999999896,
+              "p50": 2.2065480000001116,
+              "p95": 3.0837350000001607,
+              "p99": 3.366106999999829
+            }
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "gradual-grid-detailed-retain-brief",
+      "file": "wayland-panels-0-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 51,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 493,
+                "cellWidth": 0,
+                "children": 35,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 868,
+                "width": 870
+              },
+              "right": {
+                "cacheBuffer": 493,
+                "cellWidth": 0,
+                "children": 34,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 700,
+                "width": 702
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 30.068992999999978,
+            "frameIntervalMs": {
+              "count": 385,
+              "max": 27.97973600000023,
+              "p50": 9.269565000000057,
+              "p95": 13.377228000000287,
+              "p99": 21.28778199999988
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 336,
+              "max": 41.51455599999986,
+              "p50": 11.600442999999814,
+              "p95": 14.580007000000023,
+              "p99": 18.25762799999984
+            },
+            "inputCallMs": {
+              "count": 253,
+              "max": 18.958863,
+              "p50": 0.02665,
+              "p95": 10.367634,
+              "p99": 16.930867
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 336,
+              "max": 15,
+              "p50": 0,
+              "p95": 12,
+              "p99": 15
+            },
+            "pressMs": 24.642139,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 83,
+              "max": 46.68762599999991,
+              "p50": 6.943905999999515,
+              "p95": 9.771239000000605,
+              "p99": 24.21796600000016
+            },
+            "recoveryHeartbeatMs": {
+              "count": 105,
+              "max": 24.107434000000012,
+              "p50": 6.767173999999613,
+              "p95": 9.131833999999799,
+              "p99": 23.40646899999956
+            },
+            "releaseMs": 23.849963,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 387,
+              "max": 4.971479999999929,
+              "p50": 1.0271180000004279,
+              "p95": 2.5277710000000297,
+              "p99": 3.4055570000000444
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 17,
+              "max": 21.28778199999988,
+              "p50": 5.815517,
+              "p95": 21.045630000000074,
+              "p99": 21.045630000000074
+            },
+            "synchronizationMs": {
+              "count": 387,
+              "max": 4.285143999999946,
+              "p50": 2.503139999999803,
+              "p95": 3.4208279999998012,
+              "p99": 3.8975910000001477
+            }
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "gradual-grid-detailed-retain-brief",
+      "file": "wayland-panels-0-1.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 47,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 587,
+                "cellWidth": 0,
+                "children": 38,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 856,
+                "width": 858
+              },
+              "right": {
+                "cacheBuffer": 587,
+                "cellWidth": 0,
+                "children": 37,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 712,
+                "width": 714
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 29.809369999999944,
+            "frameIntervalMs": {
+              "count": 410,
+              "max": 31.649895000000015,
+              "p50": 9.10471299999972,
+              "p95": 13.824090999999953,
+              "p99": 21.29487199999994
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 317,
+              "max": 40.05412300000012,
+              "p50": 12.046737000000121,
+              "p95": 14.880909999999858,
+              "p99": 17.474901000000045
+            },
+            "inputCallMs": {
+              "count": 250,
+              "max": 18.237887,
+              "p50": 0.026491,
+              "p95": 10.520145,
+              "p99": 15.409584
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 317,
+              "max": 20,
+              "p50": 0,
+              "p95": 13,
+              "p99": 15
+            },
+            "pressMs": 24.82589,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 82,
+              "max": 43.41027000000031,
+              "p50": 6.95127599999978,
+              "p95": 9.622548000000279,
+              "p99": 26.492173000000548
+            },
+            "recoveryHeartbeatMs": {
+              "count": 86,
+              "max": 39.34278699999959,
+              "p50": 6.680094000000281,
+              "p95": 21.013719000000492,
+              "p99": 23.412208000000646
+            },
+            "releaseMs": 23.413388,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 412,
+              "max": 4.536325999999917,
+              "p50": 1.0057080000001406,
+              "p95": 2.449339000000009,
+              "p99": 3.3710269999999127
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 17,
+              "max": 21.473923000000013,
+              "p50": 7.559161000000131,
+              "p95": 19.843959999999925,
+              "p99": 19.843959999999925
+            },
+            "synchronizationMs": {
+              "count": 412,
+              "max": 4.17535399999997,
+              "p50": 2.3012790000002497,
+              "p95": 3.329497000000174,
+              "p99": 3.586569000000054
+            }
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "gradual-grid-detailed-retain-brief",
+      "file": "wayland-panels-1-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 67,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 27,
+                "cellWidth": 92,
+                "children": 60,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 828,
+                "width": 869
+              },
+              "right": {
+                "cacheBuffer": 27,
+                "cellWidth": 93,
+                "children": 52,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 662,
+                "width": 703
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 37.45669099999998,
+            "frameIntervalMs": {
+              "count": 398,
+              "max": 30.676036999999724,
+              "p50": 6.943785999999818,
+              "p95": 14.653727999999774,
+              "p99": 26.32534200000009
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 436,
+              "max": 43.834401999999955,
+              "p50": 6.678613999999925,
+              "p95": 14.1153240000001,
+              "p99": 30.08466199999998
+            },
+            "inputCallMs": {
+              "count": 399,
+              "max": 35.728347,
+              "p50": 0.01546,
+              "p95": 9.458726,
+              "p99": 11.686804
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 436,
+              "max": 19,
+              "p50": 0,
+              "p95": 6,
+              "p99": 10
+            },
+            "pressMs": 35.165232,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 89,
+              "max": 21.893866000000344,
+              "p50": 6.945636000000377,
+              "p95": 7.046297000000777,
+              "p99": 8.171795999999631
+            },
+            "recoveryHeartbeatMs": {
+              "count": 170,
+              "max": 21.082150000000183,
+              "p50": 2.3831090000003314,
+              "p95": 6.715774000000238,
+              "p99": 7.194927999999891
+            },
+            "releaseMs": 21.08409,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 399,
+              "max": 2.5452499999998963,
+              "p50": 1.00601800000004,
+              "p95": 1.819874000000027,
+              "p99": 2.1470580000000155
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 20,
+              "max": 15.479334999999992,
+              "p50": 7.000046999999995,
+              "p95": 14.958390000000009,
+              "p99": 14.958390000000009
+            },
+            "synchronizationMs": {
+              "count": 400,
+              "max": 5.660045999999966,
+              "p50": 2.294889000000012,
+              "p95": 3.4887079999998605,
+              "p99": 4.4926369999998315
+            }
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "gradual-grid-detailed-retain-brief",
+      "file": "wayland-panels-1-1.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 156,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 27,
+                "cellWidth": 92,
+                "children": 59,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 821,
+                "width": 862
+              },
+              "right": {
+                "cacheBuffer": 27,
+                "cellWidth": 93,
+                "children": 52,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 669,
+                "width": 710
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 36.785375000000045,
+            "frameIntervalMs": {
+              "count": 419,
+              "max": 28.919902000000093,
+              "p50": 6.94924600000013,
+              "p95": 14.490275999999994,
+              "p99": 23.186226000000033
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 439,
+              "max": 35.11636200000021,
+              "p50": 6.819594999999936,
+              "p95": 14.285365000000183,
+              "p99": 24.587376999999833
+            },
+            "inputCallMs": {
+              "count": 416,
+              "max": 22.014056,
+              "p50": 0.0151,
+              "p95": 9.714728,
+              "p99": 10.855477
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 439,
+              "max": 16,
+              "p50": 0,
+              "p95": 6,
+              "p99": 13
+            },
+            "pressMs": 34.737919,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 89,
+              "max": 20.695055999999568,
+              "p50": 6.939064999999573,
+              "p95": 7.093757000000551,
+              "p99": 8.174316000000545
+            },
+            "recoveryHeartbeatMs": {
+              "count": 167,
+              "max": 22.004667000000154,
+              "p50": 2.3745890000000145,
+              "p95": 6.894185000000107,
+              "p99": 7.528089999999793
+            },
+            "releaseMs": 22.006347,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 421,
+              "max": 2.6935909999999694,
+              "p50": 1.0102379999998448,
+              "p95": 1.6441729999999097,
+              "p99": 2.042985999999928
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 23,
+              "max": 21.28920100000005,
+              "p50": 6.270300000000134,
+              "p95": 13.747640000000047,
+              "p99": 14.655668000000105
+            },
+            "synchronizationMs": {
+              "count": 421,
+              "max": 5.705015999999887,
+              "p50": 2.2770590000000084,
+              "p95": 3.236116000000038,
+              "p99": 3.631749000000127
+            }
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "gradual-grid-detailed-retain-brief",
+      "file": "wayland-panels-2-0.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 103,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 840,
+                "width": 861
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 690,
+                "width": 711
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 69.66362700000002,
+            "frameIntervalMs": {
+              "count": 407,
+              "max": 39.150192999999945,
+              "p50": 6.948914999999943,
+              "p95": 8.748719999999594,
+              "p99": 15.145731000000069
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 393,
+              "max": 49.00443199999995,
+              "p50": 6.916384999999991,
+              "p95": 14.04722300000003,
+              "p99": 15.579315000000406
+            },
+            "inputCallMs": {
+              "count": 335,
+              "max": 10.186142,
+              "p50": 0.01725,
+              "p95": 9.837699,
+              "p99": 10.103791
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 393,
+              "max": 11,
+              "p50": 0,
+              "p95": 7,
+              "p99": 10
+            },
+            "pressMs": 60.298142,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 84,
+              "max": 56.936665000000175,
+              "p50": 7.0071960000004765,
+              "p95": 8.935660999999527,
+              "p99": 12.543539999999666
+            },
+            "recoveryHeartbeatMs": {
+              "count": 81,
+              "max": 38.06278399999974,
+              "p50": 7.058816000000206,
+              "p95": 9.77151799999956,
+              "p99": 28.17491599999994
+            },
+            "releaseMs": 42.091957,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 408,
+              "max": 8.725038999999924,
+              "p50": 1.2460399999999936,
+              "p95": 2.644211000000041,
+              "p99": 3.0129639999997835
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 14,
+              "max": 39.150192999999945,
+              "p50": 6.860985000000028,
+              "p95": 13.160235000000057,
+              "p99": 13.160235000000057
+            },
+            "synchronizationMs": {
+              "count": 409,
+              "max": 8.944500999999946,
+              "p50": 2.192287000000306,
+              "p95": 3.067884999999933,
+              "p99": 3.37180699999999
+            }
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "gradual-grid-detailed-retain-brief",
+      "file": "wayland-panels-2-1.json",
+      "timingIncluded": true,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 94,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 845,
+                "width": 866
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 685,
+                "width": 706
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 70.88736500000005,
+            "frameIntervalMs": {
+              "count": 437,
+              "max": 37.26726799999983,
+              "p50": 6.952075999999806,
+              "p95": 9.144052999999985,
+              "p99": 17.219066999999995
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 440,
+              "max": 48.357745999999906,
+              "p50": 6.859925000000203,
+              "p95": 13.96554100000003,
+              "p99": 16.20453899999984
+            },
+            "inputCallMs": {
+              "count": 375,
+              "max": 13.007244,
+              "p50": 0.0165,
+              "p95": 9.880619,
+              "p99": 10.286092
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 440,
+              "max": 14,
+              "p50": 0,
+              "p95": 8,
+              "p99": 11
+            },
+            "pressMs": 59.574285,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 86,
+              "max": 57.24936700000035,
+              "p50": 6.9723549999998795,
+              "p95": 8.937541999999667,
+              "p99": 12.821662999999717
+            },
+            "recoveryHeartbeatMs": {
+              "count": 83,
+              "max": 41.604881000000205,
+              "p50": 6.967794999999569,
+              "p95": 9.867619000000559,
+              "p99": 22.160557000000153
+            },
+            "releaseMs": 41.606131,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 439,
+              "max": 10.697544999999991,
+              "p50": 1.2941510000000562,
+              "p95": 2.7635119999999915,
+              "p99": 3.0685949999999593
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "startupFrameIntervalMs": {
+              "count": 14,
+              "max": 37.26726799999983,
+              "p50": 6.924765999999863,
+              "p95": 14.831478000000061,
+              "p99": 14.831478000000061
+            },
+            "synchronizationMs": {
+              "count": 439,
+              "max": 8.12836500000003,
+              "p50": 2.2561179999997876,
+              "p95": 3.1559550000001764,
+              "p99": 3.6257289999998648
+            }
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "final-native-correctness",
+      "file": "wayland-panels-0-0.json",
+      "timingIncluded": false,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 49,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 64,
+                "lightweight": false,
+                "nameWidth": 257.25,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 782,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 0,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 258.25,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": false,
+                "viewMode": 0,
+                "viewWidth": 786,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 400,
+                "cellWidth": 0,
+                "children": 33,
+                "lightweight": true,
+                "nameWidth": 257.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 868,
+                "width": 870
+              },
+              "right": {
+                "cacheBuffer": 400,
+                "cellWidth": 0,
+                "children": 32,
+                "lightweight": true,
+                "nameWidth": 258.25,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 0,
+                "viewWidth": 700,
+                "width": 702
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 31.33133199999986,
+            "frameIntervalMs": {
+              "count": 419,
+              "max": 26.766407000000072,
+              "p50": 7.057683999999881,
+              "p95": 13.132581000000073,
+              "p99": 20.07355400000006
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 321,
+              "max": 40.93623600000001,
+              "p50": 11.640570000000025,
+              "p95": 14.429811999999856,
+              "p99": 19.660821999999825
+            },
+            "inputCallMs": {
+              "count": 249,
+              "max": 18.17069,
+              "p50": 0.02667,
+              "p95": 10.35979,
+              "p99": 14.994535
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 321,
+              "max": 20,
+              "p50": 0,
+              "p95": 9,
+              "p99": 11
+            },
+            "pressMs": 24.925672,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 84,
+              "max": 40.3244709999999,
+              "p50": 6.9428539999998975,
+              "p95": 9.402433000000201,
+              "p99": 22.154710000000705
+            },
+            "recoveryHeartbeatMs": {
+              "count": 101,
+              "max": 23.18134800000007,
+              "p50": 6.709842000000208,
+              "p95": 15.161866999999802,
+              "p99": 22.141241000000264
+            },
+            "releaseMs": 21.877099,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 421,
+              "max": 5.942436000000043,
+              "p50": 0.8928070000001753,
+              "p95": 2.270477000000028,
+              "p99": 3.1121239999999943
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 18,
+              "max": 21.868267999999944,
+              "p50": 6.14735799999994,
+              "p95": 20.07355400000006,
+              "p99": 20.07355400000006
+            },
+            "synchronizationMs": {
+              "count": 421,
+              "max": 4.089211000000432,
+              "p50": 2.2197380000000067,
+              "p95": 3.2880660000000717,
+              "p99": 3.6500889999997526
+            }
+          }
+        ],
+        "rightViewMode": 0,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 0,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "final-native-correctness",
+      "file": "wayland-panels-1-0.json",
+      "timingIncluded": false,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 63,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailEligible": 61,
+                "thumbnailReady": 61,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 158,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailEligible": 156,
+                "thumbnailReady": 103,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 92,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 163,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 743,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 93,
+                "children": 164,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailEligible": 163,
+                "thumbnailReady": 163,
+                "thumbnailsPaused": false,
+                "viewMode": 1,
+                "viewWidth": 747,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 293,
+                "cellWidth": 92,
+                "children": 77,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 810,
+                "width": 851
+              },
+              "right": {
+                "cacheBuffer": 293,
+                "cellWidth": 93,
+                "children": 68,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 1,
+                "viewWidth": 680,
+                "width": 721
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 36.93949500000008,
+            "frameIntervalMs": {
+              "count": 404,
+              "max": 30.569586000000072,
+              "p50": 6.9413130000000365,
+              "p95": 13.139271000000008,
+              "p99": 23.63488200000006
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 453,
+              "max": 35.286201999999776,
+              "p50": 6.7567919999996775,
+              "p95": 13.900126999999884,
+              "p99": 24.13916600000016
+            },
+            "inputCallMs": {
+              "count": 428,
+              "max": 11.70408,
+              "p50": 0.0137,
+              "p95": 6.019647,
+              "p99": 10.042607
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 453,
+              "max": 20,
+              "p50": 0,
+              "p95": 6,
+              "p99": 10
+            },
+            "pressMs": 35.02573,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 88,
+              "max": 21.51799600000004,
+              "p50": 6.942863999999645,
+              "p95": 7.726380000000063,
+              "p99": 18.95967599999949
+            },
+            "recoveryHeartbeatMs": {
+              "count": 159,
+              "max": 22.77102500000001,
+              "p50": 2.344767999999931,
+              "p95": 6.870122999999694,
+              "p99": 15.896252999999888
+            },
+            "releaseMs": 20.466888,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 405,
+              "max": 2.073315999999977,
+              "p50": 0.9634679999999207,
+              "p95": 1.509422000000086,
+              "p99": 1.886684999999943
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 21,
+              "max": 15.109605999999985,
+              "p50": 7.642859000000044,
+              "p95": 13.367872999999918,
+              "p99": 13.367872999999918
+            },
+            "synchronizationMs": {
+              "count": 406,
+              "max": 5.600753000000168,
+              "p50": 2.20876700000008,
+              "p95": 3.097584000000097,
+              "p99": 3.829218999999739
+            }
+          }
+        ],
+        "rightViewMode": 1,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 1,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    },
+    {
+      "cohort": "final-native-correctness",
+      "file": "wayland-panels-2-0.json",
+      "timingIncluded": false,
+      "report": {
+        "divider": "panels",
+        "graphicsApi": 3,
+        "inputRoute": "QTest QWindow public API",
+        "platform": "wayland",
+        "qt": "6.11.2",
+        "refreshRate": 143.9810028076172,
+        "reportType": "panel-resize-benchmark",
+        "results": [
+          {
+            "accepted": true,
+            "after": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 70,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailEligible": 10,
+                "thumbnailReady": 10,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "afterPress": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 70,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "before": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 381,
+                "children": 70,
+                "lightweight": false,
+                "nameWidth": 262,
+                "resizing": false,
+                "reuseItems": true,
+                "thumbnailEligible": 10,
+                "thumbnailReady": 10,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 763,
+                "width": 784
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 383,
+                "children": 173,
+                "lightweight": false,
+                "nameWidth": 263,
+                "resizing": false,
+                "reuseItems": false,
+                "thumbnailEligible": 58,
+                "thumbnailReady": 58,
+                "thumbnailsPaused": false,
+                "viewMode": 2,
+                "viewWidth": 767,
+                "width": 788
+              }
+            },
+            "during": {
+              "left": {
+                "cacheBuffer": 1600,
+                "cellWidth": 763,
+                "children": 70,
+                "lightweight": true,
+                "nameWidth": 262,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 841,
+                "width": 862
+              },
+              "right": {
+                "cacheBuffer": 1600,
+                "cellWidth": 767,
+                "children": 87,
+                "lightweight": true,
+                "nameWidth": 263,
+                "resizing": true,
+                "reuseItems": false,
+                "thumbnailEligible": 0,
+                "thumbnailReady": 0,
+                "thumbnailsPaused": true,
+                "viewMode": 2,
+                "viewWidth": 689,
+                "width": 710
+              }
+            },
+            "finalGeometry": true,
+            "firstFrameDelayMs": 47.785556999999926,
+            "frameIntervalMs": {
+              "count": 440,
+              "max": 26.72072500000013,
+              "p50": 6.973134000000073,
+              "p95": 10.105567999999948,
+              "p99": 18.212870000000066
+            },
+            "freezeStable": true,
+            "heartbeatMs": {
+              "count": 403,
+              "max": 24.446758000000045,
+              "p50": 7.349326000000019,
+              "p95": 14.059338000000025,
+              "p99": 17.839897000000292
+            },
+            "inputCallMs": {
+              "count": 306,
+              "max": 13.09381,
+              "p50": 0.03102,
+              "p95": 10.231319,
+              "p99": 10.583801
+            },
+            "lifecycle": true,
+            "pointerErrorPx": {
+              "count": 403,
+              "max": 22,
+              "p50": 0,
+              "p95": 10,
+              "p99": 12
+            },
+            "pressMs": 42.716019,
+            "recovered": true,
+            "recoveryFrameIntervalMs": {
+              "count": 83,
+              "max": 55.13336399999935,
+              "p50": 6.9369430000006105,
+              "p95": 8.985560000000078,
+              "p99": 14.179328999999598
+            },
+            "recoveryHeartbeatMs": {
+              "count": 56,
+              "max": 34.70323699999972,
+              "p50": 13.46859300000051,
+              "p95": 23.92607399999997,
+              "p99": 31.471392000000378
+            },
+            "releaseMs": 39.318753,
+            "renameChecked": false,
+            "renameRestored": true,
+            "renderingMs": {
+              "count": 441,
+              "max": 4.426943999999821,
+              "p50": 1.2272399999997106,
+              "p95": 2.289966999999706,
+              "p99": 2.806111000000101
+            },
+            "rep": 0,
+            "selectionStable": true,
+            "shortResizeChecked": false,
+            "shortResizeRestored": true,
+            "startupFrameIntervalMs": {
+              "count": 20,
+              "max": 19.706072000000177,
+              "p50": 6.9269030000000384,
+              "p95": 11.97715200000016,
+              "p99": 11.97715200000016
+            },
+            "synchronizationMs": {
+              "count": 441,
+              "max": 6.1601169999999,
+              "p50": 2.087026000000151,
+              "p95": 3.278816000000006,
+              "p99": 3.754949000000124
+            }
+          }
+        ],
+        "rightViewMode": 2,
+        "schemaVersion": 1,
+        "success": true,
+        "swapInterval": 1,
+        "viewMode": 2,
+        "windowHeight": 900,
+        "windowWidth": 1800
+      }
+    }
+  ],
+  "validation": {
+    "build": "cmake --build build -j12 passed",
+    "ctestPassed": 8,
+    "ctestSeconds": 76.57,
+    "tests": [
+      "panel_resize_controller_test",
+      "panel_resize_geometry_0",
+      "panel_resize_geometry_1",
+      "panel_resize_geometry_2",
+      "navigation_gui_benchmark_smoke",
+      "file_panel_grid_wheel_test",
+      "file_panel_brief_wheel_test",
+      "file_panel_detailed_wheel_test"
+    ],
+    "waylandFinalAccepted": 3
+  }
+}

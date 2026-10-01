@@ -8,6 +8,7 @@ ScrollBar {
 
     property bool flat: false
     property var wheelTarget: null
+    property var wheelHandler: null
     property var scrollNeededOverride: undefined
     property real wheelDestination: 0
     property bool wheelRoutingActive: false
@@ -52,6 +53,17 @@ ScrollBar {
     background: null
 
     function routeWheel(event) {
+        if (wheelHandler && wheelHandler.enabled
+                && event.pixelDelta.x === 0 && event.pixelDelta.y === 0
+                && event.angleDelta.y !== 0) {
+            wheelAnimation.stop()
+            wheelRouteFinish.stop()
+            wheelRoutingActive = false
+            wheelHandler.routeWheel(event)
+            return
+        }
+        if (wheelHandler) wheelHandler.cancel()
+
         if (!wheelTarget)
             return
 
@@ -155,7 +167,10 @@ ScrollBar {
         id: arrowRepeat
         interval: 55
         repeat: true
-        onTriggered: decreaseMouse.pressed ? root.decrease() : root.increase()
+        onTriggered: {
+            if (root.wheelHandler) root.wheelHandler.cancel()
+            decreaseMouse.pressed ? root.decrease() : root.increase()
+        }
     }
 
     Item {
@@ -170,6 +185,7 @@ ScrollBar {
             anchors.fill: parent
             hoverEnabled: true
             onPressed: {
+                if (root.wheelHandler) root.wheelHandler.cancel()
                 root.decrease()
                 arrowRepeatDelay.restart()
             }
@@ -191,6 +207,7 @@ ScrollBar {
             anchors.fill: parent
             hoverEnabled: true
             onPressed: {
+                if (root.wheelHandler) root.wheelHandler.cancel()
                 root.increase()
                 arrowRepeatDelay.restart()
             }

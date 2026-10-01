@@ -399,6 +399,8 @@ qt_add_executable(fm
     src/core/WinThumbnailExtractor.h
     src/core/ChecksumCalculator.cpp
     src/core/ChecksumCalculator.h
+    src/ui/PanelResizeController.cpp
+    src/ui/PanelResizeController.h
     src/ui/framework/FmScrollBarVisual.cpp
     src/ui/framework/FmScrollBarVisual.h
     src/ui/framework/FmDocumentViewVisual.cpp
@@ -709,6 +711,7 @@ set(MY_QML_FILES
         qml/components/filepanel/FolderPeekOverlay.qml
     qml/components/filepanel/FilePanelCurrentIndexCoordinator.qml
     qml/components/filepanel/FilePanelScrollCoordinator.qml
+    qml/components/filepanel/FilePanelWheelHandler.qml
     qml/components/filepanel/FilePanelRenameCoordinator.qml
     qml/components/filepanel/FilePanelHoverCoordinator.qml
     qml/components/filepanel/FilePanelContextMenuCoordinator.qml
@@ -786,6 +789,7 @@ qt_add_qml_module(fm
         src/controllers/PropertiesController.h
         src/controllers/ProviderPropertiesController.h
         src/core/ChecksumCalculator.h
+        src/ui/PanelResizeController.h
         src/ui/framework/FmScrollBarVisual.h
         src/ui/framework/FmDocumentViewVisual.h
         src/ui/framework/FmProgressBarVisual.h
@@ -1760,6 +1764,19 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    target_sources(fm PRIVATE src/tools/PanelResizeBenchmark.cpp src/tools/PanelResizeBenchmark.h)
+    target_link_libraries(fm PRIVATE Qt6::Test)
+    target_compile_definitions(fm PRIVATE FM_ENABLE_RESIZE_BENCHMARK)
+    add_executable(panel_resize_controller_test
+        tests/core/PanelResizeControllerTest.cpp
+        src/ui/PanelResizeController.cpp src/ui/PanelResizeController.h)
+    target_include_directories(panel_resize_controller_test PRIVATE src/ui)
+    target_link_libraries(panel_resize_controller_test PRIVATE Qt6::Test Qt6::Quick Qt6::Qml)
+    add_test(NAME panel_resize_controller_test
+        COMMAND ${CMAKE_COMMAND} -E env QT_QPA_PLATFORM=offscreen
+            QSG_RHI_BACKEND=software $<TARGET_FILE:panel_resize_controller_test>)
+
     add_executable(disk_usage_treemap_layout_test
         tests/core/DiskUsageTreemapLayoutTest.cpp
         src/ui/DiskUsageTreemapLayout.cpp
@@ -1801,6 +1818,33 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
             $<TARGET_FILE:fm> --navigation-gui-benchmark
     )
     set_tests_properties(navigation_gui_benchmark_smoke PROPERTIES TIMEOUT 60)
+    foreach(mode IN ITEMS 0 1 2)
+        add_test(NAME panel_resize_geometry_${mode}
+            COMMAND ${CMAKE_COMMAND} -E env
+                QT_QPA_PLATFORM=offscreen QSG_RHI_BACKEND=software
+                XDG_CONFIG_HOME=/tmp/fm-panel-resize-geometry-${mode}
+                $<TARGET_FILE:fm> --navigation-gui-benchmark --resize
+                --view-mode ${mode} --resize-runs 1 --check-resize-freeze)
+        set_tests_properties(panel_resize_geometry_${mode} PROPERTIES TIMEOUT 30)
+    endforeach()
+
+    add_test(NAME panel_resize_brief_wide
+        COMMAND ${CMAKE_COMMAND} -E env
+            QT_QPA_PLATFORM=offscreen QSG_RHI_BACKEND=software
+            XDG_CONFIG_HOME=/tmp/fm-panel-resize-brief-wide
+            $<TARGET_FILE:fm> --navigation-gui-benchmark --resize --view-mode 2
+            --resize-runs 1 --check-resize-freeze --check-brief-wide-resize)
+    set_tests_properties(panel_resize_brief_wide PROPERTIES TIMEOUT 30)
+    foreach(mode IN ITEMS 0 1 2)
+        add_test(NAME file_panel_scrollbar_arrows_${mode}
+            COMMAND ${CMAKE_COMMAND} -E env
+                QT_QPA_PLATFORM=offscreen QSG_RHI_BACKEND=software
+                XDG_CONFIG_HOME=/tmp/fm-panel-scrollbar-arrows-${mode}
+                $<TARGET_FILE:fm> --navigation-gui-benchmark --resize
+                --view-mode ${mode} --check-scrollbar-arrows)
+        set_tests_properties(file_panel_scrollbar_arrows_${mode} PROPERTIES TIMEOUT 30)
+    endforeach()
+
     add_test(
         NAME navigation_gui_benchmark_suite_smoke
         COMMAND ${CMAKE_COMMAND} -E env
@@ -2090,6 +2134,17 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME fm_document_view_visual_test COMMAND fm_document_view_visual_test)
     set_tests_properties(fm_document_view_visual_test PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    add_executable(file_panel_grid_wheel_test tests/core/FilePanelGridWheelTest.cpp)
+    target_link_libraries(file_panel_grid_wheel_test PRIVATE Qt6::Gui Qt6::Quick)
+    target_compile_definitions(file_panel_grid_wheel_test PRIVATE
+        FM_GRID_WHEEL_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml/components/filepanel")
+    add_test(NAME file_panel_grid_wheel_test COMMAND file_panel_grid_wheel_test)
+    add_test(NAME file_panel_brief_wheel_test COMMAND file_panel_grid_wheel_test --brief)
+    add_test(NAME file_panel_detailed_wheel_test COMMAND file_panel_grid_wheel_test --detailed)
+    set_tests_properties(file_panel_grid_wheel_test file_panel_brief_wheel_test
+        file_panel_detailed_wheel_test PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
 
     add_executable(file_action_policy_evaluator_test
         tests/core/FileActionPolicyEvaluatorTest.cpp
@@ -2537,5 +2592,21 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
             target_link_libraries(mega_provider_public_link_test PRIVATE Advapi32)
         endif()
         add_test(NAME mega_provider_public_link_test COMMAND mega_provider_public_link_test)
+
+        add_executable(mega_account_details_test
+            tests/core/MegaAccountDetailsTest.cpp
+            src/plugins/mega/MegaClient.cpp
+            src/plugins/mega/MegaClient.h
+            src/plugins/mega/MegaClientInterface.h
+            src/plugins/mega/MegaAuth.cpp
+            src/plugins/mega/MegaPath.cpp
+            src/plugins/mega/MegaCache.cpp
+            src/plugins/mega/MegaPresentation.cpp
+            src/plugins/mega/MegaDiagnostics.cpp
+            src/core/FileTypeIconResolver.cpp
+        )
+        target_include_directories(mega_account_details_test PRIVATE src src/core src/plugins/mega)
+        target_link_libraries(mega_account_details_test PRIVATE Qt6::Core Qt6::Gui Qt6::Network MEGA::SDKlib)
+        add_test(NAME mega_account_details_test COMMAND mega_account_details_test)
     endif()
 endif()

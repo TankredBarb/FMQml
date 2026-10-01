@@ -609,6 +609,7 @@ Pane {
     property alias disableSelectionOnCurrentIndexChanged: filePanelCurrentIndexCoordinator.disableSelectionOnChange
     property alias suppressCurrentIndexAutoPosition: filePanelCurrentIndexCoordinator.suppressAutoPosition
     property bool pendingAutoNameColumnWidthUpdate: false
+    property var resizeFrozenDetailsLayout: null
     property real resizeFrozenListWidth: 0
     property real resizeFrozenBriefCellWidth: 0
     property real resizeFrozenGridCellWidth: 0
@@ -652,19 +653,27 @@ Pane {
     readonly property bool effectsReduced: root.resizeOptimized
     readonly property bool lightweightDelegates: root.resizeOptimized
                                                  && root.useLightweightResizeDelegates
-    readonly property int activeViewCacheBuffer: root.effectsReduced || root.externalScrollAnySuppressionActive || root.loadingDirectory
+    readonly property int activeViewCacheBuffer: root.externalScrollAnySuppressionActive || root.loadingDirectory
                                                     ? 0 : root.resizeRecoveryCacheBuffer
     onResizeOptimizedChanged: {
+        resizeCacheRecoveryAnimation.stop()
         if (root.resizeOptimized) {
+            root.resizeFrozenDetailsLayout = root.detailsEffectiveLayout
             root.disableFileViewsReuse("resize-start")
             resizeNameColumnRecoveryTimer.stop()
             resizeCacheRecoveryDelay.stop()
-            resizeCacheRecoveryAnimation.stop()
-            root.resizeRecoveryCacheBuffer = 0
             root.resizeFrozenListWidth = horizontalFlick ? horizontalFlick.width : root.width
-            root.resizeFrozenBriefCellWidth = briefView ? briefView.cellWidth : 0
+            root.resizeFrozenBriefCellWidth = briefView ? Math.max(160, briefView.width) : 0
             root.resizeFrozenGridCellWidth = gridView ? gridView.cellWidth : 0
+            // Keep Brief's cached delegates for the return to two columns.
+            // Trim the other views over several frames instead of during the press.
+            if (root.viewMode !== 2) {
+                resizeCacheRecoveryAnimation.to = 0
+                resizeCacheRecoveryAnimation.duration = 120
+                resizeCacheRecoveryAnimation.restart()
+            }
         } else {
+            root.resizeFrozenDetailsLayout = null
             root.resizeFrozenListWidth = 0
             root.resizeFrozenBriefCellWidth = 0
             root.resizeFrozenGridCellWidth = 0
@@ -693,6 +702,8 @@ Pane {
         repeat: false
         onTriggered: {
             if (!root.resizeOptimized) {
+                resizeCacheRecoveryAnimation.to = 1600
+                resizeCacheRecoveryAnimation.duration = 320
                 resizeCacheRecoveryAnimation.restart()
             }
         }
@@ -764,7 +775,9 @@ Pane {
                                                   : 0
     readonly property real detailsAvailableWidth: Math.max(0, (contentArea ? contentArea.width : 500)
                                                               - root.detailsVerticalGutter - 24)
-    readonly property var detailsEffectiveLayout: filePanelDetailsPolicy.fitDetailsColumns(root.detailsAvailableWidth)
+    readonly property var detailsEffectiveLayout: root.lightweightDelegates && root.resizeFrozenDetailsLayout
+                                                 ? root.resizeFrozenDetailsLayout
+                                                 : filePanelDetailsPolicy.fitDetailsColumns(root.detailsAvailableWidth)
     readonly property real effectiveColWidthName: effectiveDetailColumnWidth("Name")
     readonly property real effectiveColWidthSize: effectiveDetailColumnWidth("Size")
     readonly property real effectiveColWidthType: effectiveDetailColumnWidth("Type")
@@ -1279,7 +1292,14 @@ Pane {
         })
     }
 
+    function cancelFileViewsWheelScroll() {
+        if (gridWheelHandler) gridWheelHandler.cancel()
+        if (briefWheelHandler) briefWheelHandler.cancel()
+        if (detailsWheelHandler) detailsWheelHandler.cancel()
+    }
+
     function disableFileViewsReuse(reason) {
+        root.cancelFileViewsWheelScroll()
         fileViewsReusePrepareTimer.stop()
         root.fileViewsReuseArmedByUserScroll = false
         root.fileViewsReuseArmedView = null
@@ -1307,6 +1327,7 @@ Pane {
 
     function handleScrollbarPressedChanged(view, pressed) {
         if (pressed) {
+            root.cancelFileViewsWheelScroll()
             root.armFileViewsReuseForUserScroll(view, "scrollbar-press")
             return
         }
@@ -3419,12 +3440,23 @@ Pane {
                             active: listView.moving || listView.flicking || scrollHover.hovered
                             policy: ScrollBar.AsNeeded
                             wheelTarget: listView
+                            wheelHandler: detailsWheelHandler
                             z: 10
                             onScrollNeededChanged: root.updateNameColumnWidth()
                             onWheelRoutingActiveChanged: root.handleScrollbarWheelActiveChanged(listView,
                                                                                                wheelRoutingActive)
                             onPressedChanged: root.handleScrollbarPressedChanged(listView, pressed)
                             HoverHandler { id: scrollHover }
+                        }
+
+                        FilePanelWheelHandler {
+                            id: detailsWheelHandler
+                            anchors.fill: parent
+                            z: 9
+                            view: listView
+                            enabled: Qt.platform.os === "linux" && listView.interactive
+                                     && root.canArmFileViewsReuseFromUserScroll(listView, "scrollbar-wheel")
+                            onActiveChanged: root.handleScrollbarWheelActiveChanged(listView, active)
                         }
                     }
                 }
@@ -3563,11 +3595,22 @@ Pane {
                     active: briefView.moving || briefView.flicking || briefScrollHover.hovered
                     policy: ScrollBar.AsNeeded
                     wheelTarget: briefView
+                    wheelHandler: briefWheelHandler
                     z: 10
                     onWheelRoutingActiveChanged: root.handleScrollbarWheelActiveChanged(briefView,
                                                                                        wheelRoutingActive)
                     onPressedChanged: root.handleScrollbarPressedChanged(briefView, pressed)
                     HoverHandler { id: briefScrollHover }
+                }
+
+                FilePanelWheelHandler {
+                    id: briefWheelHandler
+                    anchors.fill: parent
+                    z: 9
+                    view: briefView
+                    enabled: Qt.platform.os === "linux" && briefView.interactive
+                             && root.canArmFileViewsReuseFromUserScroll(briefView, "scrollbar-wheel")
+                    onActiveChanged: root.handleScrollbarWheelActiveChanged(briefView, active)
                 }
             }
 
@@ -3682,11 +3725,23 @@ Pane {
                     active: gridView.moving || gridView.flicking || gridScrollHover.hovered
                     policy: ScrollBar.AsNeeded
                     wheelTarget: gridView
+                    wheelHandler: gridWheelHandler
                     z: 10
                     onWheelRoutingActiveChanged: root.handleScrollbarWheelActiveChanged(gridView,
                                                                                        wheelRoutingActive)
                     onPressedChanged: root.handleScrollbarPressedChanged(gridView, pressed)
                     HoverHandler { id: gridScrollHover }
+                }
+
+                FilePanelWheelHandler {
+                    id: gridWheelHandler
+                    parent: gridView
+                    anchors.fill: parent
+                    z: 9
+                    view: gridView
+                    enabled: Qt.platform.os === "linux" && gridView.interactive
+                             && root.canArmFileViewsReuseFromUserScroll(gridView, "scrollbar-wheel")
+                    onActiveChanged: root.handleScrollbarWheelActiveChanged(gridView, active)
                 }
             }
 
@@ -3848,7 +3903,8 @@ Pane {
 
             StorageView {
                 id: storageView
-                anchors.fill: parent
+                objectName: "panelStorageView"
+                anchors.fill: visible ? parent : null
                 anchors.bottomMargin: root.bottomChromeHeight
                 controller: root.controller
                 panel: root
@@ -3860,7 +3916,8 @@ Pane {
 
             FavoritesView {
                 id: favoritesView
-                anchors.fill: parent
+                objectName: "panelFavoritesView"
+                anchors.fill: visible ? parent : null
                 anchors.bottomMargin: root.bottomChromeHeight
                 controller: root.controller
                 panel: root

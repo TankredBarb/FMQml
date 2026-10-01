@@ -65,9 +65,15 @@ Item {
     }
 
     RowLayout {
-        anchors.fill: parent
+        objectName: "briefResizeContent"
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         anchors.leftMargin: Theme.scaledSize(14)
         anchors.rightMargin: Theme.scaledSize(8)
+        width: Math.max(0, (root.panel && root.panel.resizeFrozenBriefCellWidth > 0
+                           ? root.panel.resizeFrozenBriefCellWidth : root.width)
+                       - anchors.leftMargin - anchors.rightMargin)
         spacing: Theme.scaledSize(8)
 
         FileIconCell {

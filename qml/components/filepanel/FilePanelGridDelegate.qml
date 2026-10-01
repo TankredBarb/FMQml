@@ -56,7 +56,9 @@ Item {
     readonly property bool thumbnailRequestActive: thumbnailLoadEnabled && canLoadThumbnail
     readonly property bool benchmarkThumbnailEligible: canLoadThumbnail
     readonly property bool benchmarkThumbnailScheduled: benchmarkThumbnailEligible && thumbnailLoadEnabled
-    readonly property bool benchmarkThumbnailReady: benchmarkThumbnailEligible && gridIconCell.thumbnailReady
+    readonly property bool benchmarkThumbnailReady: benchmarkThumbnailEligible
+                                                  && gridFullContent.item
+                                                  && gridFullContent.item.iconCell.thumbnailReady
     property real visualOffsetY: 0
 
     function resetTransientInteractionState() {
@@ -129,7 +131,7 @@ Item {
             return mapped.x >= 0 && mapped.y >= 0 && mapped.x < item.width && mapped.y < item.height;
         }
 
-        return within(gridIconCell);
+        return within(gridFullContent.item ? gridFullContent.item.iconCell : null);
     }
 
     function queueThumbnailLoad(clearExisting) {
@@ -546,87 +548,97 @@ Item {
         onDoubleClicked: panel.openItem(index)
     }
 
-    ColumnLayout {
+    Loader {
+        id: gridFullContent
         anchors.fill: parent
-        anchors.margins: gridDelegate.contentMargin
-        spacing: gridDelegate.contentSpacing
+        // New resize delegates incubate their hidden full content across frames.
+        // Returning to normal mode completes any pending content before showing it.
+        asynchronous: gridDelegate.lightweightActive
         visible: !gridDelegate.lightweightActive
+        sourceComponent: Component {
+            ColumnLayout {
+                property alias iconCell: gridIconCell
+                anchors.fill: parent
+                anchors.margins: gridDelegate.contentMargin
+                spacing: gridDelegate.contentSpacing
 
-        Item {
-            id: gridIconFrame
+                Item {
+                    id: gridIconFrame
 
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: panel.gridIconSize
-            Layout.preferredHeight: panel.gridIconSize
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: panel.gridIconSize
+                    Layout.preferredHeight: panel.gridIconSize
 
-            FileIconCell {
-                id: gridIconCell
+                    FileIconCell {
+                        id: gridIconCell
 
-                anchors.centerIn: parent
-                width: Math.max(28, Math.round(panel.gridIconSize * 0.8))
-                height: width
-                path: gridDelegate.path
-                name: gridDelegate.name
-                iconName: gridDelegate.iconName
-                overlayIconName: gridDelegate.overlayIconName
-                iconRecolorAllowed: gridDelegate.iconRecolorAllowed
-                mimeType: gridDelegate.mimeType
-                isDirectory: gridDelegate.isDirectory
-                hasThumbnail: gridDelegate.hasThumbnail
-                primaryBadgeKind: gridDelegate.primaryBadgeKind
-                isPinned: gridDelegate.isPinned
-                suffix: gridDelegate.suffix
-                useNativeIcons: panel.effectiveUseNativeIcons
-                thumbnailSource: gridDelegate.thumbnailRequestActive ? panel.thumbnailSourceFor(gridDelegate.path, gridDelegate.thumbnailRevision + gridDelegate.thumbnailRetryRevision * 1e+06) : ""
-                showThumbnail: gridDelegate.thumbnailRequestActive
-                iconSize: width
-                HoverHandler {
-                    enabled: !gridDelegate.lightweightActive
-                             && !panel.externalScrollAnySuppressionActive
-                             && !panel.hoverSuppressed
-                    onHoveredChanged: {
-                        if (hovered) panel.setHoveredItem(gridIconCell, path, point.position)
-                        else panel.clearHoveredItem(path)
+                        anchors.centerIn: parent
+                        width: Math.max(28, Math.round(panel.gridIconSize * 0.8))
+                        height: width
+                        path: gridDelegate.path
+                        name: gridDelegate.name
+                        iconName: gridDelegate.iconName
+                        overlayIconName: gridDelegate.overlayIconName
+                        iconRecolorAllowed: gridDelegate.iconRecolorAllowed
+                        mimeType: gridDelegate.mimeType
+                        isDirectory: gridDelegate.isDirectory
+                        hasThumbnail: gridDelegate.hasThumbnail
+                        primaryBadgeKind: gridDelegate.primaryBadgeKind
+                        isPinned: gridDelegate.isPinned
+                        suffix: gridDelegate.suffix
+                        useNativeIcons: panel.effectiveUseNativeIcons
+                        thumbnailSource: gridDelegate.thumbnailRequestActive ? panel.thumbnailSourceFor(gridDelegate.path, gridDelegate.thumbnailRevision + gridDelegate.thumbnailRetryRevision * 1e+06) : ""
+                        showThumbnail: gridDelegate.thumbnailRequestActive
+                        iconSize: width
+                        HoverHandler {
+                            enabled: !gridDelegate.lightweightActive
+                                     && !panel.externalScrollAnySuppressionActive
+                                     && !panel.hoverSuppressed
+                            onHoveredChanged: {
+                                if (hovered) panel.setHoveredItem(gridIconCell, path, point.position)
+                                else panel.clearHoveredItem(path)
+                            }
+                            onPointChanged: if (hovered) panel.setHoveredItem(gridIconCell, path, point.position)
+                        }
+                        onThumbnailError: {
+                            gridDelegate.thumbnailFailedPath = gridDelegate.path;
+                            gridDelegate.thumbnailLoadEnabled = false;
+                        }
+                        onThumbnailSoftMiss: gridDelegate.scheduleThumbnailRetry()
                     }
-                    onPointChanged: if (hovered) panel.setHoveredItem(gridIconCell, path, point.position)
+
                 }
-                onThumbnailError: {
-                    gridDelegate.thumbnailFailedPath = gridDelegate.path;
-                    gridDelegate.thumbnailLoadEnabled = false;
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: !isRenaming
+                    text: {
+                        if (isDirectory || !suffix)
+                            return name;
+
+                        const extLen = suffix.length;
+                        if (extLen > 0 && name.endsWith("." + suffix)) {
+                            const baseName = name.substring(0, name.length - extLen - 1);
+                            return baseName + "<font color='" + TextColors.fileExtensionText.toString() + "'>." + suffix + "</font>";
+                        }
+                        return name;
+                    }
+                    textFormat: Text.StyledText
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel
+                    color: isDirectory ? TextColors.folderNameText : TextColors.fileNameText
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
                 }
-                onThumbnailSoftMiss: gridDelegate.scheduleThumbnailRetry()
+
+                transform: Translate {
+                    y: gridDelegate.visualOffsetY
+                }
+
             }
-
         }
-
-        Label {
-            Layout.fillWidth: true
-            visible: !isRenaming
-            text: {
-                if (isDirectory || !suffix)
-                    return name;
-
-                const extLen = suffix.length;
-                if (extLen > 0 && name.endsWith("." + suffix)) {
-                    const baseName = name.substring(0, name.length - extLen - 1);
-                    return baseName + "<font color='" + TextColors.fileExtensionText.toString() + "'>." + suffix + "</font>";
-                }
-                return name;
-            }
-            textFormat: Text.StyledText
-            horizontalAlignment: Text.AlignHCenter
-            elide: Text.ElideRight
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeLabel
-            color: isDirectory ? TextColors.folderNameText : TextColors.fileNameText
-            wrapMode: Text.Wrap
-            maximumLineCount: 2
-        }
-
-        transform: Translate {
-            y: gridDelegate.visualOffsetY
-        }
-
     }
 
     MouseArea {
@@ -642,6 +654,7 @@ Item {
             wheel.accepted = false;
         }
         onPressed: (mouse) => {
+            panel.cancelFileViewsWheelScroll();
             panel.cancelInlineRenameForNavigation("grid-item-press");
             gridDelegate.badgePressed = mouse.button === Qt.LeftButton && gridDelegate.isPointOnBadge(mouse.x, mouse.y);
             gridDelegate.dragCandidate = panel.internalDragEnabled && mouse.button === Qt.LeftButton && !gridDelegate.isRenaming && !gridDelegate.badgePressed && (gridDelegate.isSelected || gridDelegate.isPointOnDragSurface(mouse.x, mouse.y));

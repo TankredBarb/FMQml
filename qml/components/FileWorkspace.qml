@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import FM
 import "../style"
 import "common"
 import "filepanel"
@@ -227,8 +228,13 @@ Item {
         }
     }
 
+    PanelResizeController {
+        enabled: splitView.resizing
+    }
+
     SplitView {
         id: splitView
+        objectName: "panelSplitView"
         anchors.fill: parent
         anchors.topMargin: 0
         anchors.bottomMargin: 4
@@ -277,6 +283,7 @@ Item {
 
         Item {
             id: middlePreviewHost
+            objectName: "middlePreviewHost"
             SplitView.preferredWidth: root.middlePreviewActive ? root.previewPanePreferredWidth : 0
             SplitView.minimumWidth: root.middlePreviewActive
                                     && root.previewPaneVisible
@@ -356,6 +363,7 @@ Item {
         }
 
         handle: Rectangle {
+            objectName: "panelSplitHandle"
             implicitWidth: 4
             implicitHeight: 12
             color: "transparent"

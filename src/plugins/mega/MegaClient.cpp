@@ -397,7 +397,8 @@ void MegaClient::requestAccountDetails()
         api = m_accountSession;
     }
     if (api) {
-        api->getAccountDetails(this);
+        // The account session already delivers requests through its global listener.
+        api->getAccountDetails();
     }
 }
 
@@ -455,7 +456,7 @@ int MegaClient::loadAccountRoot()
         qDebug() << "[MegaTiming] account fetchNodes start";
     }
     api->fetchNodes();
-    api->getAccountDetails(this);
+    api->getAccountDetails();
     return 0;
 }
 
@@ -1166,7 +1167,7 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
                     }
                 }
                 emit accountAuthorizationChanged(true, accountEmail(), accountSessionToken());
-                api->getAccountDetails(this);
+                api->getAccountDetails();
             }
             if (megaClientTimingEnabled()) {
                 qDebug() << "[MegaTiming] account fetchNodes start";
@@ -1217,7 +1218,7 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
                         m_accountFetchInProgress = false;
                         m_ignoreAccountNodeUpdatesUntilMs = QDateTime::currentMSecsSinceEpoch() + 1500;
                     }
-                    api->getAccountDetails(this);
+                    api->getAccountDetails();
                 } else {
                     success = false;
                     errorString = QStringLiteral("Failed to retrieve MEGA account root node");
@@ -1269,12 +1270,10 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
         if (e->getErrorCode() == MegaError::API_OK) {
             MegaAccountDetails *details = request->getMegaAccountDetails();
             if (details) {
-                {
-                    QMutexLocker locker(&m_mutex);
-                    m_accountStorageUsed = details->getStorageUsed();
-                    m_accountStorageMax = details->getStorageMax();
-                }
-                emit accountAuthorizationChanged(isAccountAuthenticated(), accountEmail(), accountSessionToken());
+                // Storage refreshes do not change authorization or require saving credentials.
+                QMutexLocker locker(&m_mutex);
+                m_accountStorageUsed = details->getStorageUsed();
+                m_accountStorageMax = details->getStorageMax();
             }
         }
     }

@@ -1275,11 +1275,13 @@ ApplicationWindow {
 
             SplitView {
                 id: mainSplitView
+                objectName: "mainSplitView"
                 anchors.fill: parent
                 orientation: Qt.Horizontal
 
             Sidebar {
                 id: sidebar
+                objectName: "sidebar"
                 SplitView.preferredWidth: root.effectiveSidebarVisible
                                           ? (root.sidebarCompactMode ? 58 : root.sidebarPreferredWidth) : 0
                 SplitView.minimumWidth: root.effectiveSidebarVisible
@@ -1335,6 +1337,7 @@ ApplicationWindow {
 
             FileWorkspace {
                 id: fileWorkspace
+                objectName: "fileWorkspace"
                 SplitView.fillWidth: true
                 middlePreviewActive: root.effectivePreviewPanePlacement === "between-panels"
                 previewPaneVisible: root.previewPaneVisible
@@ -1361,6 +1364,7 @@ ApplicationWindow {
 
             Item {
                 id: trailingPreviewHost
+                objectName: "trailingPreviewHost"
                 readonly property bool placementActive: root.effectivePreviewPanePlacement === "right"
                 SplitView.preferredWidth: placementActive ? root.previewPanePreferredWidth : 0
                 SplitView.minimumWidth: placementActive && root.previewPaneVisible
@@ -1409,6 +1413,7 @@ ApplicationWindow {
             }
 
                 handle: Rectangle {
+                    objectName: "mainSplitHandle"
                     implicitWidth: 4
                     color: "transparent"
                     readonly property bool handleActive: SplitHandle.hovered || SplitHandle.pressed

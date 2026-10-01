@@ -358,6 +358,7 @@ Item {
         scrollGestureEnabled: false
         onWheel: (wheel) => { wheel.accepted = false }
         onPressed: (mouse) => {
+            if (root.panel) root.panel.cancelFileViewsWheelScroll();
             root.cancelRenameOnPress("brief-item-press")
             root.badgePressed = mouse.button === Qt.LeftButton
                                 && root.isPointOnBadge(mouse.x, mouse.y)
