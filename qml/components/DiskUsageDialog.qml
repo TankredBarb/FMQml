@@ -866,7 +866,7 @@ Dialog {
                         Label {
                             Layout.fillWidth: true
                             text: treemapMouse.entry.name === undefined ? "" : treemapMouse.entry.name
-                            color: Theme.textPrimary
+                            color: treemapToolTip.palette.toolTipText
                             font.pixelSize: Theme.fontSizeCaption
                             font.weight: Font.DemiBold
                             elide: Text.ElideMiddle
@@ -876,7 +876,7 @@ Dialog {
                             Layout.fillWidth: true
                             text: treemapMouse.entry.path === undefined
                                   ? "" : root.displayPath(treemapMouse.entry.path)
-                            color: Theme.textSecondary
+                            color: treemapToolTip.palette.toolTipText
                             font.pixelSize: Theme.fontSizeMicro
                             elide: Text.ElideMiddle
                         }
@@ -889,7 +889,7 @@ Dialog {
                                      ? " · " + treemapMouse.entry.fileCount + " files · "
                                        + treemapMouse.entry.folderCount + " folders"
                                      : "")
-                            color: Theme.textSecondary
+                            color: treemapToolTip.palette.toolTipText
                             font.pixelSize: Theme.fontSizeMicro
                             elide: Text.ElideRight
                         }
@@ -1012,6 +1012,7 @@ Dialog {
                 }
 
                 ToolTip {
+                    id: sunburstToolTip
                     parent: sunburstMouse
                     visible: sunburstMouse.containsMouse && sunburstMouse.entry.name !== undefined
                     delay: 350
@@ -1027,7 +1028,7 @@ Dialog {
                         Label {
                             Layout.fillWidth: true
                             text: sunburstMouse.entry.name === undefined ? "" : sunburstMouse.entry.name
-                            color: Theme.textPrimary
+                            color: sunburstToolTip.palette.toolTipText
                             font.pixelSize: Theme.fontSizeCaption
                             font.weight: Font.DemiBold
                             elide: Text.ElideMiddle
@@ -1038,7 +1039,7 @@ Dialog {
                             visible: text.length > 0
                             text: sunburstMouse.entry.path === undefined
                                   ? "" : root.displayPath(sunburstMouse.entry.path)
-                            color: Theme.textSecondary
+                            color: sunburstToolTip.palette.toolTipText
                             font.pixelSize: Theme.fontSizeMicro
                             elide: Text.ElideMiddle
                         }
@@ -1047,7 +1048,7 @@ Dialog {
                             Layout.fillWidth: true
                             text: sunburstMouse.entry.sizeText === undefined
                                   ? "" : sunburstMouse.entry.sizeText
-                            color: Theme.textSecondary
+                            color: sunburstToolTip.palette.toolTipText
                             font.pixelSize: Theme.fontSizeMicro
                             elide: Text.ElideRight
                         }
