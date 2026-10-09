@@ -598,7 +598,7 @@ int DirectoryModel::count() const
 
 int DirectoryModel::selectedCount() const
 {
-    return m_selectedCount;
+    return m_selectedCount + m_mapSelectedPaths.size();
 }
 
 int DirectoryModel::firstSelectedRow() const

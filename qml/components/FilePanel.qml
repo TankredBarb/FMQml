@@ -42,6 +42,7 @@ Pane {
                                               || listView.activeFocus
                                               || gridView.activeFocus
                                               || briefView.activeFocus
+                                              || mapView.activeFocus
                                               || storageView.activeFocus
                                               || favoritesView.activeFocus
                                               || root.isRenaming
@@ -108,6 +109,11 @@ Pane {
                                                 || root.currentPathKind === "gdrive"
                                                 || root.currentPathKind === "mega"
                                                 || root.currentPathKind === "portable"
+    readonly property bool mapAvailable: mapGpuProbe.available && root.controller
+                                        && mapGpuProbe.supportsPath(root.controller.currentPath)
+
+    MapGpuProbe { id: mapGpuProbe }
+    onMapAvailableChanged: if (mapAvailable) root.queueCurrentIndexEnsure()
     readonly property bool navigationBenchmarkMode: Qt.application.arguments.indexOf("--navigation-gui-benchmark") >= 0
     readonly property bool effectiveUseNativeIcons: root.navigationBenchmarkMode ? true : root.useNativeIcons
     readonly property bool effectiveShowThumbnails: root.navigationBenchmarkMode ? true : root.showThumbnails
@@ -1136,6 +1142,7 @@ Pane {
         listView: listView
         gridView: gridView
         briefView: briefView
+        mapView: mapView
     }
 
     Connections {
@@ -1547,6 +1554,7 @@ Pane {
     }
 
     function activeViewName() {
+        if (root.viewMode === 3) return "map"
         if (root.viewMode === 0) return "list"
         if (root.viewMode === 1) return "grid"
         if (root.viewMode === 2) return "brief"
@@ -1687,7 +1695,7 @@ Pane {
         if (request.kind === "item") {
             const menu = root.ensureFilePanelContextMenu()
             if (menu) {
-                menu.popupContextMenu(request.index, request.path, request.canExtractArchive, request.canMountIso)
+                menu.popupContextMenu(request.index, request.path, request.canExtractArchive, request.canMountIso, request.isDirectory)
             } else {
                 root.contextMenuOpen = false
             }
@@ -1715,13 +1723,14 @@ Pane {
         root.popupContextMenuRequest(request)
     }
 
-    function popupFilePanelContextMenu(index, path, canExtractArchive, canMountIso) {
+    function popupFilePanelContextMenu(index, path, canExtractArchive, canMountIso, isDirectory) {
         root.scheduleContextMenuRequest({
             kind: "item",
             index: index,
             path: path,
             canExtractArchive: canExtractArchive,
-            canMountIso: canMountIso
+            canMountIso: canMountIso,
+            isDirectory: isDirectory === true
         })
     }
 
@@ -1777,10 +1786,11 @@ Pane {
     }
 
     function viewCurrentIndexInvalid(view, count) {
-        return !view || view.currentIndex < 0 || view.currentIndex >= count
+        return !view || (view.hasCurrentEntry !== true && (view.currentIndex < 0 || view.currentIndex >= count))
     }
 
     function queueCurrentIndexEnsure() {
+        if (root.viewMode === 3 && !root.mapAvailable) return
         if (root.navigationCommitPending()) {
             return
         }
@@ -1852,7 +1862,7 @@ Pane {
     }
 
     function shouldAutoPositionCurrentIndex() {
-        return !root.suppressCurrentIndexAutoPosition
+        return root.viewMode !== 3 && !root.suppressCurrentIndexAutoPosition
                 && filePanelNavigationPolicy.canAutoPositionCurrentIndex()
     }
 
@@ -1902,7 +1912,7 @@ Pane {
 
         const view = root.activeView()
         const idx = root.desiredInitialCurrentIndex()
-        if (view && view.currentIndex === idx && view.currentItem && !root.targetPathPendingDuringLoad()) {
+        if (view && view.currentIndex === idx && (view.currentItem || root.viewMode === 3) && !root.targetPathPendingDuringLoad()) {
             root.completeCurrentIndexInit()
         } else {
             root.queueCurrentIndexEnsure()
@@ -1910,6 +1920,7 @@ Pane {
     }
 
     function ensureCurrentIndexWithoutSelection() {
+        if (root.viewMode === 3 && !root.mapAvailable) return
         if (root.inlineRenameFocusActive()) {
             return
         }
@@ -2105,9 +2116,11 @@ Pane {
         if (!root.controller || !root.controller.directoryModel) {
             return
         }
-        root.controller.currentItemPath = index >= 0 && index < root.controller.directoryModel.count
-                                        ? root.controller.directoryModel.pathAt(index)
-                                        : ""
+        const view = root.activeView()
+        if (index >= 0 && index < root.controller.directoryModel.count)
+            root.controller.currentItemPath = root.controller.directoryModel.pathAt(index)
+        else if (!view || view.hasCurrentEntry !== true)
+            root.controller.currentItemPath = ""
         root.rememberScrollPositionForView(root.activeView(), root.viewMode)
     }
 
@@ -2211,6 +2224,13 @@ Pane {
     }
 
     function prepareViewModeRestore(oldMode, newMode) {
+        if (oldMode === 3 || newMode === 3) {
+            root.clearPendingScrollRestore()
+            root.targetSelectPath = ""
+            root.completeCurrentIndexInit()
+            Qt.callLater(() => root.focusContentAfterViewModeRestore())
+            return
+        }
         if (!root.controller
                 || !root.controller.directoryModel
                 || root.virtualRootMode
@@ -2277,6 +2297,10 @@ Pane {
     }
 
     function restorePendingScrollPosition() {
+        if (root.viewMode === 3) {
+            root.clearPendingScrollRestore()
+            return true
+        }
         if (!pendingScrollRestorePath || pendingScrollRestoreY < 0) {
             root.scrollTrace("restore-scroll-skip-no-pending")
             return false
@@ -2445,7 +2469,7 @@ Pane {
         return root.cancelActiveInlineRename()
     }
 
-    function openPath(path) {
+    function openPath(path, fromBreadcrumb) {
         if (!root.controller || !path || String(path).trim().length === 0) {
             return false
         }
@@ -2455,7 +2479,13 @@ Pane {
             return false
         }
         root.cancelInlineRenameForNavigation("openPath")
-        return root.controller.openPath(path)
+        const view = root.activeView()
+        if (fromBreadcrumb === true && root.viewMode === 3 && view && view.prepareBreadcrumbNavigation) {
+            view.prepareBreadcrumbNavigation(path)
+        }
+        const opened = root.controller.openPath(path)
+        if (!opened && view && view.pendingBreadcrumbPath !== undefined) view.pendingBreadcrumbPath = ""
+        return opened
     }
 
     function benchmarkSnapshot() {
@@ -2556,6 +2586,15 @@ Pane {
     }
 
     function startRename() {
+        if (root.viewMode === 3) {
+            if (root.isCurrentPathReadOnlyContainer) return
+            const paths = root.controller.selectedPaths()
+            const window = root.Window.window
+            if (paths.length > 1) window.showBatchRename(paths)
+            else if (paths.length === 1 && root.controller.canRenameSelection)
+                window.showMapRename(root.controller, root, paths[0], mapView.entryForPath(paths[0]).directory)
+            return
+        }
         filePanelInlineRenamePolicy.startManualRename(contextRow())
     }
 
@@ -2565,7 +2604,9 @@ Pane {
             return false
         }
         root.traceRenameFocus("focusContent-apply")
-        if (root.controller.isDeviceRoot) {
+        if (root.viewMode === 3) {
+            mapView.forceActiveFocus()
+        } else if (root.controller.isDeviceRoot) {
             storageView.forceActiveFocus()
         } else if (root.controller.isFavoritesRoot) {
             favoritesView.forceActiveFocus()
@@ -3000,6 +3041,8 @@ Pane {
         }
     }
 
+    function handleViewKeyPressed(view, event) { filePanelKeyboardPolicy.handleViewKeyPressed(view, event) }
+
     function handleItemClick(index, mouse) {
         root.noteUserInteraction("item-click")
         root.activated()
@@ -3009,11 +3052,11 @@ Pane {
         }
         root.invertSelectionActive = false
         root.disableSelectionOnCurrentIndexChanged = true
-        let prevIdx = filePanelViewRegistry.setCurrentIndex(index)
+        filePanelViewRegistry.setCurrentIndex(index)
         root.updateCurrentItemPath(index)
         root.disableSelectionOnCurrentIndexChanged = false
 
-        filePanelSelectionPolicy.selectClickedRow(index, mouse.modifiers, prevIdx)
+        filePanelSelectionPolicy.selectClickedRow(index, mouse.modifiers)
     }
 
     function handleItemRightClick(index, path, isArchiveFile, isIsoImageFile) {
@@ -3246,9 +3289,10 @@ Pane {
             id: panelPathBarComponent
 
             PathBar {
+                objectName: "panelPathBar"
                 controller: root.controller
                 path: root.controller.currentPath
-                openPathHandler: function(path) { return root.openPath(path) }
+                openPathHandler: function(path, fromBreadcrumb) { return root.openPath(path, fromBreadcrumb) }
                 prepareNavigationHandler: function(reason) { root.cancelInlineRenameForNavigation(reason) }
                 onActiveFocusChanged: if (activeFocus) root.activated()
             }
@@ -3466,6 +3510,7 @@ Pane {
             EmptyState {
                 anchors.centerIn: parent
                 visible: !root.virtualRootMode
+                         && root.viewMode !== 3
                          && !root.controller.directoryModel.loading
                          && root.controller.directoryModel.count === 0
                 iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder.svg"
@@ -3901,6 +3946,21 @@ Pane {
                 }
             }
 
+            FilePanelMapView {
+                id: mapView
+                objectName: "panelMapView"
+                anchors.fill: parent
+                anchors.bottomMargin: root.bottomChromeHeight
+                controller: root.controller
+                panel: root
+                gpuAvailable: mapGpuProbe.available
+                gpuReady: mapGpuProbe.ready
+                locationSupported: mapGpuProbe.supportsPath(root.controller.currentPath)
+                visible: root.viewMode === 3
+                enabled: visible
+                focus: root.active && visible
+            }
+
             StorageView {
                 id: storageView
                 objectName: "panelStorageView"
@@ -3909,9 +3969,9 @@ Pane {
                 controller: root.controller
                 panel: root
                 liveResizeActive: root.liveResizeActive
-                visible: root.controller.isDeviceRoot
+                visible: root.controller.isDeviceRoot && root.viewMode !== 3
                 enabled: visible
-                focus: root.active && root.controller.isDeviceRoot
+                focus: root.active && visible
             }
 
             FavoritesView {
@@ -3924,9 +3984,9 @@ Pane {
                 favoritesBackend: root.favoritesBackend
                 quickLookPopup: root.quickLookPopup
                 liveResizeActive: root.liveResizeActive
-                visible: root.controller.isFavoritesRoot
+                visible: root.controller.isFavoritesRoot && root.viewMode !== 3
                 enabled: visible
-                focus: root.active && root.controller.isFavoritesRoot
+                focus: root.active && visible
                 onActivated: root.activated()
             }
 

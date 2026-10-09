@@ -1,0 +1,361 @@
+{
+  "date": "2026-10-09",
+  "build": "cmake --build build --target fm folder_map_test fm_mega_provider mega_account_details_test -j 4",
+  "ctest": {
+    "passed": 82,
+    "failed": 0
+  },
+  "localTransferRepeatedRuns": {
+    "passed": 10,
+    "failed": 0
+  },
+  "integration": {
+    "archivesPassed": true,
+    "availabilityPassed": true,
+    "backCameraPreserved": true,
+    "breadcrumbFits": true,
+    "cameraPreserved": true,
+    "clickSelectionPassed": true,
+    "copyPassed": true,
+    "deviceName": "AMD AMD Radeon RX 6600 XT (radeonsi, navi23, ACO, DRM 3.64, 7.2.5-1-cachyos) 4.6 (Compatibility Profile) Mesa 26.2.2-arch3.2",
+    "emptySpaceMenu": true,
+    "gpuAvailable": true,
+    "incomingDropPassed": true,
+    "loadedCount": 607,
+    "mapRenamePassed": true,
+    "movePassed": true,
+    "nestedBatchRename": true,
+    "nestedClickSelected": true,
+    "nestedCtrlSelection": true,
+    "nestedDoubleClickOpened": true,
+    "nestedFocusPreserved": true,
+    "nestedKeyboardSelection": true,
+    "nestedPreview": true,
+    "nestedQuickLook": true,
+    "nestedRemovalCleared": true,
+    "nestedRightClickMenu": true,
+    "nestedShiftRanges": true,
+    "panelZoomPreserved": true,
+    "placeholderButtonFound": true,
+    "placeholderButtonPassed": true,
+    "placeholderPassed": true,
+    "placeholderShortcutPassed": true,
+    "placeholderVisible": true,
+    "reportType": "navigation-gui-benchmark",
+    "rootShiftRanges": true,
+    "schemaVersion": 1,
+    "selectionZoomPreserved": true,
+    "startupViewModesPassed": true,
+    "success": true,
+    "transfersPassed": true,
+    "viewMode": 3
+  },
+  "stress": {
+    "bulkUpdates": true,
+    "burstWritten": true,
+    "coldArrivals": true,
+    "coldThumbnailsAndBurst": {
+      "frames": 300,
+      "maxMs": 7.585129,
+      "over16Ms": 0,
+      "p50Ms": 6.942214,
+      "p95Ms": 7.068615
+    },
+    "coldThumbnailsAndBurstResponsive": true,
+    "deviceName": "AMD AMD Radeon RX 6600 XT (radeonsi, navi23, ACO, DRM 3.64, 7.2.5-1-cachyos) 4.6 (Compatibility Profile) Mesa 26.2.2-arch3.2",
+    "directoryViewSwitches": 48,
+    "exitSamples": [
+      {
+        "cycle": 0,
+        "liveHeapBytes": 624731232,
+        "maps": [
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          },
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          }
+        ],
+        "rssBytes": 2454249472
+      },
+      {
+        "cycle": 1,
+        "liveHeapBytes": 629919040,
+        "maps": [
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          },
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          }
+        ],
+        "rssBytes": 2461999104
+      },
+      {
+        "cycle": 2,
+        "liveHeapBytes": 632595792,
+        "maps": [
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          },
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          }
+        ],
+        "rssBytes": 2471370752
+      },
+      {
+        "cycle": 3,
+        "liveHeapBytes": 522846400,
+        "maps": [
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          },
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          }
+        ],
+        "rssBytes": 2239668224
+      },
+      {
+        "cycle": 4,
+        "liveHeapBytes": 526014256,
+        "maps": [
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          },
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          }
+        ],
+        "rssBytes": 2239668224
+      },
+      {
+        "cycle": 5,
+        "liveHeapBytes": 512797680,
+        "maps": [
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          },
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          }
+        ],
+        "rssBytes": 2235891712
+      },
+      {
+        "cycle": 6,
+        "liveHeapBytes": 519105216,
+        "maps": [
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          },
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          }
+        ],
+        "rssBytes": 2235895808
+      },
+      {
+        "cycle": 7,
+        "liveHeapBytes": 524066512,
+        "maps": [
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          },
+          {
+            "futures": 0,
+            "gpuTextures": 0,
+            "listings": 0,
+            "nodes": 0,
+            "ready": 0,
+            "requests": 0,
+            "retainedBufferBytes": 0,
+            "visible": 0,
+            "watchers": 0
+          }
+        ],
+        "rssBytes": 2235895808
+      }
+    ],
+    "failures": [],
+    "fixtures": true,
+    "liveHeapBounded": true,
+    "loadedResources": [
+      {
+        "futures": 0,
+        "gpuTextures": 27,
+        "listings": 0,
+        "nodes": 206,
+        "ready": 39,
+        "requests": 41,
+        "retainedBufferBytes": 81760,
+        "visible": 92,
+        "watchers": 0
+      },
+      {
+        "futures": 0,
+        "gpuTextures": 28,
+        "listings": 0,
+        "nodes": 206,
+        "ready": 40,
+        "requests": 42,
+        "retainedBufferBytes": 81760,
+        "visible": 92,
+        "watchers": 0
+      }
+    ],
+    "mapResourcesReleased": true,
+    "nestedLoaded": true,
+    "nestedWatcherUpdates": true,
+    "nestedWatchersActive": true,
+    "qtVersion": "6.11.2",
+    "rapidSwitches": true,
+    "reentryCycles": true,
+    "reentryCyclesRequested": 8,
+    "reportType": "folder-map-stress",
+    "residentMemoryBounded": true,
+    "rssAfterAllocatorTrim": 954658816,
+    "steadyThumbnails": {
+      "frames": 301,
+      "maxMs": 8.399793,
+      "over16Ms": 0,
+      "p50Ms": 6.939624,
+      "p95Ms": 7.339107
+    },
+    "steadyThumbnailsResponsive": true,
+    "success": true,
+    "thumbnailsReady": true,
+    "thumbnailsUploaded": true,
+    "twoMapsLoaded": true,
+    "withoutThumbnails": {
+      "frames": 300,
+      "maxMs": 7.89106,
+      "over16Ms": 0,
+      "p50Ms": 6.932854,
+      "p95Ms": 7.462087
+    },
+    "withoutThumbnailsResponsive": true
+  },
+  "interpretation": "Qt frame intervals on this fixture; physical presentation and input latency were not measured. Map-owned resources drain on exit; shared application, Qt, driver and allocator caches remain."
+}

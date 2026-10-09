@@ -60,6 +60,8 @@ set(CMAKE_UNITY_BUILD ON)
 set(CMAKE_UNITY_BUILD_BATCH_SIZE 8)
 
 find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControls2 Concurrent Network NetworkAuth Svg QuickEffects QuickDialogs2)
+find_package(Qt6GuiPrivate REQUIRED)
+find_package(Qt6QuickPrivate REQUIRED)
 
 qt_standard_project_setup(REQUIRES 6.7)
 qt_policy(SET QTP0004 NEW)
@@ -451,9 +453,15 @@ qt_add_executable(fm
     src/core/SystemInfoProvider.h
     src/tools/NavigationBenchmark.cpp
     src/tools/NavigationBenchmark.h
+    src/tools/FolderMapStress.cpp
+    src/tools/FolderMapStress.h
     src/tools/SelectionBenchmark.cpp
     src/tools/SelectionBenchmark.h
     src/ui/DiskUsageTreemapItem.cpp
+    src/ui/foldermap/FolderMapItem.cpp
+    src/ui/foldermap/FolderMapItem.h
+    src/ui/foldermap/MapGpuProbe.cpp
+    src/ui/foldermap/MapGpuProbe.h
     src/ui/DiskUsageTreemapItem.h
     src/ui/DiskUsageTreemapLayout.cpp
     src/ui/DiskUsageTreemapLayout.h
@@ -510,7 +518,7 @@ if(HAS_FFMPEG_THUMBNAILS)
     set_source_files_properties(src/core/VideoThumbnailExtractor.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 endif()
 
-target_include_directories(fm PRIVATE src src/core src/models src/controllers src/ui src/ui/framework)
+target_include_directories(fm PRIVATE src src/core src/models src/controllers src/ui src/ui/framework src/ui/foldermap)
 
 # Provider plugins are loaded dynamically and link against FileProvider symbols from the host executable.
 set_target_properties(fm PROPERTIES ENABLE_EXPORTS TRUE)
@@ -527,6 +535,7 @@ set(MY_QML_FILES
     qml/components/DiskUsageDialog.qml
     qml/components/ChecksumDialog.qml
     qml/components/BatchRenameDialog.qml
+    qml/components/MapRenameDialog.qml
     qml/components/ArchivePasswordDialog.qml
     qml/components/DebugInformationDialog.qml
     qml/components/UiLabOverlay.qml
@@ -744,6 +753,7 @@ set(MY_QML_FILES
     qml/components/filepanel/FilePanelSelectionActions.qml
     qml/components/filepanel/FilePanelFilterPopover.qml
     qml/components/filepanel/FilePanelViewMenu.qml
+    qml/components/filepanel/FilePanelMapView.qml
     qml/components/filepanel/PluginActionResultDialog.qml
     qml/components/filepanel/PluginUiDialog.qml
     qml/components/PluginManagerDialog.qml
@@ -809,6 +819,8 @@ qt_add_qml_module(fm
         src/ui/framework/FmTabBarVisual.h
         src/ui/framework/FmTextFieldVisual.h
         src/ui/DiskUsageTreemapItem.h
+        src/ui/foldermap/FolderMapItem.h
+        src/ui/foldermap/MapGpuProbe.h
         src/ui/DiskUsageSunburstItem.h
         src/core/IsoMountManager.h
     QML_FILES
@@ -894,6 +906,8 @@ qt_add_qml_module(fm
         qml/assets/icons-classic/image.svg
         qml/assets/icons-classic/info.svg
         qml/assets/icons-classic/invert-selection.svg
+        qml/assets/icons-classic/view-map.svg
+        qml/assets/icons-classic/map-unavailable.svg
         qml/assets/icons-classic/layout-grid.svg
         qml/assets/icons-classic/layout-list.svg
         qml/assets/icons-classic/list.svg
@@ -1084,6 +1098,7 @@ target_link_libraries(fm
     PRIVATE
         Qt6::Core
         Qt6::Gui
+        Qt6::GuiPrivate Qt6::QuickPrivate
         Qt6::Widgets
         Qt6::Qml
         Qt6::Quick
@@ -1785,6 +1800,52 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(disk_usage_treemap_layout_test PRIVATE src/ui)
     target_link_libraries(disk_usage_treemap_layout_test PRIVATE Qt6::Core)
     add_test(NAME disk_usage_treemap_layout_test COMMAND disk_usage_treemap_layout_test)
+
+    add_executable(folder_map_test
+        src/core/PathSemantics.cpp src/core/PathSemantics.h
+        src/core/DirectoryChangeWatcher.cpp src/core/DirectoryChangeWatcher.h
+        src/core/IconProvider.cpp src/core/IconProvider.h
+        src/core/ArchiveSupport.cpp src/core/ArchiveSupport.h
+        src/core/IsoSupport.cpp src/core/IsoSupport.h
+        tests/core/FolderMapTest.cpp
+        src/core/FileTypeIconResolver.cpp src/core/FileTypeIconResolver.h
+        src/ui/foldermap/FolderMapItem.cpp src/ui/foldermap/FolderMapItem.h
+        src/ui/foldermap/MapGpuProbe.cpp src/ui/foldermap/MapGpuProbe.h)
+    if(WIN32)
+        target_sources(folder_map_test PRIVATE src/core/WinDirectoryChangeWatcher.cpp src/core/WinDirectoryChangeWatcher.h)
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_sources(folder_map_test PRIVATE src/core/LinuxDirectoryChangeWatcher.cpp src/core/LinuxDirectoryChangeWatcher.h)
+    else()
+        target_sources(folder_map_test PRIVATE src/core/QtDirectoryChangeWatcher.cpp src/core/QtDirectoryChangeWatcher.h)
+    endif()
+    target_include_directories(folder_map_test PRIVATE src/ui/foldermap src/core)
+    target_link_libraries(folder_map_test PRIVATE Qt6::Test Qt6::Quick Qt6::Qml Qt6::Concurrent Qt6::GuiPrivate Qt6::QuickPrivate Qt6::Svg)
+    target_link_libraries(folder_map_test PRIVATE ${FM_BIT7Z_TARGET})
+    target_compile_definitions(folder_map_test PRIVATE HAS_UNOFFICIAL_BIT7Z)
+    if(WIN32)
+        target_link_libraries(folder_map_test PRIVATE Shell32 Comctl32 Ole32 Uuid)
+    endif()
+    qt_add_resources(folder_map_test folder_map_icons PREFIX "/qt/qml/FM" FILES
+        qml/assets/filetypes-next/archive.svg qml/assets/filetypes-next/code.svg
+        qml/assets/filetypes-next/document.svg qml/assets/filetypes-next/epub.svg
+        qml/assets/filetypes-next/executable.svg qml/assets/filetypes-next/fb2.svg
+        qml/assets/filetypes-next/folder.svg qml/assets/filetypes-next/font.svg
+        qml/assets/filetypes-next/image.svg qml/assets/filetypes-next/music.svg
+        qml/assets/filetypes-next/pdf.svg qml/assets/filetypes-next/presentation.svg
+        qml/assets/filetypes-next/shortcut.svg qml/assets/filetypes-next/spreadsheet.svg
+        qml/assets/filetypes-next/text.svg qml/assets/filetypes-next/video.svg
+        qml/assets/icons-classic/folder.svg)
+    add_test(NAME folder_map_test COMMAND ${CMAKE_COMMAND} -E env
+        QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software $<TARGET_FILE:folder_map_test>)
+    add_test(NAME folder_map_software_panel_test COMMAND ${CMAKE_COMMAND} -E env
+        QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software $<TARGET_FILE:fm>
+        --navigation-gui-benchmark --map)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        add_test(NAME folder_map_startup_test COMMAND ${CMAKE_COMMAND}
+            -DFM_EXECUTABLE=$<TARGET_FILE:fm>
+            -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/folder-map-startup-test
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/FolderMapStartupTest.cmake)
+    endif()
 
     add_test(
         NAME navigation_benchmark_smoke
@@ -2608,5 +2669,7 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_include_directories(mega_account_details_test PRIVATE src src/core src/plugins/mega)
         target_link_libraries(mega_account_details_test PRIVATE Qt6::Core Qt6::Gui Qt6::Network MEGA::SDKlib)
         add_test(NAME mega_account_details_test COMMAND mega_account_details_test)
+        add_test(NAME mega_client_shutdown_test COMMAND mega_account_details_test --shutdown-probe)
+        set_tests_properties(mega_client_shutdown_test PROPERTIES TIMEOUT 15)
     endif()
 endif()

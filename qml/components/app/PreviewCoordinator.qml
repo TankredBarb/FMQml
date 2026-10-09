@@ -97,13 +97,14 @@ Item {
             return "selection://"
         }
 
+        const pathBasedView = controller.viewMode === 3
         if (controller.currentItemPath
                 && controller.currentItemPath.length > 0
-                && modelContainsPath(controller, controller.currentItemPath)) {
+                && (pathBasedView || modelContainsPath(controller, controller.currentItemPath))) {
             return controller.currentItemPath
         }
 
-        if (selected.length > 0 && modelContainsPath(controller, selected[0])) {
+        if (selected.length > 0 && (pathBasedView || modelContainsPath(controller, selected[0]))) {
             return selected[0]
         }
 

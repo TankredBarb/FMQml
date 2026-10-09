@@ -296,8 +296,12 @@ QVariantMap FilePanelController::launchPathWithSteamProton(const QString &path,
 
 void FilePanelController::revealInFileManager(int row)
 {
+    revealPathInFileManager(m_directoryModel.pathAt(row));
+}
+
+void FilePanelController::revealPathInFileManager(const QString &path)
+{
     if (isVirtualRoot()) return;
-    const QString path = m_directoryModel.pathAt(row);
     if (path.isEmpty()) {
         return;
     }

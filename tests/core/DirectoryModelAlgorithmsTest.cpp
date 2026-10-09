@@ -28,6 +28,26 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     bool ok = true;
 
+    QBitArray selection(12);
+    selection.setBit(2);
+    selection.setBit(10);
+    DirectoryModelAlgorithms::extendOrTrimSelection(selection, 2, 6);
+    for (int i = 0; i < selection.size(); ++i)
+        ok &= selection.testBit(i) == ((i >= 2 && i <= 6) || i == 10)
+            || fail("Shift expansion did not preserve a disjoint selection");
+    DirectoryModelAlgorithms::extendOrTrimSelection(selection, 2, 4);
+    for (int i = 0; i < selection.size(); ++i)
+        ok &= selection.testBit(i) == ((i >= 2 && i <= 4) || i == 10)
+            || fail("Shift trimming modified a disjoint selected block");
+    selection.fill(false);
+    selection.setBit(8);
+    DirectoryModelAlgorithms::extendOrTrimSelection(selection, 8, 3);
+    DirectoryModelAlgorithms::extendOrTrimSelection(selection, 3, 5);
+    for (int i = 0; i < selection.size(); ++i)
+        ok &= selection.testBit(i) == (i >= 3 && i <= 5)
+            || fail("Shift reverse range did not trim from the first selected item");
+
+
     FileEntry folder = entry(QStringLiteral("z-folder"), {}, true);
     FileEntry image = entry(QStringLiteral("b-image.PNG"), QStringLiteral("PNG"));
     FileEntry document = entry(QStringLiteral("a-book.fb2.zip"), QStringLiteral("zip"));

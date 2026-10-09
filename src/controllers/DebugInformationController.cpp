@@ -50,6 +50,7 @@ QString viewModeName(int mode)
     case 0: return QStringLiteral("Details");
     case 1: return QStringLiteral("Grid");
     case 2: return QStringLiteral("Brief");
+    case 3: return QStringLiteral("Map");
     default: return QString::number(mode);
     }
 }

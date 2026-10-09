@@ -15,6 +15,7 @@ Item {
     property var contextRowProvider
     property int contextRowValue: -1
     property string contextPathValue: ""
+    property bool contextDirectoryValue: false
     property bool contextCanExtractArchive: false
     property bool contextCanMountIso: false
     property bool isCurrentPathArchive: false
@@ -31,18 +32,21 @@ Item {
 
     FilePanelMenuPolicy {
         id: menuPolicy
+        objectName: "filePanelItemMenuPolicy"
         controller: root.controller
         workspaceController: root.workspaceController
         favoritesController: root.favoritesController
         contextRowProvider: root.contextRowProvider
         contextRowValue: root.contextRowValue
         contextPathValue: root.contextPathValue
+        contextDirectoryValue: root.contextDirectoryValue
         isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
     }
 
-    function popupContextMenu(row, path, canExtractArchive, canMountIso) {
+    function popupContextMenu(row, path, canExtractArchive, canMountIso, isDirectory) {
         root.contextRowValue = row === undefined ? -1 : row
         root.contextPathValue = path === undefined ? "" : path
+        root.contextDirectoryValue = isDirectory === true
         root.contextCanExtractArchive = canExtractArchive === true
         root.contextCanMountIso = canMountIso === true
         root.contextLaunchCapabilities = root.controller && root.controller.launchCapabilitiesForPath
@@ -93,10 +97,8 @@ Item {
         const row = root.contextRow()
         const model = menuPolicy.directoryModel()
         return root.folderPeekEnabled
-                && row >= 0
-                && model
-                && model.specialActionAt(row) === 0
-                && model.isDirectoryAt(row)
+                && (row < 0 || (model && model.specialActionAt(row) === 0))
+                && menuPolicy.contextItemIsDirectory()
     }
 
     function contextInsideManagedIsoMount() {
@@ -248,6 +250,7 @@ Item {
 
     FmMenu {
         id: contextMenu
+        objectName: "filePanelItemPopup"
         onOpened: root.menuOpenChanged(true)
         onClosed: root.menuOpenChanged(false)
         FmMenuItem {
@@ -255,7 +258,11 @@ Item {
             icon.source: "../assets/icons-classic/folder-open.svg"
             iconColor: Theme.actionIconColor("open")
             enabled: menuPolicy.canOpenContextItem()
-            onTriggered: root.controller.openItem(contextRow())
+            onTriggered: {
+                if (contextRow() >= 0) root.controller.openItem(contextRow())
+                else if (menuPolicy.contextItemIsDirectory()) root.controller.openPath(root.contextPathValue)
+                else root.controller.openFilePath(root.contextPathValue)
+            }
         }
         FmMenuItem {
             text: "Peek Folder"
@@ -465,7 +472,7 @@ Item {
             iconColor: Theme.actionIconColor("navigation")
             visible: menuPolicy.canRevealContextItem()
             enabled: visible
-            onTriggered: root.controller.revealInFileManager(contextRow())
+            onTriggered: root.controller.revealPathInFileManager(root.contextPathValue)
         }
         FmMenuItem {
             text: "Set as Wallpaper"
@@ -473,7 +480,7 @@ Item {
             iconColor: Theme.actionIconColor("image")
             visible: menuPolicy.canSetContextWallpaper()
             enabled: visible
-            onTriggered: root.controller.setAsWallpaper(contextRow())
+            onTriggered: root.controller.setPathAsWallpaper(root.contextPathValue)
         }
         FmMenuItem {
             text: "Properties"

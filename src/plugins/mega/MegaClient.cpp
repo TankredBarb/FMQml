@@ -188,8 +188,9 @@ QString sdkTransferCallbackPath(MegaTransfer *transfer)
 
 MegaClient &MegaClient::instance()
 {
-    static MegaClient client;
-    return client;
+    // Stop SDK threads with the application, before the SDK's lazy statics are destroyed.
+    static MegaClient *const client = new MegaClient(QCoreApplication::instance());
+    return *client;
 }
 
 MegaClientInterface &defaultMegaClient()
@@ -206,16 +207,20 @@ MegaClient::MegaClient(QObject *parent)
 
 MegaClient::~MegaClient()
 {
-    QMutexLocker locker(&m_mutex);
-    for (MegaApi *api : m_sessions) {
+    QList<MegaApi *> sessions;
+    {
+        QMutexLocker locker(&m_mutex);
+        sessions = m_sessions.values();
+        m_sessions.clear();
+        if (m_accountSession) {
+            sessions.append(m_accountSession);
+            m_accountSession = nullptr;
+        }
+    }
+    // Listener removal waits for SDK callbacks, which also take m_mutex.
+    for (MegaApi *api : sessions) {
         api->removeListener(this);
         delete api;
-    }
-    m_sessions.clear();
-    if (m_accountSession) {
-        m_accountSession->removeListener(this);
-        delete m_accountSession;
-        m_accountSession = nullptr;
     }
 }
 

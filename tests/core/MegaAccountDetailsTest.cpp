@@ -1,6 +1,8 @@
 #include "MegaClient.h"
 
 #include <QCoreApplication>
+#include <QPointer>
+#include <QTemporaryDir>
 #include <cstdio>
 
 namespace {
@@ -43,6 +45,23 @@ int fail(const char *message)
 
 int main(int argc, char **argv)
 {
+    if (argc == 2 && QByteArray(argv[1]) == "--shutdown-probe") {
+        QTemporaryDir storage;
+        if (!storage.isValid()) return fail("could not create temporary SDK storage");
+        qputenv("XDG_CACHE_HOME", storage.path().toUtf8());
+        QPointer<MegaClient> lifetime;
+        {
+            QCoreApplication app(argc, argv);
+            MegaClient &client = MegaClient::instance();
+            lifetime = &client;
+            client.sessionForLink(QStringLiteral("shutdown-probe"))->fetchNodes();
+            if (client.loginToAccount(QStringLiteral("shutdown@example.invalid"), QStringLiteral("unused")) != 0)
+                return fail("could not start pending SDK account request");
+        }
+        if (lifetime) return fail("MEGA client and SDK sessions outlived the application");
+        std::puts("pending account and public-link SDK sessions stopped before process static teardown");
+        return 0;
+    }
     QCoreApplication app(argc, argv);
     MegaClient &client = MegaClient::instance();
     int authorizationEvents = 0;

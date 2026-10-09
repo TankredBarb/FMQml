@@ -7,6 +7,7 @@ QtObject {
     property var workspaceController: null
     property var favoritesController: null
     property var contextRowProvider: null
+    property bool contextDirectoryValue: false
     property int contextRowValue: -1
     property string contextPathValue: ""
     property bool isCurrentPathReadOnlyContainer: false
@@ -26,6 +27,7 @@ QtObject {
             : ""
 
     function contextRow() {
+        if (root.contextPathValue.length > 0) return root.contextRowValue
         return root.contextRowValue >= 0 ? root.contextRowValue
                                          : (root.contextRowProvider ? root.contextRowProvider() : -1)
     }
@@ -143,7 +145,7 @@ QtObject {
     }
 
     function canOpenContextItem() {
-        return root.contextRow() >= 0
+        return root.contextRow() >= 0 || root.contextPathValue.length > 0
     }
 
     function canCutToClipboard() {
@@ -179,7 +181,8 @@ QtObject {
     }
 
     function canRenameSelection() {
-        return root.contextRow() >= 0 && actionPolicy.canRenameSelection()
+        return (root.contextRow() >= 0 || (root.controller && root.controller.viewMode === 3
+                && root.contextPathValue.length > 0)) && actionPolicy.canRenameSelection()
     }
 
     function canDeleteSelection() {
@@ -187,12 +190,10 @@ QtObject {
     }
 
     function canAnalyzeContextFolder() {
-        const row = root.contextRow()
-        return row >= 0
-            && root.contextPathValue.length > 0
+        return root.contextPathValue.length > 0
             && root.controller
             && root.controller.directoryModel
-            && actionPolicy.canAnalyzePath(root.contextPathValue, root.controller.directoryModel.isDirectoryAt(row))
+            && actionPolicy.canAnalyzePath(root.contextPathValue, contextItemIsDirectory())
     }
 
     function canAnalyzeCurrentFolder() {
@@ -251,22 +252,20 @@ QtObject {
     function contextItemIsDirectory() {
         const model = root.directoryModel()
         const row = root.contextRow()
-        return Boolean(model && row >= 0 && model.isDirectoryAt(row))
+        return row >= 0 ? Boolean(model && model.isDirectoryAt(row)) : root.contextDirectoryValue
     }
 
     function canRevealContextItem() {
-        return root.contextRow() >= 0
-                && contextItemIsDirectory()
+        return contextItemIsDirectory()
                 && actionPolicy.canRevealPath(root.contextPathValue)
     }
 
     function canShowContextProperties() {
-        return root.contextRow() >= 0
-                && actionPolicy.canShowPropertiesPath(root.contextPathValue)
+        return root.contextPathValue.length > 0 && actionPolicy.canShowPropertiesPath(root.contextPathValue)
     }
 
     function canSetContextWallpaper() {
-        return root.contextRow() >= 0
+        return root.contextPathValue.length > 0
                 && root.controller
                 && root.controller.canSetWallpaperPath(root.contextPathValue)
                 && actionPolicy.canSetWallpaperPath(root.contextPathValue, contextItemIsDirectory())
@@ -279,7 +278,8 @@ QtObject {
     }
 
     function canExtractContextArchive() {
-        return root.contextRow() >= 0
+        return (root.contextRow() >= 0 || (root.controller && root.controller.viewMode === 3
+                && root.contextPathValue.length > 0))
                 && !actionPolicy.isProviderPath(root.controller ? root.controller.currentPath : "")
                 && actionPolicy.canShowPropertiesPath(root.contextPathValue)
     }

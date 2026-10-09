@@ -11,6 +11,8 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QMimeData>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QScopedValueRollback>
 #include <QStandardPaths>
 #include <QTimer>
@@ -30,6 +32,7 @@
 using namespace WorkspaceControllerInternal;
 
 namespace {
+constexpr auto VirtualFileSelection = "application/x-fmqml-virtual-file-selection";
 constexpr auto GnomeCopiedFiles = "x-special/gnome-copied-files";
 constexpr auto KdeCutSelection = "application/x-kde-cutselection";
 constexpr auto WindowsPreferredDropEffect = "application/x-qt-windows-mime;value=\"Preferred DropEffect\"";
@@ -213,7 +216,14 @@ void WorkspaceController::publishFileClipboard()
     for (const QString &path : std::as_const(m_clipboard)) {
         const QString local = localClipboardPath(path);
         if (local.isEmpty()) {
-            clipboard->clear();
+            if (ArchiveSupport::isArchivePath(path) || isProviderUriPath(path)) {
+                auto *mime = new QMimeData;
+                mime->setData(VirtualFileSelection,
+                    QJsonDocument(QJsonArray::fromStringList(m_clipboard)).toJson(QJsonDocument::Compact));
+                clipboard->setMimeData(mime);
+            } else {
+                clipboard->clear();
+            }
             return;
         }
         urls.append(QUrl::fromLocalFile(local));
@@ -239,10 +249,10 @@ void WorkspaceController::syncFileClipboardFromSystem()
     const QClipboard *clipboard = QGuiApplication::clipboard();
     const QMimeData *mime = clipboard ? clipboard->mimeData() : nullptr;
     if (m_publishingFileClipboard) return;
-    if ((!mime || mime->formats().isEmpty())
-        && std::any_of(m_clipboard.cbegin(), m_clipboard.cend(), [](const QString &path) {
-            return ArchiveSupport::isArchivePath(path) || isProviderUriPath(path);
-        })) {
+    // Keep our virtual sources only while the system clipboard still carries this selection.
+    if (mime && !m_clipboard.isEmpty() && mime->hasFormat(VirtualFileSelection)
+        && mime->data(VirtualFileSelection)
+            == QJsonDocument(QJsonArray::fromStringList(m_clipboard)).toJson(QJsonDocument::Compact)) {
         return;
     }
 

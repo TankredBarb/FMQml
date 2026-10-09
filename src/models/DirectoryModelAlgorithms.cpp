@@ -127,3 +127,22 @@ QList<int> filteredAndSortedIndices(const QList<FileEntry> &entries,
 }
 
 }
+
+void DirectoryModelAlgorithms::extendOrTrimSelection(QBitArray &selected, int from, int to)
+{
+    const int start = std::min(from, to);
+    const int end = std::max(from, to);
+    bool rangeAlreadySelected = true;
+    for (int i = start; i <= end; ++i) {
+        if (!selected.testBit(i)) { rangeAlreadySelected = false; break; }
+    }
+    if (!rangeAlreadySelected) {
+        for (int i = start; i <= end; ++i) selected.setBit(i);
+        return;
+    }
+    int selectedStart = start;
+    while (selectedStart > 0 && selected.testBit(selectedStart - 1)) --selectedStart;
+    int selectedEnd = end;
+    while (selectedEnd + 1 < selected.size() && selected.testBit(selectedEnd + 1)) ++selectedEnd;
+    for (int i = selectedStart; i <= selectedEnd; ++i) selected.setBit(i, i >= start && i <= end);
+}

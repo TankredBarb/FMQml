@@ -351,11 +351,20 @@ int run(QApplication &app)
         }
         const QString archivedItem = ArchiveSupport::archiveChildPath(
             archiveRoot, QStringLiteral("inside-archive.txt"));
-        const bool archivedItemCopied = succeeded(archiveResult)
-            && workspace.copyPathsToClipboard({archivedItem}, 0);
+        workspace.leftPanel()->openPath(archiveRoot);
+        workspace.activateLeft();
+        const bool archiveSelectionLoaded = waitUntil([&]() {
+            return !workspace.leftPanel()->directoryModel()->loading()
+                && workspace.leftPanel()->directoryModel()->indexOfPath(archivedItem) >= 0;
+        });
+        workspace.leftPanel()->directoryModel()->selectOnly(
+            workspace.leftPanel()->directoryModel()->indexOfPath(archivedItem));
+        workspace.copyToClipboard();
+        const bool archivedItemCopied = succeeded(archiveResult) && archiveSelectionLoaded
+            && workspace.clipboardPaths() == QStringList{archivedItem};
         const QMimeData *archiveSystemMime = QApplication::clipboard()->mimeData();
-        const bool systemUrlsSuppressed = !archiveSystemMime
-            || archiveSystemMime->formats().isEmpty();
+        const bool systemUrlsSuppressed = archiveSystemMime && !archiveSystemMime->hasUrls()
+            && archiveSystemMime->hasFormat("application/x-fmqml-virtual-file-selection");
         workspace.rightPanel()->openPath(archivePasteDestination);
         workspace.activateRight();
         const bool archiveDestinationLoaded = waitUntil([&]() {
@@ -369,6 +378,9 @@ int run(QApplication &app)
             && succeeded(archivePasteResult)
             && readFile(QDir(archivePasteDestination).filePath(QStringLiteral("inside-archive.txt")))
                 == QByteArrayLiteral("archive-clipboard");
+        QApplication::clipboard()->setText(QStringLiteral("replaced archive selection"));
+        archiveClipboardPreserved = waitUntil([&]() { return !workspace.hasClipboard(); })
+            && archiveClipboardPreserved;
         if (failure.isEmpty() && !archiveClipboardPreserved) {
             const QMimeData *systemMime = QApplication::clipboard()->mimeData();
             failure = QStringLiteral("archive clipboard failed: compressed=%1 exists=%2 copied=%3 urlsSuppressed=%4 pasteSucceeded=%5 item=%6 formats=%7")

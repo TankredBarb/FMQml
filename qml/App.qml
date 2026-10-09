@@ -229,7 +229,7 @@ ApplicationWindow {
 
     function benchmarkSetViewMode(mode) {
         const controller = root.activePanelController()
-        if (!root.navigationGuiBenchmarkMode || !controller || mode < 0 || mode > 2) return false
+        if (!root.navigationGuiBenchmarkMode || !controller || mode < 0 || mode > 3) return false
         controller.viewMode = mode
         return true
     }
@@ -498,7 +498,7 @@ ApplicationWindow {
 
     function setActiveViewMode(mode) {
         const ctrl = activePanelController()
-        if (ctrl && !ctrl.isFavoritesRoot) {
+        if (ctrl) {
             ctrl.viewMode = mode
         }
     }
@@ -1994,6 +1994,10 @@ ApplicationWindow {
 
     function showBatchRename(paths) {
         workspaceOverlays.showBatchRename(paths)
+    }
+
+    function showMapRename(controller, panel, path, directory) {
+        workspaceOverlays.showMapRename(controller, panel, path, directory)
     }
 
     function showChecksums(paths) {

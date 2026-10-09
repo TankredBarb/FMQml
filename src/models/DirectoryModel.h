@@ -136,6 +136,9 @@ public:
     bool renamePath(const QString &oldPath, const QString &newPath);
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectOnly(int row);
+    Q_INVOKABLE void selectMapPath(const QString &path, bool toggle = false);
+    Q_INVOKABLE void selectMapPaths(const QStringList &paths);
+    Q_INVOKABLE void selectMapRange(const QStringList &orderedPaths, const QString &path);
     Q_INVOKABLE void selectRange(int from, int to);
     Q_INVOKABLE void extendOrTrimRange(int from, int to);
     Q_INVOKABLE void selectRows(const QVariantList &rows);
@@ -270,6 +273,7 @@ private:
     QSet<QString> m_foundPaths;
     
     int m_selectedCount = 0;
+    QStringList m_mapSelectedPaths;
     std::unique_ptr<FileProvider> m_provider;
     std::unique_ptr<DirectoryChangeWatcher> m_changeWatcher;
     std::unique_ptr<DirectoryChangeWatcher> m_parentChangeWatcher;

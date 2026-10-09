@@ -75,6 +75,23 @@ bool ArchiveFileProvider::removePath(const QString &path) const
     return false;
 }
 
+std::optional<QList<FileEntry>> ArchiveFileProvider::cachedDirectoryEntries(const QString &path, bool showHidden,
+    int maxEntries, const std::shared_ptr<std::atomic_bool> &cancelled)
+{
+    const QString normalized = ArchiveSupport::normalizeArchivePath(path);
+    auto state = cachedStateForKey(archiveCacheKey(normalized));
+    if (!state || !state->valid) return std::nullopt;
+    const QString browse = archiveRelativeToken(archiveBrowsePathForPath(normalized));
+    QList<FileEntry> entries;
+    for (const auto &record : state->items) {
+        if (cancelled->load() || entries.size() >= maxEntries) break;
+        if (record.relativePath == browse || parentRelativePath(record.relativePath) != browse
+            || (!showHidden && record.isHidden)) continue;
+        entries.append(fileEntryFromRecord(*state, record));
+    }
+    return entries;
+}
+
 QStringList ArchiveFileProvider::childPaths(const QString &path, bool includeHidden) const
 {
     QString browsePath;

@@ -786,8 +786,8 @@ QVariantMap AppSettingsController::workspaceState() const
     state[QStringLiteral("fileWorkspaceSplitState")] = settings.value(QStringLiteral("fileWorkspaceSplitState"));
     state[QStringLiteral("leftPath")] = safeFolderPath(settings.value(QStringLiteral("leftPath")).toString());
     state[QStringLiteral("rightPath")] = safeFolderPath(settings.value(QStringLiteral("rightPath")).toString());
-    state[QStringLiteral("leftViewMode")] = boundedInt(settings.value(QStringLiteral("leftViewMode"), 0), 0, 0, 2);
-    state[QStringLiteral("rightViewMode")] = boundedInt(settings.value(QStringLiteral("rightViewMode"), 0), 0, 0, 2);
+    state[QStringLiteral("leftViewMode")] = boundedInt(settings.value(QStringLiteral("leftViewMode"), 0), 0, 0, 3);
+    state[QStringLiteral("rightViewMode")] = boundedInt(settings.value(QStringLiteral("rightViewMode"), 0), 0, 0, 3);
     state[QStringLiteral("leftGridIconSize")] = boundedInt(settings.value(QStringLiteral("leftGridIconSize"), 48), 48, 32, 96);
     state[QStringLiteral("rightGridIconSize")] = boundedInt(settings.value(QStringLiteral("rightGridIconSize"), 48), 48, 32, 96);
     state[QStringLiteral("leftBriefRowHeight")] = boundedInt(settings.value(QStringLiteral("leftBriefRowHeight"), 28), 28, 22, 64);
@@ -882,8 +882,8 @@ void AppSettingsController::saveWorkspaceState(const QVariantMap &state)
     settings.setValue(QStringLiteral("rightPath"),
                       safeFolderPathForSave(state.value(QStringLiteral("rightPath")).toString(),
                                             settings.value(QStringLiteral("rightPath")).toString()));
-    settings.setValue(QStringLiteral("leftViewMode"), boundedInt(state.value(QStringLiteral("leftViewMode")), 0, 0, 2));
-    settings.setValue(QStringLiteral("rightViewMode"), boundedInt(state.value(QStringLiteral("rightViewMode")), 0, 0, 2));
+    settings.setValue(QStringLiteral("leftViewMode"), boundedInt(state.value(QStringLiteral("leftViewMode")), 0, 0, 3));
+    settings.setValue(QStringLiteral("rightViewMode"), boundedInt(state.value(QStringLiteral("rightViewMode")), 0, 0, 3));
     settings.setValue(QStringLiteral("leftGridIconSize"), boundedInt(state.value(QStringLiteral("leftGridIconSize")), 48, 32, 96));
     settings.setValue(QStringLiteral("rightGridIconSize"), boundedInt(state.value(QStringLiteral("rightGridIconSize")), 48, 32, 96));
     settings.setValue(QStringLiteral("leftBriefRowHeight"), boundedInt(state.value(QStringLiteral("leftBriefRowHeight")), 28, 22, 64));

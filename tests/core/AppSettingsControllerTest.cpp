@@ -281,9 +281,15 @@ int main(int argc, char **argv)
     workspaceInput["sidebarCollapsedPanels"] = QVariant::fromValue(sidebarCollapsed);
     workspaceInput["sidebarPanelWeights"] = QVariantMap{
         {"places", 0.01}, {"recent", 2.5}, {"folders", 100.0}, {"unknown", 4.0}};
+    workspaceInput["leftViewMode"] = 3;
+    workspaceInput["rightViewMode"] = 3;
     controller.saveWorkspaceState(workspaceInput);
 
     QVariantMap savedWorkspace = controller.workspaceState();
+    if (savedWorkspace.value("leftViewMode").toInt() != 3
+        || savedWorkspace.value("rightViewMode").toInt() != 3) {
+        return fail("Map view mode should survive workspace settings round trip");
+    }
     if (savedWorkspace.value("previewPanePlacement").toString() != "between-panels") {
         return fail("preview pane placement was not saved");
     }

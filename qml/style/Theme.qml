@@ -99,6 +99,7 @@ QtObject {
         case "forward":
         case "navigation":
         case "split":
+        case "view-map":
         case "view-grid":
         case "grid":
             return categoryNavigation

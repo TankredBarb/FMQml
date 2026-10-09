@@ -125,9 +125,9 @@ ToolBar {
         appMenu.popup(appMenuButton, 0, appMenuButton.height + 4)
     }
 
-    function openActivePath(path) {
+    function openActivePath(path, fromBreadcrumb) {
         if (root.activePanelView && root.activePanelView.openPath) {
-            return root.activePanelView.openPath(path)
+            return root.activePanelView.openPath(path, fromBreadcrumb === true)
         }
         return root.activeController ? root.activeController.openPath(path) : false
     }
@@ -262,7 +262,7 @@ ToolBar {
             controller: root.activeController
             workspaceController: root.workspaceController
             activePath: root.activePath
-            openPathHandler: function(path) { return root.openActivePath(path) }
+            openPathHandler: function(path, fromBreadcrumb) { return root.openActivePath(path, fromBreadcrumb) }
             prepareNavigationHandler: function(reason) { root.prepareActiveNavigation(reason) }
         }
 

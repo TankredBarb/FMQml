@@ -98,6 +98,7 @@ Item {
 
     FmMenu {
         id: emptyContextMenu
+        objectName: "filePanelEmptyPopup"
         onOpened: root.menuOpenChanged(true)
         onClosed: root.menuOpenChanged(false)
         FmMenuItem {

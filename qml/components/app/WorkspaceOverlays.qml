@@ -29,6 +29,7 @@ Item {
     property var fileSearchDialog: null
     property var folderCompareDialog: null
     property var batchRenameDialog: null
+    property var mapRenameDialog: null
     property var checksumDialog: null
     property var debugInformationDialog: null
     property var uiLabOverlay: null
@@ -190,6 +191,7 @@ Item {
                                                  || root.isOpen(root.fileSearchDialog)
                                                  || root.isOpen(root.folderCompareDialog)
                                                  || root.isOpen(root.batchRenameDialog)
+                                                 || root.isOpen(root.mapRenameDialog)
                                                  || root.isOpen(root.checksumDialog)
                                                  || root.isOpen(root.debugInformationDialog)
                                                  || root.isOpen(root.uiLabOverlay)
@@ -460,6 +462,10 @@ Item {
             root.batchRenameDialog.reject()
             return true
         }
+        if (root.isOpen(root.mapRenameDialog)) {
+            root.mapRenameDialog.reject()
+            return true
+        }
         if (root.isOpen(root.checksumDialog)) {
             root.checksumDialog.accept()
             return true
@@ -550,6 +556,13 @@ Item {
                                        ? workspaceController.leftPanel
                                        : workspaceController.rightPanel
         dialog.open()
+    }
+
+    function showMapRename(controller, panel, path, directory) {
+        if (!root.mapRenameDialog) root.mapRenameDialog = mapRenameDialogComponent.createObject(root)
+        root.appRoot.beginRenamePreviewSuppression([path], () => {
+            root.mapRenameDialog.openFor(controller, panel, path, directory)
+        })
     }
 
     function showChecksums(paths) {
@@ -730,6 +743,14 @@ Item {
     Component {
         id: batchRenameDialogComponent
         BatchRenameDialog {
+            appRoot: root.appRoot
+            backdropSource: root.backdropSource
+        }
+    }
+
+    Component {
+        id: mapRenameDialogComponent
+        MapRenameDialog {
             appRoot: root.appRoot
             backdropSource: root.backdropSource
         }

@@ -1,39 +1,46 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import FM
 import ".."
 import "../framework"
 import "../../style"
 
 ToolbarSegment {
     id: root
+    objectName: "viewControls"
 
     property var controller
     property var workspaceController
+    readonly property bool mapAvailable: gpuProbe.available && root.controller
+                                        && gpuProbe.supportsPath(root.controller.currentPath)
+
+    MapGpuProbe { id: gpuProbe }
 
     segmentWidth: 32 * 3 + 2
     segmentHeight: 32
 
     FmIconButton {
         id: viewBtn
+        objectName: "viewCycleButton"
+        readonly property int nextViewMode: !root.controller ? 0 : root.controller.viewMode < 2
+            ? root.controller.viewMode + 1 : root.controller.viewMode === 2 ? 3 : 0
+        readonly property string nextViewLabel: ["Switch to Details", "Switch to Grid", "Switch to Brief", "Switch to Map"][nextViewMode]
         iconSource: root.controller && root.controller.viewMode === 0
                     ? "../assets/icons-classic/layout-grid.svg"
                     : (root.controller && root.controller.viewMode === 1
                        ? "../assets/icons-classic/layout-list.svg"
-                       : "../assets/icons-classic/list.svg")
+                       : (root.controller && root.controller.viewMode === 2
+                          ? "../assets/icons-classic/view-map.svg" : "../assets/icons-classic/list.svg"))
         iconTone: root.controller && root.controller.viewMode === 0
                   ? "view-grid"
                   : (root.controller && root.controller.viewMode === 1
                      ? "view-brief"
-                     : "view-details")
+                     : root.controller && root.controller.viewMode === 2 ? "view-map" : "view-details")
         enabled: !!root.controller
-        onClicked: root.controller.viewMode = (root.controller.viewMode + 1) % 3
+        onClicked: root.controller.viewMode = nextViewMode
         ToolTip.visible: hovered
-        ToolTip.text: root.controller && root.controller.viewMode === 0
-                      ? "Switch to Grid"
-                      : (root.controller && root.controller.viewMode === 1
-                         ? "Switch to Brief"
-                         : "Switch to Details")
+        ToolTip.text: nextViewLabel
         Layout.fillWidth: true
         Layout.fillHeight: true
         background: Rectangle {

@@ -437,8 +437,8 @@ void AppServices::restoreInitialWorkspaceState()
     m_workspace.setActivePanel(0);
     m_workspace.setSplitEnabled(state.value(QStringLiteral("splitEnabled"), false).toBool());
 
-    m_workspace.leftPanel()->setViewMode(boundedInt(state, QStringLiteral("leftViewMode"), 0, 0, 2));
-    m_workspace.rightPanel()->setViewMode(boundedInt(state, QStringLiteral("rightViewMode"), 0, 0, 2));
+    m_workspace.leftPanel()->setViewMode(boundedInt(state, QStringLiteral("leftViewMode"), 0, 0, 3));
+    m_workspace.rightPanel()->setViewMode(boundedInt(state, QStringLiteral("rightViewMode"), 0, 0, 3));
 
     m_workspace.leftPanel()->setPanelSortPolicy(
         boundedInt(state, QStringLiteral("leftSortRole"), 0, 0, 5),

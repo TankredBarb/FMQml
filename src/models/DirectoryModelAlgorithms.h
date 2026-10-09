@@ -1,10 +1,13 @@
 #pragma once
 
 #include "DirectoryModel.h"
+#include <QBitArray>
 
 namespace DirectoryModelAlgorithms {
 
 QString pathKey(const QString &path);
+
+void extendOrTrimSelection(QBitArray &selected, int from, int to);
 
 bool matchesFilter(const FileEntry &entry,
                    const QString &searchText,

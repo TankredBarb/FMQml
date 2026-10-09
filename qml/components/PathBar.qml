@@ -29,9 +29,9 @@ Control {
         root.forceActiveFocus()
     }
 
-    function openPath(path) {
+    function openPath(path, fromBreadcrumb) {
         if (root.openPathHandler) {
-            return root.openPathHandler(path)
+            return root.openPathHandler(path, fromBreadcrumb === true)
         }
         return root.controller ? root.controller.openPath(path) : false
     }
@@ -335,7 +335,7 @@ Control {
                                 if (root.controller) {
                                     root.focusPath()
                                     Qt.callLater(() => {
-                                        root.openPath(path)
+                                        root.openPath(path, true)
                                     })
                                 }
                             }
@@ -562,7 +562,7 @@ Control {
                 if (root.controller && fullPath) {
                     root.focusPath()
                     Qt.callLater(() => {
-                        root.openPath(fullPath)
+                        root.openPath(fullPath, true)
                     })
                 }
             }

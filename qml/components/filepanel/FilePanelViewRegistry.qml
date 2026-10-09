@@ -7,8 +7,10 @@ QtObject {
     property var listView: null
     property var gridView: null
     property var briefView: null
+    property var mapView: null
 
     function viewForMode(mode) {
+        if (mode === 3) return root.mapView
         if (mode === 2) return root.briefView
         if (mode === 0) return root.listView
         return root.gridView

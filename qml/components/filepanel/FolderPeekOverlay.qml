@@ -162,13 +162,6 @@ Popup {
             return selectedPaths[String(path || "")] === true
         }
 
-        function firstSelectedIndex() {
-            for (let i = 0; i < root.controller.entries.length; ++i) {
-                if (isSelected(pathAt(i))) return i
-            }
-            return -1
-        }
-
         function setRangeSelection(origin, target) {
             const start = Math.min(origin, target)
             const end = Math.max(origin, target)
@@ -200,9 +193,7 @@ Popup {
             const path = pathAt(index)
             if (!path) return
             if (modifiers & Qt.ShiftModifier) {
-                let origin = firstSelectedIndex()
-                if (origin < 0) origin = view.currentIndex >= 0 ? view.currentIndex : 0
-                setRangeSelection(origin, index)
+                setRangeSelection(0, index)
             } else if (modifiers & Qt.ControlModifier) {
                 let next = Object.assign({}, selectedPaths)
                 if (next[path]) delete next[path]

@@ -11,33 +11,13 @@ QtObject {
                 && index < root.directoryModel.count
     }
 
-    function rangeOriginIndex(fallbackIndex) {
-        if (!root.directoryModel || root.directoryModel.count <= 0) {
-            return -1
-        }
-
-        const firstSelected = root.directoryModel.firstSelectedRow()
-        if (firstSelected >= 0) {
-            return firstSelected
-        }
-
-        if (root.validIndex(fallbackIndex)) {
-            return fallbackIndex
-        }
-
-        return 0
-    }
-
-    function selectClickedRow(index, modifiers, fallbackIndex) {
+    function selectClickedRow(index, modifiers) {
         if (!root.directoryModel || !root.validIndex(index)) {
             return
         }
 
         if (modifiers & Qt.ShiftModifier) {
-            const originIdx = root.rangeOriginIndex(fallbackIndex)
-            if (originIdx >= 0) {
-                root.directoryModel.extendOrTrimRange(originIdx, index)
-            }
+            root.directoryModel.extendOrTrimRange(0, index)
         } else if (modifiers & Qt.ControlModifier) {
             root.directoryModel.toggleSelected(index)
         } else {

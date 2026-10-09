@@ -408,6 +408,15 @@ Item {
 
     Shortcut {
         context: Qt.ApplicationShortcut
+        sequence: "Ctrl+4"
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("setViewMode")
+                 : root.appRoot.panelShortcutsEnabled
+        onActivated: root.appRoot.setActiveViewMode(3)
+    }
+
+    Shortcut {
+        context: Qt.ApplicationShortcut
         sequence: "Ctrl+Shift+N"
         enabled: root.inputCoordinator
                  ? root.inputCoordinator.canRun("createFolder")

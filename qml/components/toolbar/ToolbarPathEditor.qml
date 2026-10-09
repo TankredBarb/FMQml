@@ -69,9 +69,9 @@ Item {
         return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value
     }
 
-    function openPath(path) {
+    function openPath(path, fromBreadcrumb) {
         if (root.openPathHandler) {
-            return root.openPathHandler(path)
+            return root.openPathHandler(path, fromBreadcrumb === true)
         }
         return root.controller ? root.controller.openPath(path) : false
     }
@@ -288,6 +288,7 @@ Item {
 
         PathBar {
             id: pathBar
+            objectName: "toolbarPathBar"
             anchors.fill: parent
             anchors.leftMargin: 8 + (10 * root.pathEditProgress)
             anchors.rightMargin: 8
@@ -296,7 +297,7 @@ Item {
             controller: root.controller
             path: root.activePath
             readOnly: false
-            openPathHandler: function(path) { return root.openPath(path) }
+            openPathHandler: function(path, fromBreadcrumb) { return root.openPath(path, fromBreadcrumb) }
             prepareNavigationHandler: function(reason) { root.prepareNavigation(reason) }
             onEditRequested: root.focusPath()
             opacity: 1.0 - root.pathEditProgress

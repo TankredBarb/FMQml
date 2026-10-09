@@ -22,6 +22,7 @@
 #include "platform/PlatformIntegration.h"
 #include "tools/NavigationBenchmark.h"
 #include "tools/LocalTransferRegression.h"
+#include "ui/foldermap/FolderMapItem.h"
 
 namespace {
 constexpr auto AppearanceGroup = "appearance";
@@ -56,6 +57,7 @@ int main(int argc, char *argv[])
     MainWindowSetup::configureProcessIdentity();
 
     QApplication app(argc, argv);
+    const auto iconAtlasCleanup = qScopeGuard([] { FolderMapItem::waitForIconAtlases(); });
     MainWindowSetup::configureApplication(app);
     QIcon::fromTheme(QStringLiteral("folder")).pixmap(16, 16);
 

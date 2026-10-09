@@ -63,11 +63,63 @@ void DirectoryModel::toggleSelected(int row)
 
 void DirectoryModel::selectOnly(int row)
 {
-    if (m_selectedCount == 1 && row >= 0 && row < m_filteredIndices.size()) {
+    if (m_mapSelectedPaths.isEmpty() && m_selectedCount == 1 && row >= 0 && row < m_filteredIndices.size()) {
         const FileEntry &entry = m_entries.at(m_filteredIndices.at(row));
         if (entry.isSelected && entry.specialAction == FileEntrySpecialAction::None) return;
     }
     selectRows({row});
+}
+
+void DirectoryModel::selectMapPath(const QString &path, bool toggle)
+{
+    const int row = indexOfPath(path);
+    if (row >= 0) {
+        if (toggle) toggleSelected(row);
+        else selectOnly(row);
+        return;
+    }
+    if (!toggle) {
+        selectMapPaths({path});
+        return;
+    }
+    if (!m_mapSelectedPaths.removeOne(path)) m_mapSelectedPaths.append(path);
+    emit selectionChanged();
+}
+
+void DirectoryModel::selectMapPaths(const QStringList &paths)
+{
+    if (selectedPaths() == paths) return;
+    QVariantList rows;
+    QStringList nested;
+    for (const QString &path : paths) {
+        const int row = indexOfPath(path);
+        if (row >= 0) rows.append(row);
+        else if (!nested.contains(path)) nested.append(path);
+    }
+    selectRows(rows);
+    if (nested.isEmpty()) return;
+    m_mapSelectedPaths = nested;
+    emit selectionChanged();
+}
+
+void DirectoryModel::selectMapRange(const QStringList &orderedPaths, const QString &path)
+{
+    const int target = orderedPaths.indexOf(path);
+    if (target < 0) return;
+    QStringList result = selectedPaths();
+    const QSet<QString> selected(result.cbegin(), result.cend());
+    QBitArray mask(orderedPaths.size());
+    for (int i = 0; i < orderedPaths.size(); ++i) {
+        if (!selected.contains(orderedPaths.at(i))) continue;
+        mask.setBit(i);
+    }
+    DirectoryModelAlgorithms::extendOrTrimSelection(mask, 0, target);
+    for (int i = 0; i < orderedPaths.size(); ++i) {
+        const QString &itemPath = orderedPaths.at(i);
+        if (!mask.testBit(i)) result.removeOne(itemPath);
+        else if (!selected.contains(itemPath)) result.append(itemPath);
+    }
+    selectMapPaths(result);
 }
 
 void DirectoryModel::notifySelectionRowsChanged(const QList<int> &rows)
@@ -85,6 +137,7 @@ void DirectoryModel::notifySelectionRowsChanged(const QList<int> &rows)
 
 void DirectoryModel::selectRange(int from, int to)
 {
+    if (!m_mapSelectedPaths.isEmpty()) clearSelection();
     if (from < 0 || to < 0 || from >= m_filteredIndices.size() || to >= m_filteredIndices.size()) {
         return;
     }
@@ -119,45 +172,24 @@ void DirectoryModel::selectRange(int from, int to)
 
 void DirectoryModel::extendOrTrimRange(int from, int to)
 {
+    if (!m_mapSelectedPaths.isEmpty()) clearSelection();
     if (from < 0 || to < 0 || from >= m_filteredIndices.size() || to >= m_filteredIndices.size()) {
         return;
     }
 
-    const int start = std::min(from, to);
-    const int end = std::max(from, to);
-
-    bool rangeAlreadySelected = true;
-    for (int row = start; row <= end; ++row) {
-        if (!m_entries.at(m_filteredIndices.at(row)).isSelected) {
-            rangeAlreadySelected = false;
-            break;
-        }
-    }
-
-    if (!rangeAlreadySelected) {
-        selectRange(from, to);
-        return;
-    }
-
-    int selectedStart = start;
-    while (selectedStart > 0 && m_entries.at(m_filteredIndices.at(selectedStart - 1)).isSelected) {
-        --selectedStart;
-    }
-
-    int selectedEnd = end;
-    while (selectedEnd + 1 < m_filteredIndices.size()
-           && m_entries.at(m_filteredIndices.at(selectedEnd + 1)).isSelected) {
-        ++selectedEnd;
-    }
+    QBitArray selected(m_filteredIndices.size());
+    for (int row = 0; row < m_filteredIndices.size(); ++row)
+        selected.setBit(row, m_entries.at(m_filteredIndices.at(row)).isSelected);
+    DirectoryModelAlgorithms::extendOrTrimSelection(selected, from, to);
 
     QList<int> changedRows;
-    for (int row = selectedStart; row <= selectedEnd; ++row) {
-        const bool shouldSelect = row >= start && row <= end;
+    for (int row = 0; row < m_filteredIndices.size(); ++row) {
         const int actualIdx = m_filteredIndices.at(row);
-        const bool selectable = m_entries.at(actualIdx).specialAction == FileEntrySpecialAction::None;
-        if (m_entries[actualIdx].isSelected != (shouldSelect && selectable)) {
-            m_entries[actualIdx].isSelected = shouldSelect && selectable;
-            m_selectedCount += m_entries[actualIdx].isSelected ? 1 : -1;
+        const bool shouldSelect = selected.testBit(row)
+            && m_entries.at(actualIdx).specialAction == FileEntrySpecialAction::None;
+        if (m_entries[actualIdx].isSelected != shouldSelect) {
+            m_entries[actualIdx].isSelected = shouldSelect;
+            m_selectedCount += shouldSelect ? 1 : -1;
             changedRows.append(row);
         }
     }
@@ -170,6 +202,8 @@ void DirectoryModel::extendOrTrimRange(int from, int to)
 
 void DirectoryModel::selectRows(const QVariantList &rows)
 {
+    const bool hadMapSelection = !m_mapSelectedPaths.isEmpty();
+    m_mapSelectedPaths.clear();
     QBitArray targetActualIndices(m_entries.size());
     for (const QVariant &rowValue : rows) {
         bool ok = false;
@@ -200,6 +234,7 @@ void DirectoryModel::selectRows(const QVariantList &rows)
     }
 
     if (!changed) {
+        if (hadMapSelection) emit selectionChanged();
         return;
     }
 
@@ -217,6 +252,7 @@ void DirectoryModel::selectRows(const QVariantList &rows)
 
 void DirectoryModel::invertSelection()
 {
+    if (!m_mapSelectedPaths.isEmpty()) clearSelection();
     if (m_filteredIndices.isEmpty()) {
         return;
     }
@@ -248,12 +284,13 @@ void DirectoryModel::invertSelection()
 
 void DirectoryModel::clearSelection()
 {
-    if (m_selectedCount == 0) return;
+    if (m_selectedCount == 0 && m_mapSelectedPaths.isEmpty()) return;
     selectRows({});
 }
 
 void DirectoryModel::selectAll()
 {
+    if (!m_mapSelectedPaths.isEmpty()) clearSelection();
     QList<int> changedRows;
     for (int i = 0; i < m_filteredIndices.size(); ++i) {
         int absIdx = m_filteredIndices[i];
@@ -361,7 +398,7 @@ int DirectoryModel::indexOfSpecialAction(int action) const
 
 QStringList DirectoryModel::selectedPaths() const
 {
-    QStringList paths;
+    QStringList paths = m_mapSelectedPaths;
     for (const FileEntry &entry : m_entries) {
         if (entry.isSelected && entry.specialAction == FileEntrySpecialAction::None) {
             paths.append(entry.path);

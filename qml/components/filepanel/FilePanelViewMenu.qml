@@ -30,7 +30,7 @@ Item {
 
     implicitWidth: 146
     implicitHeight: 32
-    visible: root.controller ? !root.controller.isDeviceRoot && !root.controller.isFavoritesRoot : false
+    visible: !!root.controller
 
     function sortRoleLabel(role) {
         switch (role) {
@@ -280,6 +280,14 @@ Item {
                 iconColor: Theme.actionIconColor("view-brief")
                 onTriggered: root.selectViewMode(2)
             }
+            FmMenuItem {
+                text: "Map"
+                shortcut: "Ctrl+4"
+                active: root.controller && root.controller.viewMode === 3
+                icon.source: "../assets/icons-classic/view-map.svg"
+                iconColor: Theme.actionIconColor("view-map")
+                onTriggered: root.selectViewMode(3)
+            }
         }
     }
 
@@ -462,17 +470,18 @@ Item {
             id: panelViewToggle
             width: 32
             height: 32
-            visible: root.controller ? !root.controller.isDeviceRoot && !root.controller.isFavoritesRoot : false
+            visible: !!root.controller
             iconSource: root.controller && root.controller.viewMode === 0
                         ? "../assets/icons-classic/list.svg"
                         : (root.controller && root.controller.viewMode === 1
                            ? "../assets/icons-classic/layout-grid.svg"
-                           : "../assets/icons-classic/layout-list.svg")
+                           : (root.controller && root.controller.viewMode === 3
+                              ? "../assets/icons-classic/view-map.svg" : "../assets/icons-classic/layout-list.svg"))
             iconTone: root.controller && root.controller.viewMode === 0
                       ? "view-details"
                       : (root.controller && root.controller.viewMode === 1
                          ? "view-grid"
-                         : "view-brief")
+                         : root.controller && root.controller.viewMode === 3 ? "view-map" : "view-brief")
             onClicked: root.openViewMenu(panelViewToggle)
             ToolTip.visible: hovered
             ToolTip.text: "Change View Mode"
