@@ -229,7 +229,10 @@ Item {
             else root.controller.openFilePath(entry.path)
         }
         onWheel: wheel => {
-            const steps = wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y / 80 : wheel.angleDelta.y / 120
+            // Wayland mouse wheels can also carry pixel deltas; use their rotation.
+            const mouseWheel = wheel.phase === Qt.NoScrollPhase && wheel.angleDelta.y !== 0
+            const steps = mouseWheel ? wheel.angleDelta.y / 120
+                                    : wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y / 80 : wheel.angleDelta.y / 120
             map.zoomAt(wheel.x, wheel.y, steps)
             wheel.accepted = true
         }

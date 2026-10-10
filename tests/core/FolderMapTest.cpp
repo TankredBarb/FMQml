@@ -19,6 +19,7 @@
 #include <QQmlEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
+#include <QtQuick/private/qquickevents_p_p.h>
 #include <QImageReader>
 #include <QThread>
 #include <QTemporaryDir>
@@ -114,6 +115,45 @@ class FolderMapTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void wheelZoomUsesRotationForMouseAndPixelsForGestures()
+    {
+        QFile source(QFINDTESTDATA("../../qml/components/filepanel/FilePanelMapView.qml"));
+        QVERIFY(source.open(QIODevice::ReadOnly));
+        const QString qml = QString::fromUtf8(source.readAll());
+        const qsizetype start = qml.indexOf(QStringLiteral("onWheel: wheel => {"));
+        QVERIFY(start >= 0);
+        const qsizetype end = qml.indexOf(QStringLiteral("\n        }"), start);
+        QVERIFY(end > start);
+        QQmlEngine engine;
+        QQmlComponent component(&engine);
+        component.setData((QStringLiteral(R"(import QtQuick
+            MouseArea {
+                property real lastSteps: 0
+                property QtObject map: QtObject {
+                    function zoomAt(x, y, steps) { parentArea.lastSteps = steps }
+                }
+                id: parentArea
+        )") + qml.mid(start, end - start) + QStringLiteral("\n}}")).toUtf8(), QUrl());
+        QScopedPointer<QObject> area(component.create());
+        QVERIFY2(area, qPrintable(component.errorString()));
+        auto check = [&](int angle, int pixel, Qt::ScrollPhase phase, qreal expected) {
+            QWheelEvent event(QPointF(40, 30), QPointF(40, 30), QPoint(0, pixel), QPoint(0, angle),
+                              Qt::NoButton, Qt::NoModifier, phase, false);
+            QQuickWheelEvent wheel;
+            wheel.reset(&event);
+            QVERIFY(QMetaObject::invokeMethod(area.data(), "wheel", Q_ARG(QQuickWheelEvent *, &wheel)));
+            QCOMPARE(area->property("lastSteps").toReal(), expected);
+            QVERIFY(wheel.isAccepted());
+        };
+        check(120, 15, Qt::NoScrollPhase, 1);
+        check(-120, -15, Qt::NoScrollPhase, -1);
+        check(60, 8, Qt::NoScrollPhase, 0.5);
+        check(120, 0, Qt::NoScrollPhase, 1);
+        check(120, 15, Qt::ScrollUpdate, 15.0 / 80);
+        check(0, 16, Qt::ScrollUpdate, 0.2);
+        check(0, 0, Qt::ScrollBegin, 0);
+    }
+
     void coldIconAtlasesSurviveImmediateShutdown()
     {
         for (int i = 0; i < 3; ++i) {
