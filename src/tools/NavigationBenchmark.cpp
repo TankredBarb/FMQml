@@ -1155,7 +1155,11 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
             QMimeData incomingMime;
             incomingMime.setUrls({QUrl::fromLocalFile(incomingSource)});
             const QPoint dropPosition = map->mapToScene(QPointF(map->width() / 2, map->height() / 2)).toPoint();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 12, 0)
             QDragEnterEvent dragEnter(QPointF(dropPosition), Qt::CopyAction, &incomingMime, Qt::LeftButton, Qt::NoModifier);
+#else
+            QDragEnterEvent dragEnter(dropPosition, Qt::CopyAction, &incomingMime, Qt::LeftButton, Qt::NoModifier);
+#endif
             QCoreApplication::sendEvent(&window, &dragEnter);
             QDropEvent drop(dropPosition, Qt::CopyAction, &incomingMime, Qt::LeftButton, Qt::NoModifier);
             QCoreApplication::sendEvent(&window, &drop);
