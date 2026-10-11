@@ -7,6 +7,7 @@
 
 #include "../app/AppServices.h"
 #include "../controllers/FilePanelController.h"
+#include "../controllers/QuickLookNavigationController.h"
 #include "../controllers/AppSettingsController.h"
 #include "../controllers/WorkspaceController.h"
 #include "../models/DirectoryModel.h"
@@ -1122,11 +1123,27 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
                 for (const QString &format : mime->formats()) previousClipboard->setData(format, mime->data(format));
             }
             const auto restoreClipboard = qScopeGuard([&] { QGuiApplication::clipboard()->setMimeData(previousClipboard.release()); });
+            QJsonArray clipboardTrace;
+            const auto traceClipboard = [&](const QString &stage) {
+                const auto *clipboard = QGuiApplication::clipboard();
+                const auto *mime = clipboard->mimeData();
+                clipboardTrace.append(QJsonObject{
+                    {QStringLiteral("stage"), stage},
+                    {QStringLiteral("windowActive"), window.isActive()},
+                    {QStringLiteral("ownsClipboard"), clipboard->ownsClipboard()},
+                    {QStringLiteral("paths"), QJsonArray::fromStringList(workspace->clipboardPaths())},
+                    {QStringLiteral("formats"), QJsonArray::fromStringList(mime ? mime->formats() : QStringList{})}});
+            };
+            QObject clipboardObserver;
+            QObject::connect(QGuiApplication::clipboard(), &QClipboard::dataChanged, &clipboardObserver,
+                [&] { traceClipboard(QStringLiteral("dataChanged")); });
             workspace->copyToClipboard();
+            traceClipboard(QStringLiteral("local-copy-published"));
             const QString copiedFolder = child + QStringLiteral("/Child 0");
             const QString copied = copiedFolder + QStringLiteral("/Photo.jpg");
             controller->openPath(copiedFolder);
             transfers = until([&] { return controller->currentPath() == copiedFolder && !controller->directoryModel()->loading(); }) && transfers;
+            traceClipboard(QStringLiteral("local-before-paste"));
             workspace->pasteFromClipboard();
             const bool copiedReady = until([&] { return QFileInfo::exists(copied)
                 && controller->directoryModel()->indexOfPath(copied) >= 0 && !map->screenRect(copied).isEmpty(); });
@@ -1323,6 +1340,7 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
                 clickMapEntry(archiveNote, Qt::NoModifier);
                 workspace->copyToClipboard();
                 const bool archiveRootCopied = workspace->clipboardPaths() == QStringList{archiveNote};
+                traceClipboard(QStringLiteral("archive-copy-published"));
                 const QString archiveDestination = fixtureRoot.filePath(QStringLiteral("archive-paste"));
                 QDir().mkpath(archiveDestination);
                 controller->openPath(archiveDestination);
@@ -1331,6 +1349,7 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
                 report.insert(QStringLiteral("archiveClipboardBeforePaste"), QJsonArray::fromStringList(workspace->clipboardPaths()));
                 const QMimeData *archiveMime = QApplication::clipboard()->mimeData();
                 report.insert(QStringLiteral("archiveClipboardFormats"), QJsonArray::fromStringList(archiveMime ? archiveMime->formats() : QStringList{}));
+                traceClipboard(QStringLiteral("archive-before-paste"));
                 workspace->pasteFromClipboard();
                 const bool archivePaste = until([&] {
                     QFile extracted(QDir(archiveDestination).filePath(QStringLiteral("archive-note.txt")));
@@ -1412,6 +1431,32 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
                 && services.quickLook()->path() == source && controller->currentPath() == path;
             report.insert(QStringLiteral("nestedQuickLook"), nestedQuickLook);
             success = nestedQuickLook && success;
+            auto *navigation = services.quickLookNavigation();
+            const auto previewPaths = map->selectionContext(source).value(QStringLiteral("paths")).toStringList();
+            const int previewIndex = previewPaths.indexOf(source);
+            auto *previousButton = quickLookPopup ? quickLookPopup->findChild<QQuickItem *>(QStringLiteral("quickLookPreviousButton")) : nullptr;
+            auto *nextButton = quickLookPopup ? quickLookPopup->findChild<QQuickItem *>(QStringLiteral("quickLookNextButton")) : nullptr;
+            bool nestedQuickLookNavigation = nestedQuickLook && navigation->active()
+                && previousButton && previousButton->isVisible() && nextButton && nextButton->isVisible()
+                && previousButton->isEnabled() == (previewIndex > 0)
+                && nextButton->isEnabled() == (previewIndex + 1 < previewPaths.size())
+                && navigation->canGoPrevious() == (previewIndex > 0)
+                && navigation->canGoNext() == (previewIndex + 1 < previewPaths.size());
+            for (int direction : {-1, 1}) {
+                const int adjacent = previewIndex + direction;
+                if (adjacent < 0 || adjacent >= previewPaths.size()) continue;
+                const QString target = previewPaths.at(adjacent);
+                nestedQuickLookNavigation = navigation->navigate(direction)
+                    && until([&] { return services.quickLook()->path() == target
+                        && controller->currentItemPath() == target && controller->selectedPaths() == QStringList{target}; })
+                    && controller->currentPath() == path && nestedQuickLookNavigation;
+                nestedQuickLookNavigation = navigation->navigate(-direction)
+                    && until([&] { return services.quickLook()->path() == source
+                        && controller->currentItemPath() == source && controller->selectedPaths() == QStringList{source}; })
+                    && controller->currentPath() == path && nestedQuickLookNavigation;
+            }
+            report.insert(QStringLiteral("nestedQuickLookNavigation"), nestedQuickLookNavigation);
+            success = nestedQuickLookNavigation && success;
             if (quickLookPopup) QMetaObject::invokeMethod(quickLookPopup, "close");
             success = until([&] { return quickLookPopup && !quickLookPopup->property("visible").toBool(); }) && success;
             QMetaObject::invokeMethod(&window, "setPreviewPaneVisible", Q_ARG(QVariant, false));
@@ -1554,6 +1599,13 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
             success = until([&] { return popup && !popup->property("visible").toBool(); }) && success;
             clickMapEntry(nestedFolder, Qt::NoModifier);
             const QRectF renameCamera = map->screenRect(path);
+            int renameRequests = 0;
+            QObject renameObserver;
+            QObject::connect(workspace, &WorkspaceController::renameRequested, &renameObserver,
+                [&] { ++renameRequests; });
+            report.insert(QStringLiteral("renameSelectionBeforeF2"), QJsonArray::fromStringList(controller->selectedPaths()));
+            report.insert(QStringLiteral("renameAllowedBeforeF2"), controller->canRenameSelection());
+            report.insert(QStringLiteral("overlayBeforeF2"), window.property("anyOverlayOpen").toBool());
             sendMapKey(Qt::Key_F2, Qt::NoModifier);
             QObject *renameDialog = nullptr;
             bool mapRenamePassed = until([&] {
@@ -1561,6 +1613,9 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
                 return renameDialog && renameDialog->property("opened").toBool();
             });
             QObject *nameField = window.findChild<QObject *>(QStringLiteral("mapRenameNameField"));
+            report.insert(QStringLiteral("renameRequestsAfterF2"), renameRequests);
+            report.insert(QStringLiteral("renameWindowActive"), window.isActive());
+            report.insert(QStringLiteral("renameDialogFound"), renameDialog != nullptr);
             mapRenamePassed = mapRenamePassed && nameField && nameField->property("selectedText").toString() == QFileInfo(nestedFolder).fileName()
                 && window.property("workspaceOverlayOpen").toBool();
             report.insert(QStringLiteral("mapRenameSource"), renameDialog ? renameDialog->property("sourcePath").toString() : QString{});
@@ -1629,6 +1684,8 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
                 return batchDialog != nullptr;
             });
             report.insert(QStringLiteral("nestedBatchRename"), nestedBatchRename);
+            report.insert(QStringLiteral("renameRequestsTotal"), renameRequests);
+            report.insert(QStringLiteral("clipboardTrace"), clipboardTrace);
             success = nestedBatchRename && success;
             if (batchDialog) QMetaObject::invokeMethod(batchDialog, "reject");
             success = until([&] { return batchDialog && !batchDialog->property("visible").toBool(); }) && success;

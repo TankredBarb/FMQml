@@ -4,6 +4,7 @@
 #include "FolderPeekController.h"
 #include "QuickLookController.h"
 #include "../models/DirectoryModel.h"
+#include "../ui/foldermap/FolderMapItem.h"
 
 #include <QAbstractItemModel>
 #include <QVariantMap>
@@ -20,15 +21,20 @@ void QuickLookNavigationController::setQuickLookController(QuickLookController *
     m_quickLook = controller;
 }
 
-bool QuickLookNavigationController::beginPanel(QObject *panelObject, const QString &path)
+bool QuickLookNavigationController::beginPanel(QObject *panelObject, const QString &path, QObject *mapObject)
 {
     endSession();
     auto *panel = qobject_cast<FilePanelController *>(panelObject);
     if (!panel || !panel->directoryModel()) return false;
-    const int row = panel->directoryModel()->indexOfPath(path);
-    if (row < 0 || panel->directoryModel()->specialActionAt(row) != 0) return false;
+    auto *map = qobject_cast<FolderMapItem *>(mapObject);
+    if (map && (map->currentPath() != panel->currentPath() || panel->viewMode() != 3)) return false;
+    const QStringList paths = map ? map->selectionContext(path).value(QStringLiteral("paths")).toStringList() : QStringList{};
+    const int row = map ? paths.indexOf(path) : panel->directoryModel()->indexOfPath(path);
+    if (row < 0 || (!map && panel->directoryModel()->specialActionAt(row) != 0)) return false;
 
     m_panel = panel;
+    m_map = map;
+    m_mapPaths = paths;
     m_originKind = PanelOrigin;
     m_directoryIdentity = panel->currentPath();
     m_requestedPath = path;
@@ -39,6 +45,12 @@ bool QuickLookNavigationController::beginPanel(QObject *panelObject, const QStri
     m_connections += connect(model, &DirectoryModel::countChanged, this, &QuickLookNavigationController::refresh);
     m_connections += connect(model, &QAbstractItemModel::modelReset, this, &QuickLookNavigationController::refresh);
     m_connections += connect(model, &QAbstractItemModel::layoutChanged, this, &QuickLookNavigationController::refresh);
+    if (map) {
+        m_connections += connect(map, &FolderMapItem::entriesChanged, this, &QuickLookNavigationController::refresh);
+        m_connections += connect(map, &FolderMapItem::currentPathChanged, this, &QuickLookNavigationController::refresh);
+        m_connections += connect(map, &QObject::destroyed, this, &QuickLookNavigationController::endSession);
+        m_connections += connect(panel, &FilePanelController::viewModeChanged, this, &QuickLookNavigationController::refresh);
+    }
     refresh();
     return true;
 }
@@ -77,6 +89,8 @@ void QuickLookNavigationController::endSession()
     disconnectOrigin();
     m_panel.clear();
     m_peek.clear();
+    m_map.clear();
+    m_mapPaths.clear();
     m_originKind = NoOrigin;
     m_directoryIdentity.clear();
     m_requestedPath.clear();
@@ -89,6 +103,7 @@ void QuickLookNavigationController::endSession()
 
 int QuickLookNavigationController::count() const
 {
+    if (m_originKind == PanelOrigin && m_map) return m_mapPaths.size();
     if (m_originKind == PanelOrigin && m_panel) return m_panel->directoryModel()->rowCount();
     if (m_originKind == FolderPeekOrigin && m_peek) return m_peek->entries().size();
     return 0;
@@ -97,6 +112,7 @@ int QuickLookNavigationController::count() const
 QString QuickLookNavigationController::pathAt(int row) const
 {
     if (row < 0 || row >= count()) return {};
+    if (m_originKind == PanelOrigin && m_map) return m_mapPaths.at(row);
     if (m_originKind == PanelOrigin) return m_panel->directoryModel()->pathAt(row);
     return m_peek->entries().at(row).toMap().value(QStringLiteral("path")).toString();
 }
@@ -104,11 +120,12 @@ QString QuickLookNavigationController::pathAt(int row) const
 bool QuickLookNavigationController::ordinaryAt(int row) const
 {
     return row >= 0 && row < count()
-        && (m_originKind != PanelOrigin || m_panel->directoryModel()->specialActionAt(row) == 0);
+        && (m_originKind != PanelOrigin || m_map || m_panel->directoryModel()->specialActionAt(row) == 0);
 }
 
 int QuickLookNavigationController::indexOfPath(const QString &path) const
 {
+    if (m_originKind == PanelOrigin && m_map) return m_mapPaths.indexOf(path);
     if (m_originKind == PanelOrigin && m_panel) return m_panel->directoryModel()->indexOfPath(path);
     for (int row = 0; row < count(); ++row) if (pathAt(row) == path) return row;
     return -1;
@@ -124,7 +141,8 @@ int QuickLookNavigationController::adjacentRow(int fromRow, int direction) const
 
 bool QuickLookNavigationController::originStillValid() const
 {
-    if (m_originKind == PanelOrigin) return m_panel && m_panel->currentPath() == m_directoryIdentity;
+    if (m_originKind == PanelOrigin) return m_panel && m_panel->currentPath() == m_directoryIdentity
+        && (!m_map || (m_map->currentPath() == m_directoryIdentity && m_panel->viewMode() == 3));
     if (m_originKind == FolderPeekOrigin) return m_peek && m_peek->isOpen() && m_peek->currentPath() == m_directoryIdentity;
     return false;
 }
@@ -135,6 +153,11 @@ void QuickLookNavigationController::refresh()
     if (!originStillValid()) {
         endSession();
         return;
+    }
+    if (m_map) {
+        const auto paths = m_map->selectionContext(m_requestedPath).value(QStringLiteral("paths")).toStringList();
+        if (!paths.isEmpty()) m_mapPaths = paths;
+        else m_mapPaths.removeIf([this](const QString &path) { return m_map->entryForPath(path).isEmpty(); });
     }
     if (count() <= 0) {
         m_canGoPrevious = m_canGoNext = false;

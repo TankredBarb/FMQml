@@ -425,6 +425,7 @@ Popup {
 
         ColumnLayout {
             id: navigationFooter
+            objectName: "quickLookNavigationFooter"
             Layout.fillWidth: true
             spacing: 0
             visible: root.navigationController && root.navigationController.navigationActive
@@ -465,6 +466,7 @@ Popup {
                     spacing: 6
 
                     FmIconButton {
+                        objectName: "quickLookPreviousButton"
                         enabled: root.navigationController && root.navigationController.canGoPrevious
                         implicitWidth: 34
                         implicitHeight: 32
@@ -479,6 +481,7 @@ Popup {
                     }
 
                     FmIconButton {
+                        objectName: "quickLookNextButton"
                         enabled: root.navigationController && root.navigationController.canGoNext
                         implicitWidth: 34
                         implicitHeight: 32

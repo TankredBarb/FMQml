@@ -32,6 +32,15 @@ Item {
 
     function forceLayout() {}
     function entryForPath(path) { return map.entryForPath(path) }
+    readonly property var navigationMap: map
+    function revealPathInView(path) {
+        const entry = map.entryForPath(path)
+        if (!entry.path) return false
+        controller.directoryModel.selectMapPath(path, false)
+        focusEntry(entry)
+        map.revealPath(path)
+        return true
+    }
     function itemAtIndex(index) { return null }
     function positionViewAtIndex(index, mode) {} // Selection restoration must not move the camera.
 

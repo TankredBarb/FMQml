@@ -55,7 +55,9 @@ ApplicationWindow {
     function openQuickLookFromPanel(panelView, targetPath, loadTarget) {
         root.quickLookNavigationPanelView = panelView
         root.quickLookNavigationPeekOverlay = null
-        quickLookNavigationController.beginPanel(panelView ? panelView.controller : null, targetPath)
+        const view = panelView ? panelView.activeView() : null
+        quickLookNavigationController.beginPanel(panelView ? panelView.controller : null, targetPath,
+                                                view && view.navigationMap ? view.navigationMap : null)
         root.openQuickLookPath(targetPath, loadTarget, true)
     }
 

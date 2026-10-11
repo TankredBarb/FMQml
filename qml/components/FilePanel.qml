@@ -2059,6 +2059,8 @@ Pane {
         if (!path || path.length === 0) {
             return false
         }
+        if (root.viewMode === 3)
+            return mapView.revealPathInView(path)
 
         const idx = root.controller.directoryModel.indexOfPath(path)
         if (idx < 0) {

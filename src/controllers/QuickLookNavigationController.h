@@ -3,11 +3,13 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 class FilePanelController;
 class FolderPeekController;
 class QuickLookController;
+class FolderMapItem;
 
 class QuickLookNavigationController final : public QObject
 {
@@ -29,7 +31,7 @@ public:
     bool canGoNext() const { return m_canGoNext; }
     int originKind() const { return m_originKind; }
 
-    Q_INVOKABLE bool beginPanel(QObject *panel, const QString &path);
+    Q_INVOKABLE bool beginPanel(QObject *panel, const QString &path, QObject *map = nullptr);
     Q_INVOKABLE bool beginFolderPeek(QObject *peek, const QString &path);
     Q_INVOKABLE void endSession();
     Q_INVOKABLE bool navigate(int direction);
@@ -52,6 +54,8 @@ private:
     QPointer<QuickLookController> m_quickLook;
     QPointer<FilePanelController> m_panel;
     QPointer<FolderPeekController> m_peek;
+    QPointer<FolderMapItem> m_map;
+    QStringList m_mapPaths;
     QVector<QMetaObject::Connection> m_connections;
     QString m_directoryIdentity;
     QString m_requestedPath;
