@@ -82,12 +82,15 @@ int main(int argc, char **argv)
     if (app.arguments().contains(QStringLiteral("--native-baseline")))
         handler->setProperty("enabled", false);
     quint64 timestamp = 10000;
+    const bool waylandWheel = app.arguments().contains(QStringLiteral("--wayland-wheel"));
     const double step = app.styleHints()->wheelScrollLines() * 20;
     auto position = [&] { return grid->mapToScene(QPointF(150, 150)); };
     auto wheel = [&](int delta, bool sameTimestamp = false) {
         const auto point = position();
-        QWheelEvent event(point, window.mapToGlobal(point.toPoint()), {}, QPoint(0, -delta),
-                          Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+        const QPoint pixels = waylandWheel ? QPoint(0, -qRound(delta / 8.0)) : QPoint();
+        QWheelEvent event(point, window.mapToGlobal(point.toPoint()), pixels, QPoint(0, -delta),
+                          Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false,
+                          waylandWheel ? Qt::MouseEventSynthesizedBySystem : Qt::MouseEventNotSynthesized);
         if (!sameTimestamp) timestamp += 12;
         event.setTimestamp(timestamp);
         QCoreApplication::sendEvent(&window, &event);

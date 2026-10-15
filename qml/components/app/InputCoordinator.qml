@@ -19,8 +19,8 @@ QtObject {
     property bool operationBusy: false
     property bool activePanelValid: false
     property bool activePanelFavoritesRoot: false
-    property bool activePanelProviderPath: false
     property bool activePanelCanDeleteSelection: false
+    property bool activePanelCanCutSelection: false
     property bool activePanelCanRenameSelection: false
     property bool activePanelCanPasteIntoCurrentPath: false
     property int activePanelSelectedCount: 0
@@ -79,7 +79,6 @@ QtObject {
         case "renameSelection":
             if (root.sidebarFocused) return "sidebar"
             if (!root.activePanelValid) return "no-active-panel"
-            if (root.activePanelProviderPath) return "provider-path"
             if (!root.activePanelCanRenameSelection) return "rename-unavailable"
             break
         case "copySelection":
@@ -92,8 +91,7 @@ QtObject {
         case "cutSelection":
             if (root.sidebarFocused) return "sidebar"
             if (!root.activePanelValid) return "no-active-panel"
-            if (root.activePanelProviderPath) return "provider-path"
-            if (!root.activePanelCanDeleteSelection) return "cut-unavailable"
+            if (!root.activePanelCanCutSelection) return "cut-unavailable"
             break
         case "deleteSelection":
             if (root.sidebarFocused) return "sidebar"
@@ -147,7 +145,6 @@ QtObject {
         case "renameSelection":
             return root.canUseFileViewShortcuts
                 && root.activePanelValid
-                && !root.activePanelProviderPath
                 && root.activePanelCanRenameSelection
         case "copySelection":
         case "selectAll":
@@ -158,8 +155,7 @@ QtObject {
         case "cutSelection":
             return root.canUseFileViewShortcuts
                 && root.activePanelValid
-                && !root.activePanelProviderPath
-                && root.activePanelCanDeleteSelection
+                && root.activePanelCanCutSelection
         case "deleteSelection":
             return root.canUseFileViewShortcuts
                 && root.activePanelValid

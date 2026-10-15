@@ -44,7 +44,7 @@ Item {
     height: 316
     x: Math.max(margin, Math.min(preferredX, availableWidth - width - margin))
     y: Math.max(margin, Math.min(preferredY, availableHeight - height - margin))
-    visible: opacity > 0
+    visible: root.path.length > 0 && opacity > 0
     opacity: delayTimer.ready && requested && !suppressed
              && state !== "unavailable" && state !== "error" ? 1 : 0
     enabled: opacity > 0 && !suppressed

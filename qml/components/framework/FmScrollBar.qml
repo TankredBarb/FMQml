@@ -54,7 +54,7 @@ ScrollBar {
 
     function routeWheel(event) {
         if (wheelHandler && wheelHandler.enabled
-                && event.pixelDelta.x === 0 && event.pixelDelta.y === 0
+                && event.phase === Qt.NoScrollPhase
                 && event.angleDelta.y !== 0) {
             wheelAnimation.stop()
             wheelRouteFinish.stop()
@@ -71,7 +71,9 @@ ScrollBar {
                          ? event.pixelDelta.x : event.pixelDelta.y
         const angleDelta = orientation === Qt.Horizontal && event.angleDelta.x !== 0
                          ? event.angleDelta.x : event.angleDelta.y
-        const rawDelta = pixelDelta !== 0 ? pixelDelta : angleDelta
+        // Qt 6.12 Wayland also supplies pixels for ordinary wheel rotation.
+        const mouseWheel = event.phase === Qt.NoScrollPhase && angleDelta !== 0
+        const rawDelta = mouseWheel ? angleDelta : pixelDelta !== 0 ? pixelDelta : angleDelta
         if (rawDelta === 0)
             return
 

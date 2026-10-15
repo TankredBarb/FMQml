@@ -130,6 +130,8 @@ LocalPreviewData loadProviderPreviewData(
     }
     data.extension = fileShortcut ? materializedPreviewSuffix(*entry) : entry->suffix;
     data.directory = entry->isDirectory;
+    data.hidden = entry->isHidden;
+    data.symlink = entry->isSymLink;
     data.mimeName = entry->isDirectory
         ? QStringLiteral("inode/directory")
         : (entryMimeType.isEmpty() ? QStringLiteral("remote/file") : entryMimeType);

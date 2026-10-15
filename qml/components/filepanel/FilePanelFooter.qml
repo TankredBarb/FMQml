@@ -437,10 +437,12 @@ AmbientPanelBackground {
         }
 
         Rectangle {
+            objectName: "filePanelCancelLoading"
             Layout.preferredWidth: 64
             Layout.preferredHeight: 22
             radius: 4
-            visible: root.showLoadingRail && root.loadingCancelable
+            visible: root.loadingCancelable && (root.showLoadingRail
+                     || (root.controller && root.controller.remoteMutationPending))
             color: cancelMouse.pressed
                    ? Theme.withAlpha(Theme.danger, themeController.isDark ? 0.20 : 0.14)
                    : (cancelMouse.hovered

@@ -156,7 +156,7 @@ void WorkspaceController::cutToClipboard()
     if (active->isVirtualRoot()) {
         return;
     }
-    if (!active->canDeleteSelection()) {
+    if (!active->canCutSelection()) {
         m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be moved from this location."));
         return;
     }

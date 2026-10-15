@@ -7,6 +7,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QPointer>
+#include <QFutureWatcher>
 #include <QLatin1String>
 #include <atomic>
 #include <memory>
@@ -48,6 +49,9 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(bool isFavoritesRoot READ isFavoritesRoot NOTIFY isFavoritesRootChanged)
     Q_PROPERTY(bool isVirtualRoot READ isVirtualRoot NOTIFY virtualRootChanged)
     Q_PROPERTY(bool canCreateInCurrentPath READ canCreateInCurrentPath NOTIFY capabilitiesChanged)
+    Q_PROPERTY(bool canCreateManualItem READ canCreateManualItem NOTIFY capabilitiesChanged)
+    Q_PROPERTY(bool canCutSelection READ canCutSelection NOTIFY capabilitiesChanged)
+    Q_PROPERTY(bool remoteMutationPending READ remoteMutationPending NOTIFY remoteMutationPendingChanged)
     Q_PROPERTY(bool canCopySelection READ canCopySelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canRenameSelection READ canRenameSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canDeleteSelection READ canDeleteSelection NOTIFY capabilitiesChanged)
@@ -83,6 +87,7 @@ public:
     Q_ENUM(NavigationReason)
 
     explicit FilePanelController(QObject *parent = nullptr);
+    ~FilePanelController() override;
     void setVolumeMonitor(VolumeMonitor *monitor);
     void setFavoritesController(FavoritesController *controller);
     void setFileMetadataCoordinator(FileMetadataCoordinator *coordinator);
@@ -119,6 +124,11 @@ public:
     bool navigationPending() const;
     QString pendingNavigationPath() const;
     bool canCreateInCurrentPath() const;
+    bool canCreateManualItem() const;
+    bool canCutSelection() const;
+    bool canMovePaths(const QStringList &paths) const;
+    bool remoteMutationPending() const { return m_remoteMutationPending; }
+    Q_INVOKABLE void cancelRemoteMutation();
     bool canCopySelection() const;
     bool canCopyPaths(const QStringList &paths) const;
     bool canRenameSelection() const;
@@ -254,6 +264,8 @@ signals:
     void navigationPendingChanged();
     void pendingNavigationPathChanged();
     void capabilitiesChanged();
+    void remoteMutationPendingChanged();
+    void remoteMutationFinished(const QString &operation, const QString &path, bool success);
     void storageInfoChanged();
     void categoryFilterStateChanged();
     void ejectFinished(const QString &rootPath, bool success);
@@ -270,6 +282,12 @@ private slots:
     void onSystemApplicationChooserResponse(uint response, const QVariantMap &results);
 
 private:
+    struct RemoteMutationResult { bool success = false; QString path; QString error; QString leaseId; };
+    bool startRemoteMutation(const QString &operation, const QString &path, const QString &name);
+    bool manualMutationPath(const QString &path) const;
+    QFutureWatcher<RemoteMutationResult> m_remoteMutationWatcher;
+    std::shared_ptr<std::atomic_bool> m_remoteMutationCancelled;
+    bool m_remoteMutationPending = false;
     bool isReadOnlyContainerPath(const QString &path) const;
     bool pathCanCopy(const QString &path) const;
     bool pathCanCreateChildren(const QString &path) const;

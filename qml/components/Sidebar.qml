@@ -46,6 +46,7 @@ Pane {
     property double lastPlacesTraceTime: 0
     property real lastPlacesContentYValue: 0
     property double lastPlacesContentYTime: 0
+    property real placesScrollOffsetBeforeReset: 0
     readonly property int placePathRole: Qt.UserRole + 2
     readonly property int placeSectionHeaderHeight: Math.max(18, Theme.fontSizeMicro + 8)
     readonly property int placeCompactRowHeight: Math.max(38, Theme.fontSizeLabel + 24)
@@ -929,6 +930,9 @@ Pane {
         if (iconName === "telegram") {
             return "../assets/filetypes-next/telegram.svg"
         }
+        if (iconName === "sftp") {
+            return "qrc:/sftp/settings/sftp.svg"
+        }
         if (iconName === "home") {
             return "../assets/icons-classic/home.svg"
         }
@@ -1712,7 +1716,17 @@ Pane {
 
     Connections {
         target: workspaceController.placesModel
+        function onModelAboutToBeReset() {
+            root.placesScrollOffsetBeforeReset = placesList.contentY - placesList.originY
+        }
+
         function onModelReset() {
+            const offset = root.placesScrollOffsetBeforeReset
+            Qt.callLater(function() {
+                placesList.forceLayout()
+                placesList.contentY = placesList.originY + offset
+                placesList.returnToBounds()
+            })
             root.tracePlaces("modelReset contentY=" + Math.round(placesList.contentY)
                              + " count=" + placesList.count
                              + " scrollActive=" + root.placesScrollActive

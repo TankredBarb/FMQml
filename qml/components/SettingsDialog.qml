@@ -767,8 +767,7 @@ Dialog {
 
                 SettingsProvidersSection {
                     dialogRoot: root
-                    visible: root.googleDrivePluginLoaded || root.megaPluginLoaded
-                             || root.instagramPluginLoaded || root.telegramPluginLoaded
+                    visible: root.pluginSettingsComponents.length > 0
                 }
             }
 

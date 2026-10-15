@@ -119,7 +119,7 @@ Item {
     x: Math.max(margin, Math.min(preferredX, availableWidth - width - margin))
     y: Math.max(root.margin + boundaryTopInset,
                 Math.min(preferredY, availableHeight - height - margin))
-    visible: opacity > 0
+    visible: root.hasPath && opacity > 0
     opacity: activeTimer.ready && hasPath && thumbnailEligible && mediaReady && requested && !suppressed ? 1 : 0
     enabled: opacity > 0 && !suppressed
 

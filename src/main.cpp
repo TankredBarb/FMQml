@@ -19,6 +19,9 @@
 #include "controllers/ThemeController.h"
 #include "core/ArchiveFileProvider.h"
 #include "core/CleanupSubsystem.h"
+#ifdef FM_ENABLE_SFTP_REGRESSION
+#include "core/FileProviderPluginRegistry.h"
+#endif
 #include "platform/PlatformIntegration.h"
 #include "tools/NavigationBenchmark.h"
 #include "tools/LocalTransferRegression.h"
@@ -60,6 +63,16 @@ int main(int argc, char *argv[])
     const auto iconAtlasCleanup = qScopeGuard([] { FolderMapItem::waitForIconAtlases(); });
     MainWindowSetup::configureApplication(app);
     QIcon::fromTheme(QStringLiteral("folder")).pixmap(16, 16);
+
+#ifdef FM_ENABLE_SFTP_REGRESSION
+    if (app.arguments().contains(QStringLiteral("--sftp-transfer-regression"))) {
+        auto &registry = FileProviderPluginRegistry::instance();
+        registry.loadPluginFile(QDir(QCoreApplication::applicationDirPath()).filePath(
+            QStringLiteral("plugins/providers/libfm_sftp_provider.so")));
+        const QVariantMap result = registry.triggerAction(QStringLiteral("fm.sftp-provider::transferRegression"), {});
+        return result.value(QStringLiteral("ok")).toBool() ? 0 : 1;
+    }
+#endif
 
     if (app.arguments().contains(QStringLiteral("--navigation-benchmark-suite"))) {
         return NavigationBenchmark::runSuite(app);

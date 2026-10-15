@@ -23,10 +23,9 @@ MouseArea {
     onWheel: (event) => root.routeWheel(event)
 
     function routeWheel(event) {
-        // Pixel gestures retain Flickable's native handling. Mouse-wheel
-        // deltas already include the platform's scrolling direction.
-        if (event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0
-                || event.angleDelta.y === 0) {
+        // Wayland wheels can carry both deltas. Phased/pixel-only gestures
+        // retain Flickable's native handling; wheel rotation includes direction.
+        if (event.phase !== Qt.NoScrollPhase || event.angleDelta.y === 0) {
             root.cancel()
             event.accepted = false
             return

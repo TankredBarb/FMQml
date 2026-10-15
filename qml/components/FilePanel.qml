@@ -940,6 +940,8 @@ Pane {
     onShowZebraStripingChanged: detailsVisualStateChanged()
     onShowGridlinesChanged: detailsVisualStateChanged()
     onViewModeChanged: {
+        root.clearHoveredItem()
+        root.suppressHoverBriefly()
         const oldMode = root.lastViewMode
         if (oldMode >= 0 && oldMode !== root.viewMode) {
             root.noteUserInteraction("view-mode")
@@ -2474,6 +2476,17 @@ Pane {
     function openPath(path, fromBreadcrumb) {
         if (!root.controller || !path || String(path).trim().length === 0) {
             return false
+        }
+        if (String(path).trim().toLowerCase().startsWith("sftp://")
+                && root.Window.window && root.Window.window.openPluginActionResult) {
+            const context = {currentPath: String(path).trim()}
+            const state = pluginActionController.triggerAction("fm.sftp-provider::connectionState", context)
+            if (state.ok && !state.connected) {
+                root.activated()
+                root.Window.window.openPluginActionResult(
+                    pluginActionController.triggerAction("fm.sftp-provider::manageConnections", context))
+                return true
+            }
         }
         if (root.inlineRenameFocusActive()
                 && root.controller.canOpenPath
@@ -4152,9 +4165,9 @@ Pane {
                 isCurrentPathManagedIsoMount: root.isCurrentPathManagedIsoMount
                 loadingProgress: root.controller.directoryModel ? root.controller.directoryModel.scanProgress : -1
                 loadingProgressText: root.controller.directoryModel ? root.controller.directoryModel.scanProgressText : ""
-                loadingCancelable: root.isCurrentPathArchive
+                loadingCancelable: root.controller.remoteMutationPending || (root.isCurrentPathArchive
                                    && root.controller.directoryModel
-                                   && root.controller.directoryModel.loading
+                                   && root.controller.directoryModel.loading)
                 gridIconSize: root.gridIconSize
                 gridIconMinSize: root.gridIconMinSize
                 gridIconMaxSize: root.gridIconMaxSize
@@ -4174,7 +4187,10 @@ Pane {
                 deviceRootStorageCritical: storageView.footerStorageCritical
                 onGridIconSizeRequested: (value) => root.gridIconSize = value
                 onBriefRowHeightRequested: (value) => root.briefRowHeight = value
-                onCancelLoadingRequested: root.controller.cancelCurrentLoad()
+                onCancelLoadingRequested: {
+                    if (root.controller.remoteMutationPending) root.controller.cancelRemoteMutation()
+                    else root.controller.cancelCurrentLoad()
+                }
             }
         }
 

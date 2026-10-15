@@ -288,7 +288,7 @@ Item {
             text: "Cut to Clipboard"
             icon.source: "../assets/icons-classic/cut.svg"
             iconColor: Theme.actionIconColor("move")
-            visible: !menuPolicy.currentPathIsProvider()
+            visible: !menuPolicy.currentPathIsProvider() || (root.controller && root.controller.canCutSelection)
             enabled: menuPolicy.canCutToClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.cutToClipboard()
         }
@@ -409,7 +409,7 @@ Item {
             text: "Rename"
             icon.source: "../assets/icons-classic/rename.svg"
             iconColor: Theme.actionIconColor("rename")
-            visible: !menuPolicy.currentPathIsProvider()
+            visible: !menuPolicy.currentPathIsProvider() || (root.controller && root.controller.canRenameSelection)
             enabled: menuPolicy.canRenameSelection()
             onTriggered: root.renameRequested()
         }

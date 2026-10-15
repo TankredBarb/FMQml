@@ -103,7 +103,10 @@ public:
         Rename = 0x08,
         Remove = 0x10,
         Transfer = 0x20,
-        Watch = 0x40
+        Watch = 0x40,
+        // Direct file transfers preserve an existing destination until commit.
+        // The queue must not remove it before copyTo/FromLocalFile is called.
+        PreserveDestinationOnTransfer = 0x80
     };
     Q_DECLARE_FLAGS(Capabilities, Capability)
 

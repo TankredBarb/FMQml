@@ -115,6 +115,7 @@ Item {
             }
 
             function commitRename() {
+                if (committing) return
                 if (root.index >= 0 && root.controller) {
                     const idx = root.index
                     const txt = text
@@ -122,6 +123,7 @@ Item {
                     committing = true
                     Qt.callLater(function() {
                         const itemPath = ctrl.directoryModel.pathAt(idx)
+                        renameInput.pendingPath = itemPath
                         const adminRenameAvailable = root.windowObject
                                                      && root.windowObject.adminModeActive
                                                      && root.windowObject.adminModeActive()
@@ -130,9 +132,9 @@ Item {
                         const renamed = adminRenameAvailable
                                 ? ctrl.renameAsAdministrator(idx, txt)
                                 : ctrl.rename(idx, txt)
-                        if (renamed) {
+                        if (renamed && !ctrl.remoteMutationPending) {
                             root.commitSucceeded()
-                        } else {
+                        } else if (!renamed) {
                             committing = false
                             if (renameLoader.item) {
                                 renameLoader.item.forceActiveFocus()
@@ -144,6 +146,16 @@ Item {
                 }
             }
             onAccepted: commitRename()
+            property string pendingPath: ""
+            readOnly: committing
+            Connections {
+                target: root.controller
+                function onRemoteMutationFinished(operation, path, success) {
+                    if (operation !== "rename" || !renameInput.committing || path !== renameInput.pendingPath) return
+                    if (success) root.commitSucceeded()
+                    else { renameInput.committing = false; root.commitFailed() }
+                }
+            }
 
             Keys.priority: Keys.AfterItem
             Keys.onPressed: (event) => {

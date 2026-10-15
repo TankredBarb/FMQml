@@ -109,8 +109,10 @@ void traceFilePanelNav(const char *stage, const QString &path, const QString &de
         return;
     }
 
+    const QString safePath = path.contains(QLatin1String("://"))
+        ? QUrl(path).toString(QUrl::RemovePassword) : path;
     qInfo().noquote() << "[FM_NAV][panel]" << stage
-                      << "path=" << QDir::toNativeSeparators(path)
+                      << "path=" << QDir::toNativeSeparators(safePath)
                       << detail;
 }
 
@@ -1565,10 +1567,31 @@ bool FilePanelController::pathCanDelete(const QString &path) const
 
 bool FilePanelController::canCreateInCurrentPath() const
 {
-    if (isVirtualRoot()) {
+    if (isVirtualRoot() || m_remoteMutationPending) {
         return false;
     }
     return pathCanCreateChildren(currentPath());
+}
+
+bool FilePanelController::canCreateManualItem() const
+{
+    return canCreateInCurrentPath()
+        && manualMutationPath(currentPath());
+}
+
+bool FilePanelController::manualMutationPath(const QString &path) const
+{
+    return !pathIsProvider(path) || path.startsWith(QLatin1String("sftp://"), Qt::CaseInsensitive);
+}
+
+bool FilePanelController::canCutSelection() const
+{
+    return canMovePaths(selectedPaths());
+}
+
+bool FilePanelController::canMovePaths(const QStringList &paths) const
+{
+    return !m_remoteMutationPending && manualMutationPath(currentPath()) && canCopyPaths(paths) && canDeletePaths(paths);
 }
 
 bool FilePanelController::canCopySelection() const
@@ -1594,12 +1617,12 @@ bool FilePanelController::canCopyPaths(const QStringList &paths) const
 
 bool FilePanelController::canRenameSelection() const
 {
-    if (isVirtualRoot()
+    if (isVirtualRoot() || m_remoteMutationPending || !manualMutationPath(currentPath())
         || !pathCanCreateChildren(currentPath())) {
         return false;
     }
     const QStringList paths = selectedPaths();
-    if (paths.isEmpty()) {
+    if (paths.isEmpty() || (pathIsProvider(currentPath()) && paths.size() != 1)) {
         return false;
     }
     for (const QString &path : paths) {

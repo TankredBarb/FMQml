@@ -10,6 +10,7 @@ class IsoMountManager;
 class VolumeMonitor;
 
 struct PlaceItem {
+    bool operator==(const PlaceItem &) const = default;
     QString name;
     QString path;
     QString icon;

@@ -130,7 +130,7 @@ Item {
                  : root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const activeCtrl = root.appRoot.activePanelController()
-            if (activeCtrl && !root.appRoot.isProviderPath(activeCtrl.currentPath) && activeCtrl.canRenameSelection) {
+            if (activeCtrl && activeCtrl.canRenameSelection) {
                 root.workspaceController.triggerRename()
             }
         }
@@ -320,7 +320,7 @@ Item {
                  : root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            if (ctrl && !root.appRoot.isProviderPath(ctrl.currentPath) && ctrl.canDeleteSelection) {
+            if (ctrl && ctrl.canCutSelection) {
                 root.workspaceController.cutToClipboard()
             }
         }

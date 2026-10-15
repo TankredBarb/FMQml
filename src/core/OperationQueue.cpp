@@ -425,6 +425,11 @@ bool OperationQueue::isCurrentThreadAborted()
     return false;
 }
 
+std::function<bool()> OperationQueue::currentThreadAbortChecker()
+{
+    return g_threadAbortChecker;
+}
+
 void OperationQueue::setCurrentThreadAbortChecker(std::function<bool()> checker)
 {
     g_threadAbortChecker = std::move(checker);

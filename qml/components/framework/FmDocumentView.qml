@@ -58,7 +58,8 @@ Item {
                              ? event.pixelDelta.x : event.pixelDelta.y
             const angleDelta = horizontal && event.angleDelta.x !== 0
                              ? event.angleDelta.x : event.angleDelta.y
-            const rawDelta = pixelDelta !== 0 ? pixelDelta : angleDelta
+            const mouseWheel = event.phase === Qt.NoScrollPhase && angleDelta !== 0
+            const rawDelta = mouseWheel ? angleDelta : pixelDelta !== 0 ? pixelDelta : angleDelta
             if (rawDelta === 0)
                 return
 

@@ -244,6 +244,8 @@ AppServices::AppServices(QObject *parent)
             &m_quickLook, &QuickLookController::refreshTextDecorationPluginState);
     connect(&m_pluginActions, &PluginActionController::placesRefreshRequested,
             m_workspace.placesModel(), &PlacesModel::refresh);
+    connect(&m_pluginActions, &PluginActionController::placesRefreshRequested,
+            m_workspace.placesModel(), &PlacesModel::refreshProviderPlacesAsync);
     FileProviderPluginRegistry::instance().loadDefaultPluginDirectories();
     m_favorites.refreshEntries();
     m_workspace.placesModel()->refresh();

@@ -20,9 +20,9 @@ QtObject {
     }
 
     function operationsBusy() {
-        return Boolean(root.workspaceController
+        return Boolean((root.controller && root.controller.remoteMutationPending) || (root.workspaceController
                        && root.workspaceController.operationQueue
-                       && root.workspaceController.operationQueue.busy)
+                       && root.workspaceController.operationQueue.busy))
     }
 
     function operationAvailable() {
@@ -91,9 +91,7 @@ QtObject {
     }
 
     function canCreateManualItem() {
-        return Boolean(root.controller
-                       && !isProviderPath(root.controller.currentPath)
-                       && root.controller.canCreateInCurrentPath)
+        return Boolean(root.controller && root.controller.canCreateManualItem)
     }
 
     function canMutateSelection() {
@@ -108,13 +106,12 @@ QtObject {
                        && oppositePanel()
                        && hasSelection()
                        && operationAvailable()
-                       && !currentPathIsProvider()
-                       && !oppositePathIsProvider())
+                       && root.controller.canCutSelection
+                       && oppositePanel().canCreateManualItem)
     }
 
     function canRenameSelection() {
-        return canMutateSelection()
-               && root.controller.canRenameSelection
+        return Boolean(root.controller && hasSelection() && operationAvailable() && root.controller.canRenameSelection)
     }
 
     function canDeleteSelection() {
@@ -190,8 +187,7 @@ QtObject {
         return hasSelection()
                && operationAvailable()
                && root.controller
-               && !currentPathIsProvider()
-               && root.controller.canDeleteSelection
+               && root.controller.canCutSelection
     }
 
     function canPasteFromClipboard() {

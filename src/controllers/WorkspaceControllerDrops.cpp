@@ -103,10 +103,10 @@ QVariantMap WorkspaceController::oppositePanelDropCapabilities(int sourcePanel,
     QString moveReason;
     if (!canCopy) {
         moveReason = copyReason;
-    } else if (isProviderUriPath(source->currentPath()) || isProviderUriPath(destination->currentPath())) {
-        moveReason = QStringLiteral("Move is not supported for remote providers. Use copy instead.");
     } else if (!source->canDeletePaths(sources)) {
         moveReason = QStringLiteral("You do not have permission to move the selected items from this location.");
+    } else if (!source->canMovePaths(sources) || !destination->canCreateManualItem()) {
+        moveReason = QStringLiteral("Move is not supported for this location.");
     }
     result[QStringLiteral("canMove")] = moveReason.isEmpty();
     result[QStringLiteral("moveReason")] = moveReason;

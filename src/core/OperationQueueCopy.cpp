@@ -54,6 +54,24 @@ constexpr qint64 DirectArchiveExtractThreshold = 64 * 1024 * 1024;
 constexpr qint64 CopyProgressUpdateIntervalMs = 100;
 constexpr qint64 LinuxCopyCacheWindow = 32 * 1024 * 1024;
 
+bool transferPreservesDestination(const FileProvider *source, const FileProvider *destination)
+{
+    // Remote-to-remote transfers upload a staged local file. Only the final
+    // writer's guarantee applies; a safe download to staging says nothing
+    // about whether the destination supports replacing an existing item.
+    return (destination->scheme() == QLatin1String("file") ? source : destination)
+        ->capabilities() & FileProvider::PreserveDestinationOnTransfer;
+}
+
+void validatePreservedDestination(const std::optional<FileEntry> &source,
+                                  FileProvider *destinationProvider, const QString &destination)
+{
+    const auto target = destinationProvider->entryInfo(destination);
+    if (!source || !target || target->isSymLink || source->isDirectory != target->isDirectory) {
+        throw std::runtime_error("The existing destination is a symbolic link or has a different file type. Choose another name.");
+    }
+}
+
 bool preserveLocalModificationTime(const QString &sourcePath, const QString &destinationPath, QString *error)
 {
 #ifdef Q_OS_LINUX
@@ -389,10 +407,13 @@ QString OperationQueue::copyPath(const QString &sourcePath,
         FileProvider* destProvider = getProviderForPath(frame.destinationPath);
 
         const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(frame.sourcePath);
+        if (m_abort) return {};
         const QString fileName = destinationNameForCopy(srcProvider, frame.sourcePath);
         const bool localRegularFile = sourceInfo && !sourceInfo->isDirectory
             && srcProvider->scheme() == QLatin1String("file")
             && destProvider->scheme() == QLatin1String("file");
+        const bool safeTransfer = transferPreservesDestination(srcProvider, destProvider);
+        const bool preserveDestination = localRegularFile || safeTransfer;
 
         if (!srcProvider->canCopyPath(frame.sourcePath)) {
             throw std::runtime_error(QStringLiteral("Cannot copy %1 from this location")
@@ -420,7 +441,8 @@ QString OperationQueue::copyPath(const QString &sourcePath,
         QString targetPath = frame.destinationPath;
         if (pathExists(targetPath)) {
             if (replaceExactDestination) {
-                if (!localRegularFile && !removePathIfExists(targetPath)) {
+                if (safeTransfer) validatePreservedDestination(sourceInfo, destProvider, targetPath);
+                if (!preserveDestination && !removePathIfExists(targetPath)) {
                     throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
                 }
             } else {
@@ -446,7 +468,9 @@ QString OperationQueue::copyPath(const QString &sourcePath,
                         }
                     }
 
-                    if (res == ConflictResolution::Replace && !localRegularFile) {
+                    if (res == ConflictResolution::Replace && safeTransfer)
+                        validatePreservedDestination(sourceInfo, destProvider, targetPath);
+                    if (res == ConflictResolution::Replace && !preserveDestination) {
                         if (!removePathIfExists(targetPath)) {
                             throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
                         }
@@ -491,32 +515,33 @@ QString OperationQueue::copyPath(const QString &sourcePath,
         }
 
         const qint64 fileSize = sourceInfo ? sourceInfo->size : 0;
-        if (srcProvider->scheme() == QLatin1String("file")
-            && destProvider->scheme() != QLatin1String("file")) {
+        const bool directDownload = destProvider->scheme() == QLatin1String("file")
+            && (srcProvider->capabilities() & FileProvider::PreserveDestinationOnTransfer);
+        if (directDownload || (srcProvider->scheme() == QLatin1String("file")
+            && destProvider->scheme() != QLatin1String("file"))) {
             QString directError;
             qint64 directProcessed = 0;
             const qint64 baseBytes = copiedBytes;
             const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
             const qint64 contributionLimit = fileSize > 0 ? fileSize : remainingBytes;
-            const bool copiedDirectly = destProvider->copyFromLocalFile(
-                frame.sourcePath,
-                targetPath,
-                [this, baseBytes, contributionLimit, totalBytes, &directProcessed](qint64 processed, qint64 total) -> bool {
-                    Q_UNUSED(total)
-                    if (m_abort) {
-                        return false;
-                    }
-                    directProcessed = (std::max<qint64>)(0, processed);
-                    const qint64 boundedBytes = std::clamp<qint64>(directProcessed, 0, contributionLimit);
-                    const qint64 progressBytes = std::clamp<qint64>(baseBytes + boundedBytes, 0, totalBytes);
-                    const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
-                    QMetaObject::invokeMethod(this, [this, progress]() {
-                        setProgress(progress);
-                    }, Qt::QueuedConnection);
-                    updateMetrics(progressBytes, totalBytes);
-                    return true;
-                },
-                &directError);
+            const auto progress = [this, baseBytes, contributionLimit, totalBytes, &directProcessed](qint64 processed, qint64 total) -> bool {
+                Q_UNUSED(total)
+                if (m_abort) {
+                    return false;
+                }
+                directProcessed = (std::max<qint64>)(0, processed);
+                const qint64 boundedBytes = std::clamp<qint64>(directProcessed, 0, contributionLimit);
+                const qint64 progressBytes = std::clamp<qint64>(baseBytes + boundedBytes, 0, totalBytes);
+                const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+                QMetaObject::invokeMethod(this, [this, progress]() {
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+                updateMetrics(progressBytes, totalBytes);
+                return true;
+            };
+            const bool copiedDirectly = directDownload
+                ? srcProvider->copyToLocalFile(frame.sourcePath, targetPath, progress, &directError)
+                : destProvider->copyFromLocalFile(frame.sourcePath, targetPath, progress, &directError);
             if (copiedDirectly) {
                 const qint64 contribution = fileSize > 0 ? fileSize : (std::max<qint64>)(1, directProcessed);
                 copiedBytes = (std::min)(totalBytes, copiedBytes + contribution);
@@ -529,6 +554,11 @@ QString OperationQueue::copyPath(const QString &sourcePath,
             }
             if (!directError.trimmed().isEmpty()) {
                 if (m_abort) {
+                    if (safeTransfer) {
+                        QMetaObject::invokeMethod(this, [this, directError]() {
+                            setStatusMessage(directError);
+                        }, Qt::QueuedConnection);
+                    }
                     return {};
                 }
                 throw std::runtime_error(directError.toStdString());
@@ -732,6 +762,11 @@ QString OperationQueue::copyPath(const QString &sourcePath,
 
                 if (!uploadError.trimmed().isEmpty()) {
                     if (m_abort) {
+                        if (safeTransfer) {
+                            QMetaObject::invokeMethod(this, [this, uploadError]() {
+                                setStatusMessage(uploadError);
+                            }, Qt::QueuedConnection);
+                        }
                         logProviderTransferFile(QStringLiteral("canceled"), uploadError);
                         return {};
                     }
@@ -1291,6 +1326,8 @@ QString OperationQueue::movePath(const QString &sourcePath, const QString &desti
     const bool localRegularFile = sourceInfo && !sourceInfo->isDirectory
         && srcProvider->scheme() == QLatin1String("file")
         && destProvider->scheme() == QLatin1String("file");
+    const bool safeTransfer = transferPreservesDestination(srcProvider, destProvider);
+    const bool preserveDestination = localRegularFile || safeTransfer;
     if (pathExists(targetPath)) {
         ConflictResolution res = waitForResolution(sourcePath, targetPath);
         if (res == ConflictResolution::Skip) {
@@ -1313,7 +1350,9 @@ QString OperationQueue::movePath(const QString &sourcePath, const QString &desti
                 }
             }
 
-            if (res == ConflictResolution::Replace && !localRegularFile) {
+            if (res == ConflictResolution::Replace && safeTransfer)
+                validatePreservedDestination(sourceInfo, destProvider, targetPath);
+            if (res == ConflictResolution::Replace && !preserveDestination) {
                 if (!removePathIfExists(targetPath)) {
                     throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
                 }
@@ -1392,7 +1431,7 @@ QString OperationQueue::movePath(const QString &sourcePath, const QString &desti
     }
 
     const QString copiedPath = copyPath(sourcePath, targetPath, totalBytes, copiedBytes, Type::Move,
-                                        localRegularFile && pathExists(targetPath));
+                                        preserveDestination && pathExists(targetPath));
 
     if (m_abort || copiedPath.isEmpty()) return {};
 
@@ -1449,7 +1488,14 @@ bool OperationQueue::makePath(const QString &path) const
 
 QStringList OperationQueue::childPaths(const QString &path) const
 {
-    return getProviderForPath(path)->childPaths(path);
+    FileProvider *provider = getProviderForPath(path);
+    const QStringList children = provider->childPaths(path);
+    if ((provider->capabilities() & FileProvider::PreserveDestinationOnTransfer)
+        && !provider->lastErrorString().isEmpty()) {
+        if (m_abort) return {};
+        throw std::runtime_error(provider->lastErrorString().toStdString());
+    }
+    return children;
 }
 
 QString OperationQueue::destinationNameForCopy(FileProvider *sourceProvider, const QString &sourcePath) const
@@ -1458,7 +1504,7 @@ QString OperationQueue::destinationNameForCopy(FileProvider *sourceProvider, con
         return {};
     }
 
-    const QString localName = sourceProvider->localCopyFileName(sourcePath).trimmed();
+    const QString localName = sourceProvider->localCopyFileName(sourcePath);
     if (!localName.isEmpty()) {
         return localName;
     }

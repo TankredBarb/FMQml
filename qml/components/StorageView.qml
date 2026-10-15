@@ -328,6 +328,7 @@ Item {
         if (!iconName || iconName === "drive") return ""
         if (iconName === "gdrive") return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
         if (iconName === "mega") return "qrc:/qt/qml/FM/qml/assets/filetypes-next/mega.svg"
+        if (iconName === "sftp") return "qrc:/sftp/settings/sftp.svg"
         return "qrc:/qt/qml/FM/qml/assets/icons/" + iconName + ".svg"
     }
 

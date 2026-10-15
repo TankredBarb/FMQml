@@ -128,6 +128,7 @@ public:
     void updateMetrics(qint64 currentBytes, qint64 totalBytes);
     bool isAborted() const { return m_abort; }
     static bool isCurrentThreadAborted();
+    static std::function<bool()> currentThreadAbortChecker();
     static void setCurrentThreadAbortChecker(std::function<bool()> checker);
     static void reportCurrentThreadProgressBytes(qint64 bytes);
     static void setCurrentThreadProgressReporter(std::function<void(qint64)> reporter);
@@ -154,6 +155,7 @@ signals:
                           qint64 destSize, const QDateTime &destModified);
 
 private:
+    friend class SftpQueueRegression;
 
     //TODO move to another place when it will be available
     DriveStorageType getDriveTypeByPath(const QString &filePath);

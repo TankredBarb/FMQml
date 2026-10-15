@@ -387,17 +387,19 @@ Item {
             property bool canceling: false
 
             function commitRename() {
+                if (committing) return;
                 if (index >= 0) {
                     const idx = index;
                     const txt = text.trim();
                     const ctrl = panel.controller;
                     committing = true;
                     Qt.callLater(function() {
+                        gridRenameInput.pendingPath = ctrl.directoryModel.pathAt(idx);
                         const adminRenameAvailable = panel.Window.window && panel.Window.window.adminModeActive && panel.Window.window.adminModeActive() && ctrl.pathKindFor(path) === "local" && ctrl.renameAsAdministrator;
                         const renamed = adminRenameAvailable ? ctrl.renameAsAdministrator(idx, txt) : ctrl.rename(idx, txt);
-                        if (renamed) {
+                        if (renamed && !ctrl.remoteMutationPending) {
                             isRenaming = false;
-                        } else {
+                        } else if (!renamed) {
                             committing = false;
                             if (gridRenameLoader.item) {
                                 gridRenameLoader.item.forceActiveFocus();
@@ -405,6 +407,17 @@ Item {
                             }
                         }
                     });
+                }
+            }
+
+            property string pendingPath: ""
+            readOnly: committing
+            Connections {
+                target: panel.controller
+                function onRemoteMutationFinished(operation, path, success) {
+                    if (operation !== "rename" || !gridRenameInput.committing || path !== gridRenameInput.pendingPath) return
+                    if (success) gridDelegate.isRenaming = false
+                    else gridRenameInput.committing = false
                 }
             }
 

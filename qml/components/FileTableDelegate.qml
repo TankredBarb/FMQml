@@ -538,6 +538,7 @@ Item {
             clip: !root.isRenaming
 
             RowLayout {
+                id: nameRow
                 anchors.fill: parent
                 anchors.leftMargin: root.panel && root.panel.showSelectionBadges ? 24 : 4
                 anchors.rightMargin: 8
@@ -564,6 +565,7 @@ Item {
                 }
 
                 RowLayout {
+                    id: nameTextRow
                     Layout.fillWidth: true
                     spacing: 0
                     clip: true
@@ -609,11 +611,14 @@ Item {
 
             Item {
                 id: detailsPreviewHitArea
-                readonly property point iconTopLeft: nameIcon.mapToItem(colName, 0, 0)
+                // Explicit layout dependencies keep the hit area current after polish/resize.
+                readonly property point iconTopLeft: Qt.point(nameRow.x + nameIcon.x,
+                                                              nameRow.y + nameIcon.y)
                 readonly property var lastNameLabel: nameExtensionLabel.visible
                                                     ? nameExtensionLabel : nameStemLabel
-                readonly property point nameRight: lastNameLabel.mapToItem(
-                                                       colName, lastNameLabel.width, 0)
+                readonly property point nameRight: Qt.point(
+                    nameRow.x + nameTextRow.x + lastNameLabel.x + lastNameLabel.width,
+                    nameRow.y + nameTextRow.y + lastNameLabel.y)
                 x: iconTopLeft.x
                 y: Math.round((colName.height - height) / 2)
                 width: Math.max(0, nameRight.x - x)

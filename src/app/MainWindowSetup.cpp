@@ -150,7 +150,6 @@ void MainWindowSetup::configureMainWindow(QQuickWindow *window, ThemeController 
 
     window->setIcon(QIcon(appIconPath()));
     window->setColor(theme->bg());
-    window->setOpacity(0.0);
     applyNativeTitleBarTheme(window, theme);
 
     QObject::connect(theme, &ThemeController::themeChanged, window, [theme, window]() {

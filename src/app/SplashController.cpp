@@ -4,6 +4,7 @@
 
 #include <QGuiApplication>
 #include <QMetaObject>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QScreen>
 #include <QWindow>
@@ -71,16 +72,22 @@ void SplashController::closeWhenReady(QQuickWindow *mainWindow)
         return;
     }
 
+    mainWindow->contentItem()->setOpacity(0.0);
     connect(mainWindow, &QQuickWindow::frameSwapped, this, [this, mainWindow]() {
         ++m_frameCount;
-        if (m_frameCount >= 3 && mainWindow) {
-            mainWindow->setOpacity(1.0);
+        if (m_frameCount == 3) {
+            mainWindow->contentItem()->setOpacity(1.0);
         }
-        if (m_frameCount >= 3 && m_window) {
+        // Keep startup advancing even if the hidden scene has no animations.
+        // Close the splash only after the revealed content has rendered.
+        if (m_frameCount < 4) {
+            mainWindow->update();
+            return;
+        }
+        disconnect(mainWindow, &QQuickWindow::frameSwapped, this, nullptr);
+        if (m_window) {
             m_window->close();
-            if (m_frameCount == 3) {
-                QMetaObject::invokeMethod(mainWindow, "startupShellReady", Qt::QueuedConnection);
-            }
         }
+        QMetaObject::invokeMethod(mainWindow, "startupShellReady", Qt::QueuedConnection);
     }, Qt::QueuedConnection);
 }

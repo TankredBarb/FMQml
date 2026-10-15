@@ -26,15 +26,18 @@
 #include <QQuickWindow>
 #include <QQmlComponent>
 #include <QQmlEngine>
+#include <QQmlProperty>
 #include <QPdfWriter>
 #include <QPainter>
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QMimeData>
 #include <QClipboard>
+#include <QCryptographicHash>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QScopeGuard>
+#include <QSettings>
 #include <QTemporaryDir>
 #include <QThread>
 
@@ -872,6 +875,689 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
     workspace->setSplitEnabled(false);
     workspace->setActivePanel(0);
     FilePanelController *controller = workspace->leftPanel();
+    if (app.arguments().contains(QStringLiteral("--sftp-create"))) {
+        auto waitFor = [](const std::function<bool()> &condition, int timeout = 4000) {
+            QElapsedTimer timer;
+            timer.start();
+            do {
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+                if (condition()) return true;
+                QThread::msleep(1);
+            } while (timer.elapsed() < timeout);
+            return false;
+        };
+        window.requestActivate();
+        if (!waitFor([&] { return window.isActive(); })) {
+            std::fputs("SFTP keyboard GUI test requires an active window\n", stderr); return 2;
+        }
+        const auto fixture = services.pluginActions()->triggerAction(QStringLiteral("fm.sftp-provider::creationFixture"),
+            {{QStringLiteral("parameters"), QVariantMap{{QStringLiteral("enabled"), true}, {QStringLiteral("mutationDelayMs"), 250}}}});
+        const auto cleanup = qScopeGuard([&] {
+            controller->openPath(fixtureRoot.path());
+            waitFor([&] { return !controller->directoryModel()->loading(); });
+            services.pluginActions()->triggerAction(QStringLiteral("fm.sftp-provider::creationFixture"), {});
+        });
+        if (!fixture.value(QStringLiteral("ok")).toBool()) return 2;
+        const QString url = fixture.value(QStringLiteral("url")).toString();
+        const QString directory = fixture.value(QStringLiteral("directory")).toString();
+        if (!controller->openPath(url) || !waitFor([&] {
+            return controller->currentPath() == url && !controller->navigationPending()
+                && !controller->directoryModel()->loading();
+        })) return 2;
+        QQuickItem *panel = nullptr;
+        for (auto *item : window.findChildren<QQuickItem *>()) {
+            if (item->metaObject()->indexOfProperty("hoverSuppressed") >= 0
+                && item->property("controller").value<QObject *>() == controller) panel = item;
+        }
+        auto *cancelButton = panel ? panel->findChild<QQuickItem *>(QStringLiteral("filePanelCancelLoading")) : nullptr;
+        if (!cancelButton) return 2;
+        int createdDuringCancel = 0;
+        const auto creationConnection = QObject::connect(controller, &FilePanelController::entryCreated, &window,
+                                                         [&] { ++createdDuringCancel; });
+        const auto disconnectCreation = qScopeGuard([&] { QObject::disconnect(creationConnection); });
+        controller->createFolder(QStringLiteral("Cancelled UI folder"));
+        if (!waitFor([&] { return controller->remoteMutationPending() && cancelButton->isVisible() && cancelButton->width() > 0; })) return 1;
+        const QPointF cancelPosition = cancelButton->mapToScene(QPointF(cancelButton->width() / 2, cancelButton->height() / 2));
+        const QPointF cancelGlobal = window.mapToGlobal(cancelPosition.toPoint());
+        QMouseEvent cancelPress(QEvent::MouseButtonPress, cancelPosition, cancelGlobal, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QMouseEvent cancelRelease(QEvent::MouseButtonRelease, cancelPosition, cancelGlobal, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(&window, &cancelPress);
+        QCoreApplication::sendEvent(&window, &cancelRelease);
+        if (!waitFor([&] { return !controller->remoteMutationPending() && !controller->directoryModel()->loading(); })
+            || createdDuringCancel != 0 || panel->property("isRenaming").toBool() || !controller->lastError().isEmpty()) {
+            std::fputs("SFTP Cancel button did not cancel the pending UI operation\n", stderr); return 1;
+        }
+        QObject::disconnect(creationConnection);
+        QVariant menuResult;
+        if (!panel || !QMetaObject::invokeMethod(panel, "ensureFilePanelEmptyMenu", Q_RETURN_ARG(QVariant, menuResult))) return 2;
+        auto *menu = menuResult.value<QObject *>();
+        if (!menu || !QMetaObject::invokeMethod(menu, "popupEmptyMenu")) return 2;
+        auto *popup = menu->findChild<QObject *>(QStringLiteral("filePanelEmptyPopup"));
+        if (!popup || !waitFor([&] { return popup->property("opened").toBool(); })) return 2;
+        const QStringList labels{QStringLiteral("New Folder"), QStringLiteral("New File"), QStringLiteral("New Text File")};
+        QList<QObject *> actions;
+        for (const auto &label : labels) {
+            QObject *action = nullptr;
+            for (auto *object : menu->findChildren<QObject *>()) {
+                if (object->metaObject()->indexOfSignal("triggered()") >= 0
+                    && object->property("text").toString() == label) action = object;
+            }
+            if (!action || !action->property("visible").toBool() || !action->property("enabled").toBool()) {
+                std::fprintf(stderr, "SFTP creation action unavailable: %s action=%p visible=%d enabled=%d path=%s create=%d manual=%d\n",
+                    qPrintable(label), static_cast<void *>(action), action && action->property("visible").toBool(),
+                    action && action->property("enabled").toBool(), qPrintable(controller->currentPath()),
+                    controller->canCreateInCurrentPath(), controller->canCreateManualItem()); return 1;
+            }
+            actions.append(action);
+        }
+        QMetaObject::invokeMethod(popup, "close");
+        waitFor([&] { return !popup->property("visible").toBool(); });
+        for (const QString &location : {url, fixtureRoot.path()}) {
+            if (!controller->openPath(location) || !waitFor([&] {
+                return controller->currentPath() == location && !controller->navigationPending()
+                    && !controller->directoryModel()->loading();
+            })) return 2;
+            const auto itemPath = [&](const QString &name) {
+                if (location != url) return QDir(location).filePath(name);
+                QUrl createdUrl(url);
+                createdUrl.setPath(createdUrl.path() + QLatin1Char('/') + name);
+                return createdUrl.toString(QUrl::FullyEncoded);
+            };
+            const QString localDirectory = location == url ? directory : location;
+            for (int mode = 0; mode < 3; ++mode) {
+                controller->setViewMode(mode);
+                for (int type = 0; type < labels.size(); ++type) {
+                    QString name = type == 2 ? QStringLiteral("New Text File") : labels.at(type);
+                    if (mode > 0) name += QStringLiteral(" (%1)").arg(mode);
+                    if (type == 2) name += QStringLiteral(".txt");
+                    if (type == 0) QMetaObject::invokeMethod(&window, "createFolderInActivePanel");
+                    else QMetaObject::invokeMethod(actions.at(type), "triggered");
+                    const QString path = itemPath(name);
+                    if (!waitFor([&] {
+                        return controller->directoryModel()->indexOfPath(path) >= 0 && panel->property("isRenaming").toBool();
+                    })) {
+                        std::fprintf(stderr, "SFTP creation/inline rename failed: mode=%d name=%s error=%s\n",
+                                     mode, qPrintable(name), qPrintable(controller->statusMessage())); return 1;
+                    }
+                    const QFileInfo info(QDir(localDirectory).filePath(name));
+                    if (!info.exists() || (type == 0 ? !info.isDir() : !info.isFile() || info.size() != 0)) return 1;
+                    if (type < 2 || (mode == 2 && type == 2)) {
+                        if (!waitFor([&] {
+                            return window.activeFocusItem() && window.activeFocusItem()->property("text").toString() == name;
+                        })) { std::fputs("Created item's rename editor did not receive focus\n", stderr); return 1; }
+                        const QString renamed = type < 2 ? name : QStringLiteral("Renamed file.txt");
+                        window.activeFocusItem()->setProperty("text", renamed);
+                        QKeyEvent press(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                        QKeyEvent release(QEvent::KeyRelease, Qt::Key_Return, Qt::NoModifier);
+                        QCoreApplication::sendEvent(&window, &press);
+                        QCoreApplication::sendEvent(&window, &release);
+                        if (!waitFor([&] {
+                            return controller->directoryModel()->indexOfPath(itemPath(renamed)) >= 0
+                                && !panel->property("isRenaming").toBool() && !controller->remoteMutationPending()
+                                && !controller->directoryModel()->loading();
+                        }) || !controller->lastError().isEmpty()
+                            || (renamed != name && QFileInfo::exists(info.filePath()))
+                            || !QFileInfo::exists(QDir(localDirectory).filePath(renamed))) {
+                            std::fprintf(stderr, "Inline rename/default-name confirmation failed: name=%s error=%s\n",
+                                qPrintable(name), qPrintable(controller->lastError().value(QStringLiteral("message")).toString())); return 1;
+                        }
+                    } else QMetaObject::invokeMethod(panel, "cancelInlineRename");
+                    if (!waitFor([&] { return !panel->property("isRenaming").toBool(); })) return 1;
+                }
+                const QString original = mode == 0 ? QStringLiteral("New File") : QStringLiteral("New File (%1)").arg(mode);
+                const int row = controller->directoryModel()->indexOfPath(itemPath(original));
+                if (row < 0) return 1;
+                controller->directoryModel()->selectOnly(row);
+                QVariant viewResult;
+                QMetaObject::invokeMethod(panel, "activeView", Q_RETURN_ARG(QVariant, viewResult));
+                auto *view = viewResult.value<QObject *>();
+                if (!view) return 2;
+                view->setProperty("currentIndex", row);
+                QMetaObject::invokeMethod(panel, "focusContent");
+                waitFor([&] { return controller->canRenameSelection(); });
+                QVariant contextResult;
+                QMetaObject::invokeMethod(panel, "ensureFilePanelContextMenu", Q_RETURN_ARG(QVariant, contextResult));
+                auto *contextMenu = contextResult.value<QObject *>();
+                if (!contextMenu || !QMetaObject::invokeMethod(contextMenu, "popupContextMenu",
+                    Q_ARG(QVariant, row), Q_ARG(QVariant, itemPath(original)),
+                    Q_ARG(QVariant, false), Q_ARG(QVariant, false), Q_ARG(QVariant, false))) return 2;
+                auto *contextPopup = contextMenu->findChild<QObject *>(QStringLiteral("filePanelItemPopup"));
+                if (!contextPopup || !waitFor([&] { return contextPopup->property("opened").toBool(); })) return 2;
+                for (const auto &label : {QStringLiteral("Rename"), QStringLiteral("Cut to Clipboard")}) {
+                    QObject *action = nullptr;
+                    if (contextMenu) for (auto *object : contextMenu->findChildren<QObject *>()) {
+                        if (object->property("text").toString() == label
+                            && object->metaObject()->indexOfSignal("triggered()") >= 0) action = object;
+                    }
+                    if (!action || !action->property("visible").toBool() || !action->property("enabled").toBool()) {
+                        std::fprintf(stderr, "SFTP item menu action unavailable: %s visible=%d enabled=%d nativeRename=%d nativeCut=%d selected=%d pending=%d\n",
+                            qPrintable(label), action && action->property("visible").toBool(), action && action->property("enabled").toBool(),
+                            controller->canRenameSelection(), controller->canCutSelection(), controller->directoryModel()->selectedCount(), controller->remoteMutationPending()); return 1;
+                    }
+                }
+                QMetaObject::invokeMethod(contextPopup, "close");
+                if (!waitFor([&] { return !contextPopup->property("visible").toBool(); })) return 1;
+                view->setProperty("currentIndex", controller->directoryModel()->indexOfPath(itemPath(original)));
+                QMetaObject::invokeMethod(view, "forceLayout");
+                if (!waitFor([&] {
+                    auto *item = view->property("currentItem").value<QObject *>();
+                    return item && item->property("path").toString() == itemPath(original);
+                })) { std::fputs("Selected rename delegate did not settle\n", stderr); return 1; }
+                QMetaObject::invokeMethod(panel, "focusContent");
+                QKeyEvent renamePress(QEvent::KeyPress, Qt::Key_F2, Qt::NoModifier);
+                QKeyEvent renameRelease(QEvent::KeyRelease, Qt::Key_F2, Qt::NoModifier);
+                QCoreApplication::sendEvent(&window, &renamePress);
+                QCoreApplication::sendEvent(&window, &renameRelease);
+                if (!waitFor([&] { return panel->property("isRenaming").toBool()
+                    && window.activeFocusItem() && window.activeFocusItem()->property("text").toString() == original; })) {
+                    std::fprintf(stderr, "F2 rename unavailable: mode=%d path=%s renaming=%d currentIndex=%d focusText=%s pending=%d\n",
+                        mode, qPrintable(location), panel->property("isRenaming").toBool(), view->property("currentIndex").toInt(),
+                        qPrintable(window.activeFocusItem() ? window.activeFocusItem()->property("text").toString() : QString()),
+                        controller->remoteMutationPending()); return 1;
+                }
+                const QString renamed = QStringLiteral("F2 renamed %1.txt").arg(mode);
+                window.activeFocusItem()->setProperty("text", renamed);
+                QKeyEvent enterPress(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                QKeyEvent enterRelease(QEvent::KeyRelease, Qt::Key_Return, Qt::NoModifier);
+                QCoreApplication::sendEvent(&window, &enterPress);
+                QCoreApplication::sendEvent(&window, &enterRelease);
+                if (!waitFor([&] { return !panel->property("isRenaming").toBool()
+                    && !controller->remoteMutationPending() && !controller->directoryModel()->loading()
+                    && controller->directoryModel()->indexOfPath(itemPath(renamed)) >= 0; })
+                    || !controller->lastError().isEmpty()) return 1;
+                if (!controller->renamePath(itemPath(renamed), original) || !waitFor([&] {
+                    return !controller->remoteMutationPending() && !controller->directoryModel()->loading()
+                        && controller->directoryModel()->indexOfPath(itemPath(original)) >= 0;
+                })) return 1;
+                controller->directoryModel()->selectOnly(controller->directoryModel()->indexOfPath(itemPath(original)));
+                QMetaObject::invokeMethod(panel, "focusContent");
+                QKeyEvent cutPress(QEvent::KeyPress, Qt::Key_X, Qt::ControlModifier);
+                QKeyEvent cutRelease(QEvent::KeyRelease, Qt::Key_X, Qt::ControlModifier);
+                QCoreApplication::sendEvent(&window, &cutPress);
+                QCoreApplication::sendEvent(&window, &cutRelease);
+                if (!waitFor([&] { return workspace->clipboardCut()
+                    && workspace->clipboardPaths() == QStringList{itemPath(original)}; })) {
+                    std::fprintf(stderr, "Ctrl+X unavailable: mode=%d path=%s\n", mode, qPrintable(location)); return 1;
+                }
+                workspace->copyTextToClipboard(QStringLiteral("sftp-ui-fixture"));
+            }
+        }
+        std::puts("SFTP/local creation: menu actions, unique names, default Enter, F2 and Ctrl+X passed in Details/Grid/Brief");
+        return 0;
+    }
+    if (app.arguments().contains(QStringLiteral("--places-ui"))) {
+        auto waitFor = [](const std::function<bool()> &condition, int timeout = 3000) {
+            QElapsedTimer timer;
+            timer.start();
+            do {
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+                if (condition()) return true;
+                QThread::msleep(1);
+            } while (timer.elapsed() < timeout);
+            return false;
+        };
+        auto pause = [&](int ms) { waitFor([] { return false; }, ms); };
+        QQuickItem *sidebar = nullptr;
+        for (auto *item : window.findChildren<QQuickItem *>()) {
+            if (item->metaObject()->indexOfProperty("selectedPlacePath") >= 0
+                && item->metaObject()->indexOfProperty("placesList") >= 0) sidebar = item;
+        }
+        auto *list = sidebar ? qobject_cast<QQuickItem *>(sidebar->property("placesList").value<QObject *>()) : nullptr;
+        if (!list) { std::fputs("Places list unavailable\n", stderr); return 2; }
+        sidebar->setProperty("hiddenPanelIds", QStringList{QStringLiteral("recent"), QStringLiteral("folders")});
+
+        QSettings settings;
+        const QString group = QStringLiteral("sftp/connections/places-") + QFileInfo(fixtureRoot.path()).fileName();
+        const auto cleanup = qScopeGuard([&] {
+            services.pluginActions()->triggerAction(QStringLiteral("fm.sftp-provider::placesFixture"), {});
+            for (int i = 0; i < 12; ++i) settings.remove(group + QString::number(i));
+            settings.sync();
+        });
+        for (int i = 0; i < 12; ++i) {
+            const QString entry = group + QString::number(i) + QLatin1Char('/');
+            settings.setValue(entry + QStringLiteral("url"), QStringLiteral("sftp://sidebar-test-%1@127.0.0.1/").arg(i));
+            settings.setValue(entry + QStringLiteral("name"), QStringLiteral("Sidebar server %1").arg(i));
+            settings.setValue(entry + QStringLiteral("rememberPassword"), false);
+        }
+        settings.sync();
+        auto *model = workspace->placesModel();
+        auto findPath = [&](const QString &path) {
+            for (int row = 0; row < model->rowCount(); ++row)
+                if (model->data(model->index(row), PlacesModel::PathRole).toString() == path) return row;
+            return -1;
+        };
+        services.pluginActions()->triggerAction(QStringLiteral("fm.sftp-provider::refreshPlaces"), {});
+        pause(300);
+        const bool disconnectedHidden = findPath(QStringLiteral("sftp://")) < 0
+            && findPath(QStringLiteral("sftp://sidebar-test-11@127.0.0.1/")) < 0;
+        services.pluginActions()->triggerAction(QStringLiteral("fm.sftp-provider::placesFixture"),
+            {{QStringLiteral("parameters"), QVariantMap{{QStringLiteral("enabled"), true}}}});
+        if (!waitFor([&] { return findPath(QStringLiteral("sftp://sidebar-test-11@127.0.0.1/")) >= 0; })) {
+            std::fputs("SFTP Places fixtures unavailable\n", stderr); return 2;
+        }
+        pause(300);
+        int cloudHeaders = 0;
+        for (int row = 0; row < model->rowCount(); ++row) {
+            const auto index = model->index(row);
+            if (model->data(index, PlacesModel::VisualSectionRole).toString() == QLatin1String("cloud")
+                && model->data(index, PlacesModel::ShowSectionHeaderRole).toBool()) ++cloudHeaders;
+        }
+        int periodicResets = 0;
+        const auto connection = QObject::connect(model, &QAbstractItemModel::modelReset, [&] { ++periodicResets; });
+        const auto disconnect = qScopeGuard([&] { QObject::disconnect(connection); });
+        QMetaObject::invokeMethod(list, "positionViewAtEnd");
+        pause(250);
+        const qreal before = list->property("contentY").toReal() - list->property("originY").toReal();
+        pause(5500);
+        const qreal afterPeriodic = list->property("contentY").toReal() - list->property("originY").toReal();
+        const bool idleStable = periodicResets == 0 && std::abs(before - afterPeriodic) < 1.0;
+        const int resetsWhileIdle = periodicResets;
+
+        QMetaObject::invokeMethod(list, "positionViewAtEnd");
+        pause(250);
+        const qreal beforeRefresh = list->property("contentY").toReal() - list->property("originY").toReal();
+        model->refresh();
+        pause(300);
+        const qreal afterRefresh = list->property("contentY").toReal() - list->property("originY").toReal();
+        const bool refreshStable = std::abs(beforeRefresh - afterRefresh) < 1.0;
+
+        QMetaObject::invokeMethod(list, "positionViewAtBeginning");
+        pause(100);
+        const qreal atBeginning = list->property("contentY").toReal() - list->property("originY").toReal();
+        model->refresh();
+        pause(300);
+        const qreal afterBeginningRefresh = list->property("contentY").toReal() - list->property("originY").toReal();
+        const bool beginningStable = std::abs(atBeginning - afterBeginningRefresh) < 1.0;
+
+        const qreal beforeDisconnect = beforeRefresh / 2;
+        list->setProperty("contentY", list->property("originY").toReal() + beforeDisconnect);
+        pause(100);
+        const QString disconnectedUrl = QStringLiteral("sftp://sidebar-test-0@127.0.0.1/");
+        services.pluginActions()->triggerAction(QStringLiteral("fm.sftp-provider::disconnect"),
+            {{QStringLiteral("currentPath"), disconnectedUrl}});
+        const bool disconnectedRemoved = waitFor([&] { return findPath(disconnectedUrl) < 0; });
+        pause(300);
+        const qreal afterDisconnect = list->property("contentY").toReal() - list->property("originY").toReal();
+        const bool disconnectStable = disconnectedRemoved && std::abs(beforeDisconnect - afterDisconnect) < 1.0;
+        const bool success = cloudHeaders == 1 && before > 50 && idleStable && refreshStable
+            && beginningStable && disconnectedHidden && disconnectStable;
+        std::printf("Places sidebar: cloudHeaders=%d periodicResets=%d idleScroll=%.1f/%.1f refreshScroll=%.1f/%.1f topScroll=%.1f/%.1f disconnectedHidden=%d disconnectScroll=%.1f/%.1f success=%d\n",
+                    cloudHeaders, resetsWhileIdle, before, afterPeriodic, beforeRefresh, afterRefresh,
+                    atBeginning, afterBeginningRefresh, disconnectedHidden, beforeDisconnect, afterDisconnect, success);
+        return success ? 0 : 1;
+    }
+    if (app.arguments().contains(QStringLiteral("--sftp-ui"))) {
+        QQuickItem *panel = nullptr;
+        for (auto *item : window.findChildren<QQuickItem *>()) {
+            if (item->metaObject()->indexOfProperty("hoverSuppressed") >= 0
+                && item->property("controller").value<QObject *>() == controller) panel = item;
+        }
+        if (!panel) return 2;
+        QVariant opened;
+        const QString url = QStringLiteral("sftp://faye@192.168.0.105/home/faye");
+        if (!QMetaObject::invokeMethod(panel, "openPath", Q_RETURN_ARG(QVariant, opened),
+                Q_ARG(QVariant, url), Q_ARG(QVariant, false)) || !opened.toBool()) {
+            std::fputs("SFTP URL did not open its connection form\n", stderr); return 1;
+        }
+        QQuickItem *card = nullptr;
+        QElapsedTimer wait;
+        wait.start();
+        while (wait.elapsed() < 3000 && !card) {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+            for (auto *item : window.findChildren<QQuickItem *>()) {
+                if (item->isVisible() && QString::fromLatin1(item->metaObject()->className()).startsWith(QStringLiteral("SftpSettingsCard"))) card = item;
+            }
+            QThread::msleep(1);
+        }
+        if (!card || card->width() <= 0 || card->height() <= 0) {
+            std::fprintf(stderr, "SFTP card unavailable: item=%p width=%.0f height=%.0f\n",
+                static_cast<void *>(card), card ? card->width() : 0, card ? card->height() : 0);
+            QQmlComponent diagnostic(qmlEngine(&window), QUrl(QStringLiteral("qrc:/sftp/settings/SftpSettingsCard.qml")));
+            std::fprintf(stderr, "%s\n", qPrintable(diagnostic.errorString()));
+            const int capture = app.arguments().indexOf(QStringLiteral("--sftp-ui-capture"));
+            if (capture >= 0) window.grabWindow().save(app.arguments().value(capture + 1));
+            return 1;
+        }
+        QElapsedTimer settle;
+        settle.start();
+        while (settle.elapsed() < 250) { QCoreApplication::processEvents(QEventLoop::AllEvents, 10); QThread::msleep(1); }
+        QObject *auth = nullptr;
+        for (auto *object : card->findChildren<QObject *>()) {
+            if (object->inherits("SftpConnectionController")) auth = object;
+        }
+        if (!auth || !QMetaObject::invokeMethod(auth, "signIn", Q_ARG(QString, QString()), Q_ARG(int, 22),
+                Q_ARG(QString, QStringLiteral("tester")), Q_ARG(QString, QStringLiteral("test")), Q_ARG(QString, QStringLiteral("/")))) return 1;
+        auto *errorLabel = card->findChild<QQuickItem *>(QStringLiteral("sftpStatusMessage"));
+        if (!auth->property("hasError").toBool() || !errorLabel || !errorLabel->isVisible()
+            || errorLabel->property("text").toString() != auth->property("status").toString()) return 1;
+        bool footerReportsError = false;
+        QObject *sftpDialog = nullptr;
+        for (auto *object : window.findChildren<QObject *>()) {
+            if (QString::fromLatin1(object->metaObject()->className()).startsWith(QStringLiteral("PluginUiDialog"))) {
+                sftpDialog = object;
+                footerReportsError = object->property("statusIsError").toBool()
+                    && object->property("statusText").toString() == auth->property("status").toString();
+            }
+        }
+        if (!footerReportsError) { std::fputs("SFTP error was not shown in the dialog footer\n", stderr); return 1; }
+        const auto fixture = services.pluginActions()->triggerAction(QStringLiteral("fm.sftp-provider::creationFixture"),
+            {{QStringLiteral("parameters"), QVariantMap{{QStringLiteral("enabled"), true}}}});
+        if (!fixture.value(QStringLiteral("ok")).toBool()) return 2;
+        const QString fixtureUrl = fixture.value(QStringLiteral("url")).toString();
+        QUrl identity(fixtureUrl);
+        identity.setPath(QStringLiteral("/"));
+        const QString profileGroup = QStringLiteral("sftp/connections/")
+            + QString::fromLatin1(QCryptographicHash::hash(identity.toString(QUrl::FullyEncoded).toUtf8(), QCryptographicHash::Sha256).toHex());
+        QSettings profileSettings;
+        profileSettings.setValue(profileGroup + QStringLiteral("/url"), fixtureUrl);
+        profileSettings.setValue(profileGroup + QStringLiteral("/name"), QStringLiteral("Test laptop"));
+        profileSettings.setValue(profileGroup + QStringLiteral("/rememberPassword"), false);
+        profileSettings.sync();
+        const auto cleanupUiFixture = qScopeGuard([&] {
+            profileSettings.remove(profileGroup);
+            profileSettings.sync();
+            services.pluginActions()->triggerAction(QStringLiteral("fm.sftp-provider::creationFixture"), {});
+        });
+        auto settleUi = [&] {
+            QElapsedTimer timer;
+            timer.start();
+            while (timer.elapsed() < 120) { QCoreApplication::processEvents(QEventLoop::AllEvents, 10); QThread::msleep(1); }
+        };
+        auto clickItem = [&](QQuickItem *item) {
+            if (!item || !item->isVisible() || !item->isEnabled()) return false;
+            const QPointF position = item->mapToScene(QPointF(item->width() / 2, item->height() / 2));
+            const QPointF global = window.mapToGlobal(position.toPoint());
+            QMouseEvent press(QEvent::MouseButtonPress, position, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QMouseEvent release(QEvent::MouseButtonRelease, position, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(&window, &press);
+            QCoreApplication::sendEvent(&window, &release);
+            settleUi();
+            return true;
+        };
+        const std::function<QQuickItem *(QQuickItem *, const QString &)> findVisualItem
+            = [&](QQuickItem *parent, const QString &name) -> QQuickItem * {
+                if (parent->objectName() == name) return parent;
+                for (auto *child : parent->childItems()) {
+                    if (auto *found = findVisualItem(child, name)) return found;
+                }
+                return nullptr;
+            };
+        QMetaObject::invokeMethod(auth, "refresh");
+        QMetaObject::invokeMethod(card, "editConnection", Q_ARG(QVariant, fixtureUrl));
+        settleUi();
+        auto *host = card->findChild<QQuickItem *>(QStringLiteral("sftpHostField"));
+        auto *login = card->findChild<QQuickItem *>(QStringLiteral("sftpLoginField"));
+        auto *name = card->findChild<QQuickItem *>(QStringLiteral("sftpNameField"));
+        auto *connectionsSection = card->findChild<QQuickItem *>(QStringLiteral("sftpConnectionsSection"));
+        auto *editorSection = card->findChild<QQuickItem *>(QStringLiteral("sftpEditorSection"));
+        if (!host || !login || !name || !connectionsSection || !editorSection
+            || host->property("text").toString() != QStringLiteral("127.0.0.1")
+            || login->property("text").toString() != QStringLiteral("tester")
+            || name->property("text").toString() != QStringLiteral("Test laptop")) return 1;
+        const qreal normalWidth = card->width();
+        for (const qreal width : {normalWidth, qreal(440)}) {
+            card->setWidth(width);
+            settleUi();
+            const bool separate = width >= 680
+                ? connectionsSection->x() + connectionsSection->width() <= editorSection->x()
+                : connectionsSection->y() + connectionsSection->height() <= editorSection->y();
+            if (!separate || editorSection->x() + editorSection->width() > width + 1) {
+                std::fputs("SFTP connections and editor overlap or overflow\n", stderr); return 1;
+            }
+            for (const auto &field : {QStringLiteral("sftpHostField"), QStringLiteral("sftpPortField"),
+                    QStringLiteral("sftpLoginField"), QStringLiteral("sftpPasswordField"),
+                    QStringLiteral("sftpFolderField"), QStringLiteral("sftpNameField")}) {
+                auto *item = card->findChild<QQuickItem *>(field);
+                const QPointF position = item ? item->mapToItem(editorSection, QPointF()) : QPointF();
+                if (!item || item->width() < 40 || position.x() < 0
+                    || position.x() + item->width() > editorSection->width() + 1
+                    || item->property("font").value<QFont>().family() != host->property("font").value<QFont>().family()) return 1;
+            }
+        }
+        card->setWidth(normalWidth);
+        settleUi();
+        auto *pluginItem = sftpDialog->property("pluginItem").value<QObject *>();
+        if (!pluginItem) return 1;
+        const qreal unusedHeight = pluginItem->property("height").toReal() - card->height();
+        if (unusedHeight > 33 || sftpDialog->property("height").toReal() > sftpDialog->property("maximumHeight").toReal() + 1) {
+            std::fprintf(stderr, "SFTP dialog leaves unused height or exceeds the viewport: gap=%.0f\n", unusedHeight); return 1;
+        }
+        auto *storage = panel->findChild<QQuickItem *>(QStringLiteral("panelStorageView"));
+        QVariant iconSource;
+        if (!storage || !QMetaObject::invokeMethod(storage, "folderIconSource", Q_RETURN_ARG(QVariant, iconSource),
+                Q_ARG(QVariant, QStringLiteral("sftp"))) || iconSource.toString() != QStringLiteral("qrc:/sftp/settings/sftp.svg")
+                || !QFile::exists(QStringLiteral(":/sftp/settings/sftp.svg"))) {
+            std::fputs("Cloud SFTP icon does not resolve to the plugin resource\n", stderr); return 1;
+        }
+        QQmlComponent tileComponent(qmlEngine(&window), QUrl(QStringLiteral("qrc:/qt/qml/FM/qml/components/common/IconTile.qml")));
+        std::unique_ptr<QObject> tile(tileComponent.create(qmlContext(&window)));
+        if (!tile) return 1;
+        tile->setProperty("asynchronous", false);
+        tile->setProperty("source", iconSource);
+        settleUi();
+        QQuickItem *svgImage = nullptr;
+        for (auto *item : tile->findChildren<QQuickItem *>()) {
+            if (item->metaObject()->indexOfProperty("status") >= 0 && item->metaObject()->indexOfProperty("sourcePath") >= 0) svgImage = item;
+        }
+        if (!svgImage || svgImage->property("status").toInt() != 1) {
+            std::fputs("SFTP IconTile failed to render through the SVG recolor provider\n", stderr); return 1;
+        }
+        tile->setProperty("useOriginalColor", true);
+        settleUi();
+        if (svgImage->property("status").toInt() != 1) return 1;
+        const int capture = app.arguments().indexOf(QStringLiteral("--sftp-ui-capture"));
+        if (capture >= 0 && !window.grabWindow().save(app.arguments().value(capture + 1))) return 1;
+        if (!clickItem(card->findChild<QQuickItem *>(QStringLiteral("sftpNewConnection")))
+            || !host->property("text").toString().isEmpty() || !login->property("text").toString().isEmpty()) {
+            std::fputs("SFTP New connection did not clear the editor\n", stderr); return 1;
+        }
+        if (!clickItem(findVisualItem(card, QStringLiteral("sftpConnectionRow")))
+            || host->property("text").toString() != QStringLiteral("127.0.0.1")) {
+            auto *row = findVisualItem(card, QStringLiteral("sftpConnectionRow"));
+            const QPointF position = row ? row->mapToScene(QPointF()) : QPointF();
+            std::fprintf(stderr, "SFTP row did not populate editor: row=%p pos=%.0f,%.0f size=%.0fx%.0f host=%s selected=%s busy=%d\n",
+                static_cast<void *>(row), position.x(), position.y(), row ? row->width() : 0, row ? row->height() : 0,
+                qPrintable(host->property("text").toString()), qPrintable(card->property("selectedUrl").toString()), auth->property("busy").toBool());
+            if (capture >= 0) window.grabWindow().save(app.arguments().value(capture + 1) + QStringLiteral("-failed.png"));
+            return 1;
+        }
+        auto *forget = card->findChild<QQuickItem *>(QStringLiteral("sftpForgetConnection"));
+        if (!forget || !forget->isVisible() || !forget->isEnabled()
+            || !clickItem(card->findChild<QQuickItem *>(QStringLiteral("sftpDisconnectConnection")))) {
+            std::fputs("SFTP saved connection actions unavailable\n", stderr); return 1;
+        }
+        auto *open = card->findChild<QQuickItem *>(QStringLiteral("sftpOpenConnection"));
+        bool savedDisconnected = false;
+        for (const auto &item : auth->property("connections").toList()) {
+            const auto profile = item.toMap();
+            if (profile.value(QStringLiteral("url")).toString() == fixtureUrl)
+                savedDisconnected = profile.value(QStringLiteral("saved")).toBool() && !profile.value(QStringLiteral("connected")).toBool();
+        }
+        if (!open || open->property("text").toString() != QStringLiteral("Connect") || !savedDisconnected) {
+            std::fputs("SFTP Disconnect did not preserve the saved profile\n", stderr); return 1;
+        }
+        QQuickItem *password = nullptr;
+        for (auto *item : card->findChildren<QQuickItem *>()) {
+            if (item->metaObject()->indexOfProperty("echoMode") >= 0
+                && item->property("echoMode").toInt() == 2) password = item;
+        }
+        if (!password) { std::fputs("SFTP password input unavailable\n", stderr); return 1; }
+        password->setProperty("text", QStringLiteral("ui-test-secret"));
+        for (auto *object : window.findChildren<QObject *>()) {
+            if (QString::fromLatin1(object->metaObject()->className()).startsWith(QStringLiteral("PluginUiDialog")))
+                QMetaObject::invokeMethod(object, "close");
+        }
+        settle.restart();
+        while (settle.elapsed() < 250) { QCoreApplication::processEvents(QEventLoop::AllEvents, 10); QThread::msleep(1); }
+        if (!password->property("text").toString().isEmpty()) { std::fputs("SFTP password input retained its value after close\n", stderr); return 1; }
+        if (!QMetaObject::invokeMethod(&window, "openSettingsDialog", Q_ARG(QVariant, QStringLiteral("files")))) return 1;
+        QQuickItem *settingsCard = nullptr;
+        settle.restart();
+        while (settle.elapsed() < 4000) {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+            for (auto *object : window.findChildren<QObject *>()) {
+                if (!QString::fromLatin1(object->metaObject()->className()).startsWith(QStringLiteral("SettingsDialog"))) continue;
+                auto *settingsContent = object->property("contentItem").value<QQuickItem *>();
+                if (settingsContent) settingsCard = findVisualItem(settingsContent, QStringLiteral("sftpSettingsCard"));
+            }
+            if (settingsCard && settingsCard->width() >= 300 && settingsCard->height() > 0) break;
+            QThread::msleep(1);
+        }
+        if (!settingsCard || settingsCard->width() < 300 || settingsCard->height() <= 0
+            || !settingsCard->findChild<QQuickItem *>(QStringLiteral("sftpConnectionsSection"))
+            || !settingsCard->findChild<QQuickItem *>(QStringLiteral("sftpEditorSection"))) {
+            std::fputs("Redesigned SFTP form unavailable in Files settings\n", stderr); return 1;
+        }
+        const auto originalMode = services.theme()->mode();
+        const auto originalScheme = services.theme()->scheme();
+        const auto restoreTheme = qScopeGuard([&] {
+            services.theme()->setScheme(originalScheme);
+            services.theme()->setMode(originalMode);
+        });
+        auto *settingsRoot = settingsCard->property("dialogRoot").value<QObject *>();
+        for (const auto scheme : {ThemeController::CatppuccinLatte, ThemeController::GraphiteSage}) {
+            services.theme()->setScheme(scheme);
+            for (const auto mode : {ThemeController::Light, ThemeController::Dark}) {
+                services.theme()->setMode(mode);
+                settleUi();
+                for (auto *testedCard : {card, settingsCard}) {
+                    for (const auto &name : {QStringLiteral("sftpConnectionsSection"), QStringLiteral("sftpEditorSection")}) {
+                        auto *section = testedCard->findChild<QQuickItem *>(name);
+                        if (!section || section->property("color").value<QColor>() != settingsRoot->property("sectionFill").value<QColor>()
+                            || QQmlProperty(section, QStringLiteral("border.color")).read().value<QColor>()
+                                != settingsRoot->property("sectionBorder").value<QColor>()) {
+                            std::fputs("SFTP section palette differs from Settings theme surfaces\n", stderr); return 1;
+                        }
+                    }
+                }
+            }
+        }
+        auto *settingsPassword = settingsCard->findChild<QQuickItem *>(QStringLiteral("sftpPasswordField"));
+        if (!settingsPassword) return 1;
+        settingsPassword->setProperty("text", QStringLiteral("settings-test-secret"));
+        QMetaObject::invokeMethod(settingsCard->property("dialogRoot").value<QObject *>(), "close");
+        settle.restart();
+        while (settle.elapsed() < 1000 && !settingsPassword->property("text").toString().isEmpty()) {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10); QThread::msleep(1);
+        }
+        if (!settingsPassword->property("text").toString().isEmpty()) {
+            std::fputs("SFTP password was retained after Settings closed\n", stderr); return 1;
+        }
+        std::printf("SFTP plugin UI loaded with real application controls: %.0fx%.0f\n", card->width(), card->height());
+        return 0;
+    }
+    if (app.arguments().contains(QStringLiteral("--hover-previews"))) {
+        workspace->setSplitEnabled(true);
+        auto waitFor = [](const std::function<bool()> &condition, int timeout = 3000) {
+            QElapsedTimer timer;
+            timer.start();
+            do {
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+                if (condition()) return true;
+                QThread::msleep(1);
+            } while (timer.elapsed() < timeout);
+            return false;
+        };
+        auto pause = [&](int ms) { waitFor([] { return false; }, ms); };
+        auto find = [](auto &&self, QQuickItem *node, const std::function<bool(QQuickItem *)> &match) -> QQuickItem * {
+            if (match(node)) return node;
+            for (auto *child : node->childItems()) if (auto *found = self(self, child, match)) return found;
+            return nullptr;
+        };
+        auto *panel = find(find, window.contentItem(), [controller](QQuickItem *item) {
+            return item->metaObject()->indexOfProperty("showMediaHoverPreviews") >= 0
+                && item->property("controller").value<QObject *>() == controller;
+        });
+        if (!panel) return 2;
+        panel->setProperty("showMediaHoverPreviews", true);
+        panel->setProperty("showFolderHoverPreviews", true);
+        const QString path = QDir(fixtureRoot.path()).filePath(QStringLiteral("hover"));
+        QDir().mkpath(path + QStringLiteral("/Folder"));
+        writeFile(path + QStringLiteral("/Folder/entry.txt"), "preview\n");
+        const QString photo = path + QStringLiteral("/elias-maurer-JW58XJDQYrE-unsplash.png");
+        QImage image(320, 240, QImage::Format_RGB32);
+        image.fill(Qt::blue);
+        if (!image.save(photo) || !controller->openPath(path)) return 2;
+        bool success = true;
+        for (const QString &target : {photo, path + QStringLiteral("/Folder")}) {
+            controller->setViewMode(0);
+            const bool settled = waitFor([&] {
+                return !controller->directoryModel()->loading() && !panel->property("hoverSuppressed").toBool();
+            });
+            pause(250);
+            auto *row = find(find, panel, [&](QQuickItem *item) {
+                return item->isVisible() && item->property("path").toString() == target
+                    && QString::fromLatin1(item->metaObject()->className()).startsWith(QStringLiteral("FileTableDelegate"));
+            });
+            auto *hit = row ? find(find, row, [](QQuickItem *item) {
+                return item->metaObject()->indexOfProperty("nameRight") >= 0;
+            }) : nullptr;
+            if (!settled || !hit) {
+                std::fprintf(stderr, "Hover fixture incomplete: settled=%d row=%p hit=%p\n", settled, static_cast<void *>(row), static_cast<void *>(hit));
+                return 2;
+            }
+            auto *icon = find(find, row, [](QQuickItem *item) {
+                return QString::fromLatin1(item->metaObject()->className()).startsWith(QStringLiteral("FileIconCell"));
+            });
+            auto *label = find(find, row, [&](QQuickItem *item) {
+                return item->property("text").toString() == QFileInfo(target).completeBaseName();
+            });
+            if (!icon || !label) return 2;
+            bool geometry = true;
+            for (bool badges : {false, true}) {
+                panel->setProperty("showSelectionBadges", badges);
+                pause(80);
+                // Compare with rendered content, never use the hit area as the input oracle.
+                const auto iconPoint = hit->mapFromItem(icon, icon->width() / 2, icon->height() / 2);
+                const auto textPoint = hit->mapFromItem(label, std::min(15.0, label->width() / 2), label->height() / 2);
+                auto *lastLabel = qobject_cast<QQuickItem *>(hit->property("lastNameLabel").value<QObject *>());
+                const double left = icon->mapToItem(hit->parentItem(), 0, 0).x();
+                const double right = lastLabel ? lastLabel->mapToItem(hit->parentItem(), lastLabel->width(), 0).x() : -1;
+                const bool bounds = std::abs(hit->x() - left) < .5 && std::abs(hit->x() + hit->width() - right) < .5;
+                std::printf("Details badges=%d hit=[%.1f,%.1f] content=[%.1f,%.1f]\n", badges, hit->x(), hit->x() + hit->width(), left, right);
+                geometry = bounds && hit->contains(iconPoint) && hit->contains(textPoint) && geometry;
+            }
+            std::printf("Details icon/name geometry tracks layout=%d\n", geometry);
+            success = geometry && success;
+            auto move = [&](const QPointF &point) {
+                QMouseEvent event(QEvent::MouseMove, point, window.mapToGlobal(point.toPoint()),
+                                  Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(&window, &event);
+            };
+            move(QPointF(5, 5));
+            pause(200);
+            move(row->mapToScene(QPointF(row->width() - 20, row->height() / 2)));
+            pause(50);
+            move(label->mapToScene(QPointF(std::min(15.0, label->width() / 2), label->height() / 2)));
+            const bool hovered = waitFor([&] { return controller->hoveredPath() == target; }, 800);
+            const bool visible = waitFor([&] {
+                QVariant result;
+                QMetaObject::invokeMethod(panel, "hoverPreviewVisibleForMenuTransition", Q_RETURN_ARG(QVariant, result));
+                return result.toBool();
+            });
+            std::printf("Details hover: %s hit=%.1fx%.1f hovered=%d visible=%d\n", qPrintable(target), hit->width(), hit->height(), hovered, visible);
+            success = hovered && visible && success;
+            // Leave the pointer inside the card, where delayed hover clearing is retained.
+            auto *card = find(find, panel, [](QQuickItem *item) {
+                return item->isVisible() && item->metaObject()->indexOfProperty("pointerInside") >= 0
+                    && item->metaObject()->indexOfProperty("anchorRect") >= 0;
+            });
+            if (card) move(card->mapToScene(QPointF(card->width() / 2, card->height() / 2)));
+            pause(100);
+            for (int mode : {1, 2, 3, 0}) {
+                // A retained old target must be cleared even without a delegate exit.
+                controller->setHoveredPath(target);
+                controller->setViewMode(mode);
+                const bool cleared = controller->hoveredPath().isEmpty() && (!card || !card->isVisible());
+                std::printf("view change to %d cleared and hidden=%d\n", mode, cleared);
+                success = cleared && success;
+                pause(100);
+            }
+        }
+        report.insert(QStringLiteral("success"), success);
+        std::puts(QJsonDocument(report).toJson(QJsonDocument::Compact).constData());
+        return success ? 0 : 1;
+    }
     if (app.arguments().contains(QStringLiteral("--map"))) {
         const QString path = QDir(fixtureRoot.path()).filePath(QStringLiteral("map"));
         QDir fixture(path);

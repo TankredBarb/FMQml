@@ -10,6 +10,7 @@
 #include <QStandardPaths>
 #include <QStorageInfo>
 #include <QtConcurrent/QtConcurrentRun>
+#include <algorithm>
 
 #include "../core/DriveUtils.h"
 #include "../core/FileProviderFactory.h"
@@ -451,17 +452,16 @@ void PlacesModel::refresh()
                         .arg(m_items.size())
                         .arg(m_cachedProviderPlaces.size()));
     }
-    beginResetModel();
-    m_items.clear();
+    QList<PlaceItem> items;
 
     PlaceItem favoritesItem;
     favoritesItem.name = QStringLiteral("Favorites");
     favoritesItem.path = QStringLiteral("favorites://");
     favoritesItem.icon = QStringLiteral("star");
     favoritesItem.section = QStringLiteral("place");
-    m_items.append(favoritesItem);
+    items.append(favoritesItem);
 
-    QList<PlaceItem> standardItems;
+    QList<PlaceItem> cloudItems;
     if (googleDriveProviderAvailable()) {
         PlaceItem gdriveItem;
         gdriveItem.name = QStringLiteral("Google Drive");
@@ -469,7 +469,7 @@ void PlacesModel::refresh()
         gdriveItem.icon = QStringLiteral("gdrive");
         gdriveItem.section = QStringLiteral("cloud");
         gdriveItem.subtitle = googleDriveAccountLabel();
-        standardItems.append(gdriveItem);
+        cloudItems.append(gdriveItem);
     }
     if (megaProviderAvailable()) {
         PlaceItem megaItem;
@@ -478,7 +478,7 @@ void PlacesModel::refresh()
         megaItem.icon = QStringLiteral("mega");
         megaItem.section = QStringLiteral("cloud");
         megaItem.subtitle = megaAccountLabel();
-        standardItems.append(megaItem);
+        cloudItems.append(megaItem);
     }
     if (telegramProviderAvailable()) {
         PlaceItem telegramItem;
@@ -490,7 +490,7 @@ void PlacesModel::refresh()
         if (telegramItem.subtitle.isEmpty()) {
             telegramItem.subtitle = QStringLiteral("Channels and Saved Messages");
         }
-        standardItems.append(telegramItem);
+        cloudItems.append(telegramItem);
     }
 
     // Standard Places
@@ -510,6 +510,7 @@ void PlacesModel::refresh()
         {QStandardPaths::MoviesLocation,    QStringLiteral("Videos"),    QStringLiteral("video")}
     };
 
+    QList<PlaceItem> standardItems;
     for (const auto &info : standard) {
         const QString path = standardPlacePath(info.loc);
         if (!path.isEmpty() && QDir(path).exists()) {
@@ -608,38 +609,43 @@ void PlacesModel::refresh()
 
     QList<PlaceItem> portableItems;
     QList<PlaceItem> otherProviderItems;
-    QStringList providerSignatureParts;
-    providerSignatureParts.reserve(m_cachedProviderPlaces.size());
     for (const ProviderPlaceItem &place : m_cachedProviderPlaces) {
         PlaceItem item = placeFromProviderPlace(place);
         if (item.path.isEmpty() || item.name.isEmpty()) {
             continue;
         }
-        providerSignatureParts.append(QStringList{
-            item.name,
-            item.path,
-            item.icon,
-            item.section,
-            item.driveType,
-            item.subtitle,
-            item.isReady ? QStringLiteral("1") : QStringLiteral("0"),
-            item.canEject ? QStringLiteral("1") : QStringLiteral("0"),
-            item.canUnmount ? QStringLiteral("1") : QStringLiteral("0"),
-        }.join(QLatin1Char('\t')));
         if (item.section == QLatin1String("portable")) {
             portableItems.append(item);
+        } else if (visualSectionForPlace(item) == QLatin1String("cloud")) {
+            cloudItems.append(item);
         } else {
             otherProviderItems.append(item);
         }
     }
-    m_providerPlacesSignature = providerSignatureParts.join(QLatin1Char('\n'));
+    m_providerPlacesSignature = providerPlacesSignature(m_cachedProviderPlaces);
 
-    m_items.append(driveItems);
-    m_items.append(portableItems);
-    m_items.append(standardItems);
-    m_items.append(otherProviderItems);
+    items.append(driveItems);
+    items.append(portableItems);
+    items.append(cloudItems);
+    items.append(standardItems);
+    items.append(otherProviderItems);
 
-    endResetModel();
+    const bool sameRows = m_items.size() == items.size()
+        && std::equal(m_items.cbegin(), m_items.cend(), items.cbegin(), [](const PlaceItem &a, const PlaceItem &b) {
+            return a.path == b.path && a.mountId == b.mountId
+                && visualSectionForPlace(a) == visualSectionForPlace(b);
+        });
+    if (sameRows) {
+        for (int row = 0; row < items.size(); ++row) {
+            if (m_items.at(row) == items.at(row)) continue;
+            m_items[row] = std::move(items[row]);
+            emit dataChanged(index(row), index(row));
+        }
+    } else {
+        beginResetModel();
+        m_items = std::move(items);
+        endResetModel();
+    }
     if (placesTraceEnabled()) {
         tracePlaces(QStringLiteral("refresh end rows=%1 elapsedMs=%2 providerSignatureLen=%3")
                         .arg(m_items.size())

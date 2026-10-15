@@ -91,8 +91,9 @@ bool FilePanelController::renamePath(const QString &oldPath, const QString &newN
     if (oldPath.isEmpty()) {
         return false;
     }
-    if (!(m_fileProvider->capabilities() & FileProvider::Rename)
-        || !pathCanCreateChildren(m_fileProvider->parentPath(oldPath))
+    const auto provider = FileProviderFactory::createProvider(oldPath);
+    if (!provider || !(provider->capabilities() & FileProvider::Rename)
+        || !pathCanCreateChildren(provider->parentPath(oldPath))
         || !pathCanDelete(oldPath)) {
         setOperationError(QStringLiteral("You do not have permission to rename this item here."),
                           oldPath,
@@ -100,26 +101,27 @@ bool FilePanelController::renamePath(const QString &oldPath, const QString &newN
         return false;
     }
 
-    if (m_fileProvider->renamePath(oldPath, newName)) {
+    if (provider->scheme() == QLatin1String("sftp")) return startRemoteMutation(QStringLiteral("rename"), oldPath, newName);
+    if (provider->renamePath(oldPath, newName)) {
         setLastError({});
         const QString trimmedName = newName.trimmed();
-        const QString newPath = m_fileProvider->childPath(m_fileProvider->parentPath(oldPath), trimmedName);
+        const QString newPath = provider->childPath(provider->parentPath(oldPath), trimmedName);
         FileAccessResolver::invalidate(oldPath);
         FileAccessResolver::invalidate(newPath);
-        FileAccessResolver::invalidate(m_fileProvider->parentPath(oldPath));
+        FileAccessResolver::invalidate(provider->parentPath(oldPath));
         if (!m_directoryModel.renamePath(oldPath, newPath)) {
             refresh();
         } else {
             m_directoryModel.noteLocalMutation();
         }
         emit entryRenamed(oldPath, newPath);
-        emit contentsChanged(m_fileProvider->parentPath(oldPath));
+        emit contentsChanged(provider->parentPath(oldPath));
         return true;
     }
 
-    const QString renameMessage = m_fileProvider->lastErrorString().isEmpty()
+    const QString renameMessage = provider->lastErrorString().isEmpty()
         ? QStringLiteral("Cannot rename %1").arg(QDir::toNativeSeparators(oldPath))
-        : m_fileProvider->lastErrorString();
+        : provider->lastErrorString();
     setOperationError(renameMessage,
                       oldPath,
                       QStringLiteral("rename"));
@@ -362,14 +364,16 @@ bool FilePanelController::createFolder(const QString &name)
     if (isVirtualRoot()) {
         return false;
     }
-    if (!canCreateInCurrentPath()) {
+    const auto provider = FileProviderFactory::createProvider(currentPath());
+    if (!provider || !canCreateInCurrentPath()) {
         setOperationError(QStringLiteral("You do not have permission to create items in this location."),
                           currentPath(),
                           QStringLiteral("createFolder"));
         return false;
     }
+    if (provider->scheme() == QLatin1String("sftp")) return startRemoteMutation(QStringLiteral("createFolder"), currentPath(), name);
     QString path;
-    if (m_fileProvider->createFolder(currentPath(), name, &path)) {
+    if (provider->createFolder(currentPath(), name, &path)) {
         setLastError({});
         FileAccessResolver::invalidate(currentPath());
         FileAccessResolver::invalidate(path);
@@ -379,14 +383,14 @@ bool FilePanelController::createFolder(const QString &name)
         } else {
             m_directoryModel.noteLocalMutation();
         }
-        setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
+        setStatusMessage(QStringLiteral("\"%1\" created").arg(provider->fileName(path)));
         emit entryCreated(path);
         emit contentsChanged(currentPath());
         return true;
     }
-    const QString folderMessage = m_fileProvider->lastErrorString().isEmpty()
+    const QString folderMessage = provider->lastErrorString().isEmpty()
         ? QStringLiteral("Cannot create folder in %1").arg(QDir::toNativeSeparators(currentPath()))
-        : m_fileProvider->lastErrorString();
+        : provider->lastErrorString();
     setOperationError(folderMessage,
                       currentPath(),
                       QStringLiteral("createFolder"));
@@ -448,14 +452,16 @@ bool FilePanelController::createFile(const QString &name)
     if (isVirtualRoot()) {
         return false;
     }
-    if (!canCreateInCurrentPath()) {
+    const auto provider = FileProviderFactory::createProvider(currentPath());
+    if (!provider || !canCreateInCurrentPath()) {
         setOperationError(QStringLiteral("You do not have permission to create items in this location."),
                           currentPath(),
                           QStringLiteral("createFile"));
         return false;
     }
+    if (provider->scheme() == QLatin1String("sftp")) return startRemoteMutation(QStringLiteral("createFile"), currentPath(), name);
     QString path;
-    if (m_fileProvider->createFile(currentPath(), name, &path)) {
+    if (provider->createFile(currentPath(), name, &path)) {
         setLastError({});
         FileAccessResolver::invalidate(currentPath());
         FileAccessResolver::invalidate(path);
@@ -465,14 +471,14 @@ bool FilePanelController::createFile(const QString &name)
         } else {
             m_directoryModel.noteLocalMutation();
         }
-        setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
+        setStatusMessage(QStringLiteral("\"%1\" created").arg(provider->fileName(path)));
         emit entryCreated(path);
         emit contentsChanged(currentPath());
         return true;
     }
-    const QString fileMessage = m_fileProvider->lastErrorString().isEmpty()
+    const QString fileMessage = provider->lastErrorString().isEmpty()
         ? QStringLiteral("Cannot create file in %1").arg(QDir::toNativeSeparators(currentPath()))
-        : m_fileProvider->lastErrorString();
+        : provider->lastErrorString();
     setOperationError(fileMessage,
                       currentPath(),
                       QStringLiteral("createFile"));

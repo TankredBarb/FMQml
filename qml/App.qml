@@ -185,9 +185,7 @@ ApplicationWindow {
     }
 
     function canCreateManualItemInPanel(ctrl) {
-        return Boolean(ctrl
-                       && !root.isProviderPath(ctrl.currentPath)
-                       && ctrl.canCreateInCurrentPath)
+        return Boolean(ctrl && ctrl.canCreateManualItem)
     }
 
     function oppositePanelController(ctrl) {
@@ -598,7 +596,7 @@ ApplicationWindow {
 
     function renameActiveSelection() {
         const ctrl = activePanelController()
-        if (ctrl && !root.isProviderPath(ctrl.currentPath)) {
+        if (ctrl && ctrl.canRenameSelection) {
             workspaceController.triggerRename()
         }
     }
@@ -615,8 +613,8 @@ ApplicationWindow {
         const ctrl = activePanelController()
         const destination = root.oppositePanelController(ctrl)
         if (ctrl && destination
-                && !root.isProviderPath(ctrl.currentPath)
-                && !root.isProviderPath(destination.currentPath)) {
+                && ctrl.canCutSelection
+                && destination.canCreateManualItem) {
             workspaceController.moveActiveSelectionToOpposite()
         }
     }
@@ -637,7 +635,7 @@ ApplicationWindow {
 
     function cutActiveSelection() {
         const ctrl = activePanelController()
-        if (ctrl && !root.isProviderPath(ctrl.currentPath)) {
+        if (ctrl && ctrl.canCutSelection) {
             workspaceController.cutToClipboard()
         }
     }
@@ -1089,17 +1087,16 @@ ApplicationWindow {
                 : root.workspaceService.rightPanel
             return !!ctrl && ctrl.isFavoritesRoot
         }
-        activePanelProviderPath: {
-            const ctrl = root.workspaceService.activePanel === 0
-                ? root.workspaceService.leftPanel
-                : root.workspaceService.rightPanel
-            return !!ctrl && root.isProviderPath(ctrl.currentPath)
-        }
         activePanelCanDeleteSelection: {
             const ctrl = root.workspaceService.activePanel === 0
                 ? root.workspaceService.leftPanel
                 : root.workspaceService.rightPanel
             return !!ctrl && ctrl.canDeleteSelection
+        }
+        activePanelCanCutSelection: {
+            const ctrl = root.workspaceService.activePanel === 0
+                ? root.workspaceService.leftPanel : root.workspaceService.rightPanel
+            return !!ctrl && ctrl.canCutSelection
         }
         activePanelCanRenameSelection: {
             const ctrl = root.workspaceService.activePanel === 0

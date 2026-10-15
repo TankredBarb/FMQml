@@ -92,6 +92,7 @@ RowLayout {
             cornerRadius: Theme.radiusSm
             source: folderCardWrapper.storageRoot.folderIconSource(folderCardWrapper.folderIcon)
             useOriginalColor: folderCardWrapper.folderIcon === "gdrive" || folderCardWrapper.folderIcon === "mega"
+                              || folderCardWrapper.folderIcon === "sftp"
             iconColor: folderCardWrapper.storageRoot.folderIconColor(folderCardWrapper.folderIcon)
             tileColor: Theme.withAlpha(
                 folderCardWrapper.storageRoot.folderIconColor(folderCardWrapper.folderIcon),

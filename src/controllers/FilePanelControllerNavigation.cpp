@@ -315,6 +315,7 @@ void FilePanelController::cancelArchivePassword(const QString &path)
 
 void FilePanelController::cancelCurrentLoad()
 {
+    cancelRemoteMutation();
     if (!m_directoryModel.loading()) {
         if (m_navigationPending) {
             const QString cancelledPath = m_pendingNavigationPath;
@@ -386,6 +387,10 @@ void FilePanelController::openItem(int row)
 void FilePanelController::openFilePath(QString path)
 {
     if (path.isEmpty()) return;
+    if (path.startsWith(QLatin1String("sftp://"), Qt::CaseInsensitive)) {
+        startRemoteMutation(QStringLiteral("open"), path, {});
+        return;
+    }
 #ifdef Q_OS_LINUX
     if (!QFileInfo(path).isReadable() && !LinuxAdminBroker::activeSessionNonce().isEmpty()) {
         QString materializeError;

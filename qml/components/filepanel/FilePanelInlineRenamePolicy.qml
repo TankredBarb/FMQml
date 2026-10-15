@@ -157,6 +157,7 @@ QtObject {
         }
 
         root.trace("cancelInlineRename")
+        if (panel.controller.remoteMutationPending) panel.controller.cancelRemoteMutation()
         panel.isRenaming = false
         panel.pendingInlineRenamePath = ""
         root.clearPendingInlineRenameFocus()

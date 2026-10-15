@@ -306,9 +306,12 @@ int PanelResizeBenchmark::run(AppServices &services, QQuickWindow &window, const
                 QMetaObject::invokeMethod(handler, "cancel");
                 v->setProperty("contentY", 600.0);
                 wait(100);
-                const QPointF at = v->mapToScene({150, 150});
-                QWheelEvent event(at, window.mapToGlobal(at.toPoint()), {}, QPoint(0, -120),
-                                  Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+                const QPointF at = repeat ? bar->mapToScene({bar->width() / 2, bar->height() / 2})
+                                         : v->mapToScene({150, 150});
+                // Exercise Qt 6.12 Wayland's dual-delta wheel over the scrollbar too.
+                QWheelEvent event(at, window.mapToGlobal(at.toPoint()), repeat ? QPoint(0, -15) : QPoint(), QPoint(0, -120),
+                                  Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false,
+                                  Qt::MouseEventSynthesizedBySystem);
                 event.setTimestamp(10000);
                 QCoreApplication::sendEvent(&window, &event);
                 wait(30);

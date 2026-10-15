@@ -209,6 +209,7 @@ qt_add_executable(fm
     src/controllers/FilePanelControllerInternal.h
     src/controllers/FilePanelControllerLaunch.cpp
     src/controllers/FilePanelControllerMutations.cpp
+    src/controllers/FilePanelControllerRemoteMutations.cpp
     src/controllers/FilePanelControllerNavigation.cpp
     src/controllers/FilePanelControllerProperties.cpp
     src/controllers/FilePanelControllerSuggestions.cpp
@@ -1466,6 +1467,44 @@ foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
     )
 endforeach()
 
+if(UNIX AND NOT APPLE)
+    find_package(libssh 0.12 CONFIG QUIET)
+    if(TARGET ssh)
+        qt_add_plugin(fm_sftp_provider
+            CLASS_NAME SftpFileProviderPlugin
+            src/plugins/sftp/SftpFileProviderPlugin.cpp
+            src/plugins/sftp/SftpFileProviderPlugin.h
+            src/plugins/sftp/SftpPath.cpp
+            src/plugins/sftp/SftpPath.h
+            src/plugins/sftp/SftpClient.cpp
+            src/plugins/sftp/SftpClient.h
+            src/plugins/sftp/SftpConnectionController.cpp
+            src/plugins/sftp/SftpConnectionController.h
+            src/plugins/sftp/SftpProfiles.cpp
+            src/plugins/sftp/SftpProfiles.h
+            src/plugins/sftp/SftpFileProvider.cpp
+            src/plugins/sftp/SftpFileProvider.h
+        )
+        set_source_files_properties(src/plugins/sftp/SftpSettingsCard.qml
+            PROPERTIES QT_RESOURCE_ALIAS SftpSettingsCard.qml)
+        set_source_files_properties(src/plugins/sftp/SftpConnectionsUi.qml PROPERTIES QT_RESOURCE_ALIAS SftpConnectionsUi.qml)
+        set_source_files_properties(src/plugins/sftp/sftp.svg PROPERTIES QT_RESOURCE_ALIAS sftp.svg)
+        qt_add_resources(fm_sftp_provider sftp_settings
+            PREFIX "/sftp/settings"
+            FILES src/plugins/sftp/SftpSettingsCard.qml src/plugins/sftp/SftpConnectionsUi.qml src/plugins/sftp/sftp.svg)
+        target_include_directories(fm_sftp_provider PRIVATE src src/core)
+        target_link_libraries(fm_sftp_provider PRIVATE Qt6::Core Qt6::Concurrent Qt6::Qml ssh fm PkgConfig::LIBSECRET)
+        set_target_properties(fm_sftp_provider PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}")
+        foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+            set_target_properties(fm_sftp_provider PROPERTIES
+                LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}")
+        endforeach()
+    else()
+        message(STATUS "libssh not found; SFTP provider will not be built.")
+    endif()
+endif()
+
 set_source_files_properties(src/plugins/instagram/InstagramSettingsCard.qml
     PROPERTIES QT_RESOURCE_ALIAS InstagramSettingsCard.qml
 )
@@ -1780,6 +1819,59 @@ endif()
 
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(Qt6 REQUIRED COMPONENTS Test)
+    if(TARGET fm_sftp_provider)
+        target_sources(fm_sftp_provider PRIVATE tests/core/SftpQueueRegression.cpp)
+        target_include_directories(fm_sftp_provider PRIVATE src/plugins/sftp)
+        target_compile_definitions(fm_sftp_provider PRIVATE FM_SFTP_PROVIDER_TESTING WITH_SERVER)
+        target_link_libraries(fm_sftp_provider PRIVATE Qt6::Test Qt6::Gui)
+        target_compile_definitions(fm PRIVATE FM_ENABLE_SFTP_REGRESSION)
+        set_source_files_properties(tests/core/SftpQueueRegression.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+        add_test(NAME sftp_transfer_regression
+            COMMAND ${CMAKE_COMMAND} -E env QT_QPA_PLATFORM=offscreen
+                $<TARGET_FILE:fm> --sftp-transfer-regression)
+        set_tests_properties(sftp_transfer_regression PROPERTIES TIMEOUT 120)
+        add_test(NAME sftp_connections_ui_test
+            COMMAND ${CMAKE_COMMAND} -E env QT_QPA_PLATFORM=offscreen
+                XDG_CONFIG_HOME=/tmp/fm-sftp-ui-ctest/config
+                XDG_DATA_HOME=/tmp/fm-sftp-ui-ctest/data
+                XDG_CACHE_HOME=/tmp/fm-sftp-ui-ctest/cache
+                $<TARGET_FILE:fm> --navigation-gui-benchmark --sftp-ui)
+        set_tests_properties(sftp_connections_ui_test PROPERTIES TIMEOUT 30)
+        add_test(NAME sftp_creation_ui_test
+            COMMAND ${CMAKE_COMMAND} -E env QT_QPA_PLATFORM=offscreen
+                XDG_CONFIG_HOME=/tmp/fm-sftp-create-ctest/config
+                XDG_DATA_HOME=/tmp/fm-sftp-create-ctest/data
+                XDG_CACHE_HOME=/tmp/fm-sftp-create-ctest/cache
+                $<TARGET_FILE:fm> --navigation-gui-benchmark --sftp-create)
+        set_tests_properties(sftp_creation_ui_test PROPERTIES TIMEOUT 60)
+        add_test(NAME places_sidebar_ui_test
+            COMMAND ${CMAKE_COMMAND} -E env QT_QPA_PLATFORM=offscreen
+                XDG_CONFIG_HOME=/tmp/fm-places-ui-ctest/config
+                XDG_DATA_HOME=/tmp/fm-places-ui-ctest/data
+                XDG_CACHE_HOME=/tmp/fm-places-ui-ctest/cache
+                $<TARGET_FILE:fm> --navigation-gui-benchmark --places-ui)
+        set_tests_properties(places_sidebar_ui_test PROPERTIES TIMEOUT 30)
+        add_executable(sftp_client_test
+            tests/core/SftpClientTest.cpp
+            src/plugins/sftp/SftpPath.cpp
+            src/plugins/sftp/SftpClient.cpp
+            src/plugins/sftp/SftpFileProvider.cpp
+            src/plugins/sftp/SftpFileProvider.h
+            src/plugins/sftp/SftpConnectionController.cpp
+            src/plugins/sftp/SftpConnectionController.h
+            src/plugins/sftp/SftpProfiles.cpp
+            src/plugins/sftp/SftpProfiles.h
+            src/core/FileProvider.h
+            src/plugins/sftp/SftpFileProviderPlugin.cpp
+            src/plugins/sftp/SftpFileProviderPlugin.h
+        )
+        target_include_directories(sftp_client_test PRIVATE src/core src/plugins/sftp)
+        target_compile_definitions(sftp_client_test PRIVATE WITH_SERVER FM_SFTP_TEST_CREDENTIALS)
+        target_link_libraries(sftp_client_test PRIVATE Qt6::Core Qt6::Concurrent Qt6::Qml Qt6::Test ssh)
+        set_target_properties(sftp_client_test PROPERTIES UNITY_BUILD OFF)
+        add_test(NAME sftp_client_test COMMAND sftp_client_test)
+        set_tests_properties(sftp_client_test PROPERTIES TIMEOUT 45)
+    endif()
     target_sources(fm PRIVATE src/tools/PanelResizeBenchmark.cpp src/tools/PanelResizeBenchmark.h)
     target_link_libraries(fm PRIVATE Qt6::Test)
     target_compile_definitions(fm PRIVATE FM_ENABLE_RESIZE_BENCHMARK)
@@ -1879,6 +1971,14 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
             $<TARGET_FILE:fm> --navigation-gui-benchmark
     )
     set_tests_properties(navigation_gui_benchmark_smoke PROPERTIES TIMEOUT 60)
+    add_test(NAME file_panel_hover_preview_test
+        COMMAND ${CMAKE_COMMAND} -E env
+            QT_QPA_PLATFORM=offscreen QSG_RHI_BACKEND=software
+            XDG_CONFIG_HOME=/tmp/fm-hover-preview-ctest/config
+            XDG_DATA_HOME=/tmp/fm-hover-preview-ctest/data
+            XDG_CACHE_HOME=/tmp/fm-hover-preview-ctest/cache
+            $<TARGET_FILE:fm> --navigation-gui-benchmark --hover-previews)
+    set_tests_properties(file_panel_hover_preview_test PROPERTIES TIMEOUT 60)
     foreach(mode IN ITEMS 0 1 2)
         add_test(NAME panel_resize_geometry_${mode}
             COMMAND ${CMAKE_COMMAND} -E env
@@ -2203,8 +2303,24 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME file_panel_grid_wheel_test COMMAND file_panel_grid_wheel_test)
     add_test(NAME file_panel_brief_wheel_test COMMAND file_panel_grid_wheel_test --brief)
     add_test(NAME file_panel_detailed_wheel_test COMMAND file_panel_grid_wheel_test --detailed)
+    add_test(NAME file_panel_grid_wayland_wheel_test COMMAND file_panel_grid_wheel_test --wayland-wheel)
+    add_test(NAME file_panel_brief_wayland_wheel_test COMMAND file_panel_grid_wheel_test --brief --wayland-wheel)
+    add_test(NAME file_panel_detailed_wayland_wheel_test COMMAND file_panel_grid_wheel_test --detailed --wayland-wheel)
     set_tests_properties(file_panel_grid_wheel_test file_panel_brief_wheel_test
-        file_panel_detailed_wheel_test PROPERTIES
+        file_panel_detailed_wheel_test file_panel_grid_wayland_wheel_test
+        file_panel_brief_wayland_wheel_test file_panel_detailed_wayland_wheel_test PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+
+    add_executable(framework_wheel_test
+        tests/core/FrameworkWheelTest.cpp
+        src/ui/framework/FmScrollBarVisual.cpp
+        src/ui/framework/FmDocumentViewVisual.cpp
+    )
+    target_include_directories(framework_wheel_test PRIVATE src)
+    target_link_libraries(framework_wheel_test PRIVATE Qt6::Gui Qt6::Quick)
+    target_compile_definitions(framework_wheel_test PRIVATE FM_WHEEL_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME framework_wheel_test COMMAND framework_wheel_test)
+    set_tests_properties(framework_wheel_test PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
 
     add_executable(file_action_policy_evaluator_test

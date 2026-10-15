@@ -98,7 +98,7 @@ bool FileEntryPresentationResolver::menuUsesAvatar(const FileEntry &entry)
 bool FileEntryPresentationResolver::isRemotePreviewContentPath(const QString &path)
 {
     const QString scheme = path.left(path.indexOf(QStringLiteral("://"))).toLower();
-    return scheme == QLatin1String("portable") || scheme == QLatin1String("gdrive")
+    return scheme == QLatin1String("sftp") || scheme == QLatin1String("portable") || scheme == QLatin1String("gdrive")
         || scheme == QLatin1String("mega") || scheme == QLatin1String("ftp")
         || scheme == QLatin1String("instagram");
 }

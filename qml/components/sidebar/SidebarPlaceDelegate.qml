@@ -135,7 +135,7 @@ ItemDelegate {
                     visible: !placeDelegate.useNativePathIcon
                     sourcePath: sidebar.resolvedIconSourceFor(placeIcon)
                     recolorColor: sidebar.iconToneFor(placeIcon, placeDelegate.isActive || placeDelegate.hasKeyboardCurrent, false)
-                    recolorEnabled: placeIcon !== "gdrive" && placeIcon !== "mega" && placeIcon !== "telegram"
+                    recolorEnabled: placeIcon !== "gdrive" && placeIcon !== "mega" && placeIcon !== "telegram" && placeIcon !== "sftp"
                     cacheKey: "sidebar"
                     sourceSize: Qt.size(sidebar.placeIconSize * 2, sidebar.placeIconSize * 2)
                     asynchronous: true

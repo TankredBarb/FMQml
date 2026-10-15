@@ -11,9 +11,11 @@ Dialog {
     property string componentUrl: ""
     property string subtitleText: "Plugin UI"
     property string statusText: ""
+    property bool statusIsError: false
     property var pluginContext: ({})
     property var appRoot: null
     property string headerIconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/plugin.svg"
+    property bool headerNativeIconPresentation: false
     readonly property var pluginItem: pluginLoader.item
     readonly property bool pluginBusy: root.pluginItem && root.pluginItem.busy === true
     readonly property bool pluginCanApply: root.pluginItem
@@ -33,7 +35,9 @@ Dialog {
         root.componentUrl = String(result.componentUrl || "")
         root.pluginContext = result.context || ({})
         root.statusText = ""
+        root.statusIsError = false
         root.headerIconSource = String(result.iconSource || "qrc:/qt/qml/FM/qml/assets/icons-classic/plugin.svg")
+        root.headerNativeIconPresentation = result.nativeIconPresentation === true
 
         if (!root.componentUrl.startsWith("qrc:/")) {
             root.statusText = "Plugin UI component is not available."
@@ -63,6 +67,11 @@ Dialog {
 
     function handleApplyResult(result) {
         root.statusText = String(result.message || "")
+        root.statusIsError = result.error === true
+        if (result.openPath && root.appRoot && root.appRoot.activePanelController) {
+            const panel = root.appRoot.activePanelController()
+            if (panel) panel.openPath(String(result.openPath))
+        }
         if (result.thumbnailInvalidationPaths
                 && root.appRoot
                 && root.appRoot.invalidateThumbnailsForPaths) {
@@ -105,10 +114,16 @@ Dialog {
     parent: Overlay.overlay
     padding: 0
     width: Math.min(920, Math.max(520, (parent ? parent.width : 920) - 96))
-    height: Math.min(680, Math.max(420, (parent ? parent.height : 680) - 96))
+    readonly property real maximumHeight: Math.min(680, Math.max(420, (parent ? parent.height : 680) - 96))
+    height: root.pluginItem && root.pluginItem.preferredContentHeight > 0
+            ? Math.min(root.maximumHeight, root.pluginItem.preferredContentHeight
+                       + (root.header ? root.header.implicitHeight : 0)
+                       + (root.footer ? root.footer.implicitHeight : 0))
+            : root.maximumHeight
     x: parent ? Math.round((parent.width - width) / 2) : 0
     y: parent ? Math.round((parent.height - height) / 2) : 0
     closePolicy: root.pluginBusy ? Popup.NoAutoClose : Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    onClosed: if (root.pluginItem && typeof root.pluginItem.onHostClosed === "function") root.pluginItem.onHostClosed()
 
     background: DialogShell {
         accentColor: Theme.categoryInfo
@@ -118,6 +133,7 @@ Dialog {
 
     header: DialogHeader {
         iconSource: root.headerIconSource
+        nativeIconPresentation: root.headerNativeIconPresentation
         iconTint: Theme.categoryInfo
         accentColor: Theme.categoryInfo
         title: root.title
@@ -129,8 +145,8 @@ Dialog {
     footer: DialogFooter {
         Label {
             Layout.fillWidth: true
-            text: root.pluginBusy ? "Applying changes..." : root.statusText
-            color: Theme.textSecondary
+            text: root.pluginBusy ? (root.pluginItem.busyText || "Applying changes...") : root.statusText
+            color: root.statusIsError ? Theme.danger : Theme.textSecondary
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeLabel
             elide: Text.ElideRight
@@ -155,6 +171,7 @@ Dialog {
 
         FmButton {
             text: "Apply"
+            visible: root.pluginItem && typeof root.pluginItem.apply === "function"
             highlighted: true
             enabled: root.pluginCanApply
             primaryColor: Theme.categoryInfo

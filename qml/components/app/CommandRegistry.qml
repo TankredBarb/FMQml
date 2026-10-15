@@ -112,9 +112,7 @@ QtObject {
     }
 
     function canCreateManualItem(ctrl) {
-        return Boolean(ctrl
-                       && !isProviderPath(ctrl.currentPath)
-                       && ctrl.canCreateInCurrentPath)
+        return Boolean(ctrl && ctrl.canCreateManualItem)
     }
 
     function oppositePanelFor(ctrl) {
@@ -145,9 +143,8 @@ QtObject {
         return canCopySelectionToOpposite(ctrl)
                && ctrl
                && destination
-               && !isProviderPath(ctrl.currentPath)
-               && !isProviderPath(destination.currentPath)
-               && ctrl.canDeleteSelection
+               && ctrl.canCutSelection
+               && destination.canCreateManualItem
     }
 
     function canShowPropertiesSelection(ctrl) {
@@ -539,13 +536,12 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && !root.isProviderPath(ctrl.currentPath) && ctrl.canRenameSelection
+                return ctrl && ctrl.canRenameSelection
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
-                if (root.isProviderPath(ctrl.currentPath)) return "Rename is unavailable for this provider"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
                 if (!ctrl.canRenameSelection) return "Cannot rename current selection"
                 return ""
@@ -575,8 +571,8 @@ QtObject {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
-                if (root.isProviderPath(ctrl.currentPath)) return "Manual item creation is unavailable for this provider"
                 if (!ctrl.canCreateInCurrentPath) return "Current folder is read-only"
+                if (!root.canCreateManualItem(ctrl)) return "Manual item creation is unavailable for this provider"
                 return ""
             },
             validateArgument: function(value) {
@@ -821,13 +817,13 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && !root.isProviderPath(ctrl.currentPath) && ctrl.canDeleteSelection
+                return ctrl && ctrl.canCutSelection
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
-                if (root.isProviderPath(ctrl.currentPath)) return "Cut is unavailable for this provider"
+                if (!ctrl.canCutSelection) return "Cut is unavailable for this selection"
                 if (!ctrl.canDeleteSelection) return "Cannot cut current selection"
                 return ""
             },
