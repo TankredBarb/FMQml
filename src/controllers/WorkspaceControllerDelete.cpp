@@ -1,4 +1,5 @@
 #include "WorkspaceController.h"
+#include "../models/DirectoryModelAlgorithms.h"
 #include "../core/ArchiveSupport.h"
 #include "../core/ArchiveFileProvider.h"
 #include "../core/DriveUtils.h"
@@ -156,6 +157,14 @@ bool WorkspaceController::confirmDeleteAsAdministrator(const QStringList &paths)
 QVariantMap WorkspaceController::deleteRequestDetails(const QStringList &paths, const QString &label) const
 {
     Q_UNUSED(label)
+
+    if (DirectoryModelAlgorithms::selectionWithoutAncestors(paths).size() != paths.size()) {
+        return makeDeleteDetails(true, true, false,
+            QStringLiteral("Deletion blocked for overlapping selection"),
+            QStringLiteral("Select either a folder or the items inside it, not both."),
+            QStringLiteral("Nothing was deleted. Review the selected items and try again."),
+            {}, QStringLiteral("Close"));
+    }
 
     const int itemCount = paths.size();
     bool allProviderPaths = itemCount > 0;

@@ -171,7 +171,7 @@ void WorkspaceController::cutToClipboard()
     focusActivePanel();
 }
 
-void WorkspaceController::pasteFromClipboard()
+void WorkspaceController::pasteFromClipboard(const QString &destinationPath)
 {
     syncFileClipboardFromSystem();
     if (m_clipboard.isEmpty()) {
@@ -181,9 +181,10 @@ void WorkspaceController::pasteFromClipboard()
     if (active->isVirtualRoot()) {
         return;
     }
-    if (!active->canPasteIntoCurrentPath()) {
+    const QString target = destinationPath.isEmpty() ? active->currentPath() : destinationPath;
+    if (!active->canPasteIntoPath(target)) {
         m_operationQueue.reportError(QStringLiteral("You do not have permission to write items to this location."),
-                                     active->currentPath(),
+                                     target,
                                      m_isCut ? QStringLiteral("move") : QStringLiteral("copy"));
         return;
     }
@@ -195,9 +196,9 @@ void WorkspaceController::pasteFromClipboard()
         m_pendingCutPasteSources = m_clipboard;
         m_pendingCutPasteGeneration = m_clipboardGeneration;
         m_cutPastePending = true;
-        m_operationQueue.moveTo(m_pendingCutPasteSources, active->currentPath());
+        m_operationQueue.moveTo(m_pendingCutPasteSources, target);
     } else {
-        copyPathsToPanel(m_clipboard, active);
+        copyPathsToPanel(m_clipboard, active, target);
     }
 }
 
@@ -352,14 +353,15 @@ void WorkspaceController::createFolderInActivePanelAsAdministrator()
 #endif
 }
 
-bool WorkspaceController::copyPathsToPanel(const QStringList &sources, FilePanelController *destination)
+bool WorkspaceController::copyPathsToPanel(const QStringList &sources, FilePanelController *destination, const QString &destinationPath)
 {
     if (sources.isEmpty() || !destination) {
         return false;
     }
-    if (!destination->canCreateInCurrentPath()) {
+    const QString target = destinationPath.isEmpty() ? destination->currentPath() : destinationPath;
+    if (!destination->canPasteIntoPath(target)) {
         m_operationQueue.reportError(QStringLiteral("You do not have permission to write items to this location."),
-                                     destination->currentPath(),
+                                     target,
                                      QStringLiteral("copy"));
         return false;
     }
@@ -371,7 +373,7 @@ bool WorkspaceController::copyPathsToPanel(const QStringList &sources, FilePanel
             break;
         }
         const QString sourceParent = destination->parentPathForPath(source);
-        if (normalizedLocalPath(sourceParent) != normalizedLocalPath(destination->currentPath())) {
+        if (normalizedLocalPath(sourceParent) != normalizedLocalPath(target)) {
             allSourcesInDestination = false;
             break;
         }
@@ -381,6 +383,6 @@ bool WorkspaceController::copyPathsToPanel(const QStringList &sources, FilePanel
         return false;
     }
 
-    m_operationQueue.copyTo(sources, destination->currentPath());
+    m_operationQueue.copyTo(sources, target);
     return true;
 }

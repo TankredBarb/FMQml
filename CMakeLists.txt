@@ -1894,6 +1894,8 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME disk_usage_treemap_layout_test COMMAND disk_usage_treemap_layout_test)
 
     add_executable(folder_map_test
+        src/core/LocalFileBadgeResolver.cpp src/core/LocalMountPointIndex.cpp
+        src/models/DirectoryModelAlgorithms.cpp
         src/core/PathSemantics.cpp src/core/PathSemantics.h
         src/core/DirectoryChangeWatcher.cpp src/core/DirectoryChangeWatcher.h
         src/core/IconProvider.cpp src/core/IconProvider.h
@@ -1926,7 +1928,10 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         qml/assets/filetypes-next/pdf.svg qml/assets/filetypes-next/presentation.svg
         qml/assets/filetypes-next/shortcut.svg qml/assets/filetypes-next/spreadsheet.svg
         qml/assets/filetypes-next/text.svg qml/assets/filetypes-next/video.svg
-        qml/assets/icons-classic/folder.svg)
+        qml/assets/icons-classic/folder.svg
+        qml/assets/icons/badge-link-broken.svg qml/assets/icons/badge-link.svg
+        qml/assets/icons/badge-lock.svg qml/assets/icons/badge-mount.svg
+        qml/assets/icons/badge-archive.svg qml/assets/icons/badge-pinned.svg)
     add_test(NAME folder_map_test COMMAND ${CMAKE_COMMAND} -E env
         QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software $<TARGET_FILE:folder_map_test>)
     add_test(NAME folder_map_software_panel_test COMMAND ${CMAKE_COMMAND} -E env

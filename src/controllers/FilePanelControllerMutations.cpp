@@ -361,38 +361,41 @@ void FilePanelController::finishBatchRename(QVariantList results, bool refreshPa
 
 bool FilePanelController::createFolder(const QString &name)
 {
+    return createFolderAtPath(currentPath(), name);
+}
+
+bool FilePanelController::createFolderAtPath(const QString &parentPath, const QString &name)
+{
     if (isVirtualRoot()) {
         return false;
     }
-    const auto provider = FileProviderFactory::createProvider(currentPath());
-    if (!provider || !canCreateInCurrentPath()) {
+    const auto provider = FileProviderFactory::createProvider(parentPath);
+    if (!provider || !canCreateInPath(parentPath)) {
         setOperationError(QStringLiteral("You do not have permission to create items in this location."),
-                          currentPath(),
+                          parentPath,
                           QStringLiteral("createFolder"));
         return false;
     }
-    if (provider->scheme() == QLatin1String("sftp")) return startRemoteMutation(QStringLiteral("createFolder"), currentPath(), name);
+    if (provider->scheme() == QLatin1String("sftp")) return startRemoteMutation(QStringLiteral("createFolder"), parentPath, name);
     QString path;
-    if (provider->createFolder(currentPath(), name, &path)) {
+    if (provider->createFolder(parentPath, name, &path)) {
         setLastError({});
-        FileAccessResolver::invalidate(currentPath());
+        FileAccessResolver::invalidate(parentPath);
         FileAccessResolver::invalidate(path);
-        const bool inserted = m_directoryModel.insertPath(path);
-        if (!inserted) {
-            refresh();
-        } else {
-            m_directoryModel.noteLocalMutation();
+        if (parentPath == currentPath()) {
+            if (!m_directoryModel.insertPath(path)) refresh();
+            else m_directoryModel.noteLocalMutation();
         }
         setStatusMessage(QStringLiteral("\"%1\" created").arg(provider->fileName(path)));
         emit entryCreated(path);
-        emit contentsChanged(currentPath());
+        emit contentsChanged(parentPath);
         return true;
     }
     const QString folderMessage = provider->lastErrorString().isEmpty()
-        ? QStringLiteral("Cannot create folder in %1").arg(QDir::toNativeSeparators(currentPath()))
+        ? QStringLiteral("Cannot create folder in %1").arg(QDir::toNativeSeparators(parentPath))
         : provider->lastErrorString();
     setOperationError(folderMessage,
-                      currentPath(),
+                      parentPath,
                       QStringLiteral("createFolder"));
     return false;
 }
@@ -449,38 +452,41 @@ bool FilePanelController::createFolderAsAdministrator(const QString &name)
 
 bool FilePanelController::createFile(const QString &name)
 {
+    return createFileAtPath(currentPath(), name);
+}
+
+bool FilePanelController::createFileAtPath(const QString &parentPath, const QString &name)
+{
     if (isVirtualRoot()) {
         return false;
     }
-    const auto provider = FileProviderFactory::createProvider(currentPath());
-    if (!provider || !canCreateInCurrentPath()) {
+    const auto provider = FileProviderFactory::createProvider(parentPath);
+    if (!provider || !canCreateInPath(parentPath)) {
         setOperationError(QStringLiteral("You do not have permission to create items in this location."),
-                          currentPath(),
+                          parentPath,
                           QStringLiteral("createFile"));
         return false;
     }
-    if (provider->scheme() == QLatin1String("sftp")) return startRemoteMutation(QStringLiteral("createFile"), currentPath(), name);
+    if (provider->scheme() == QLatin1String("sftp")) return startRemoteMutation(QStringLiteral("createFile"), parentPath, name);
     QString path;
-    if (provider->createFile(currentPath(), name, &path)) {
+    if (provider->createFile(parentPath, name, &path)) {
         setLastError({});
-        FileAccessResolver::invalidate(currentPath());
+        FileAccessResolver::invalidate(parentPath);
         FileAccessResolver::invalidate(path);
-        const bool inserted = m_directoryModel.insertPath(path);
-        if (!inserted) {
-            refresh();
-        } else {
-            m_directoryModel.noteLocalMutation();
+        if (parentPath == currentPath()) {
+            if (!m_directoryModel.insertPath(path)) refresh();
+            else m_directoryModel.noteLocalMutation();
         }
         setStatusMessage(QStringLiteral("\"%1\" created").arg(provider->fileName(path)));
         emit entryCreated(path);
-        emit contentsChanged(currentPath());
+        emit contentsChanged(parentPath);
         return true;
     }
     const QString fileMessage = provider->lastErrorString().isEmpty()
-        ? QStringLiteral("Cannot create file in %1").arg(QDir::toNativeSeparators(currentPath()))
+        ? QStringLiteral("Cannot create file in %1").arg(QDir::toNativeSeparators(parentPath))
         : provider->lastErrorString();
     setOperationError(fileMessage,
-                      currentPath(),
+                      parentPath,
                       QStringLiteral("createFile"));
     return false;
 }

@@ -106,6 +106,7 @@ public:
     CategoryFilter categoryFilter() const;
     void setCategoryFilter(CategoryFilter filter);
     bool hasActiveFilters() const;
+    Q_INVOKABLE QList<FileEntry> mapEntries(int maximumEntries) const;
 
     SortRole sortRole() const;
     void setSortRole(SortRole role);

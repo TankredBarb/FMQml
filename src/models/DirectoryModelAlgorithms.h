@@ -6,6 +6,7 @@
 namespace DirectoryModelAlgorithms {
 
 QString pathKey(const QString &path);
+QStringList selectionWithoutAncestors(const QStringList &paths);
 
 void extendOrTrimSelection(QBitArray &selected, int from, int to);
 

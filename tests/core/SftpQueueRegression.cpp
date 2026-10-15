@@ -145,6 +145,110 @@ public slots:
 class SftpQueueRegression : public QObject {
     Q_OBJECT
 private slots:
+    void nestedMapRenameUsesSelectedParentPermissions()
+    {
+        QTemporaryDir temporary;
+        const QString root = temporary.filePath("root");
+        const QString nested = root + "/writable";
+        QVERIFY(QDir().mkpath(nested));
+        WorkspaceController workspace;
+        auto *panel = workspace.leftPanel();
+        QVERIFY(panel->openPath(root));
+        QTRY_VERIFY(!panel->navigationPending() && !panel->directoryModel()->loading());
+        const auto restorePermissions = qScopeGuard([&] {
+            QFile::setPermissions(root, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+        });
+        QVERIFY(QFile::setPermissions(root, QFile::ReadOwner | QFile::ExeOwner));
+        if (panel->canCreateInCurrentPath()) QSKIP("Filesystem does not enforce directory write permissions");
+        QVERIFY(panel->createFolderAtPath(nested, "New Folder"));
+        panel->directoryModel()->selectMapPath(nested + "/New Folder", false);
+        QVERIFY(panel->canRenameSelection());
+        QVERIFY(panel->renamePath(nested + "/New Folder", "Renamed"));
+        QVERIFY(QFileInfo(nested + "/Renamed").isDir());
+        panel->directoryModel()->selectMapPath(nested, false);
+        QVERIFY(!panel->canRenameSelection());
+    }
+    void nestedMapCreationAndPasteKeepPanelRoot()
+    {
+        QTemporaryDir temporary;
+        const QString root = temporary.filePath("root");
+        const QString nested = root + "/New Folder";
+        QVERIFY(QDir().mkpath(nested));
+        WorkspaceController workspace;
+        auto *panel = workspace.leftPanel();
+        QVERIFY(panel->openPath(root));
+        QTRY_VERIFY(!panel->navigationPending() && !panel->directoryModel()->loading());
+        QSignalSpy created(panel, &FilePanelController::entryCreated);
+        QSignalSpy changed(panel, &FilePanelController::contentsChanged);
+        QVERIFY(panel->createFolderAtPath(nested, "New Folder"));
+        QVERIFY(panel->createFileAtPath(nested, "New File"));
+        QVERIFY(QFileInfo(nested + "/New Folder").isDir());
+        QVERIFY(QFileInfo(nested + "/New File").isFile());
+        QCOMPARE(created.size(), 2);
+        QCOMPARE(created.at(0).at(0).toString(), nested + "/New Folder");
+        QCOMPARE(created.at(1).at(0).toString(), nested + "/New File");
+        QCOMPARE(changed.last().at(0).toString(), nested);
+        QCOMPARE(panel->currentPath(), root);
+        QVERIFY(!QFileInfo::exists(root + "/New File"));
+        QVERIFY(!QFileInfo::exists(root + "/New Folder (1)"));
+        const QString source = temporary.filePath("source.txt");
+        QVERIFY(writeFile(source, "nested paste"));
+        panel->directoryModel()->selectMapPath(source, false);
+        workspace.copyToClipboard();
+        changed.clear();
+        const auto result = completed(*workspace.operationQueue(), [&] {
+            workspace.pasteFromClipboard(nested);
+        });
+        QCOMPARE(result.value("succeededCount").toInt(), 1);
+        QCOMPARE(readFile(nested + "/source.txt"), QByteArray("nested paste"));
+        QVERIFY(std::any_of(changed.cbegin(), changed.cend(), [&](const QList<QVariant> &arguments) {
+            return arguments.at(0).toString() == nested;
+        }));
+        QVERIFY(!QFileInfo::exists(root + "/source.txt"));
+        QCOMPARE(panel->currentPath(), root);
+    }
+    void mapDeletionRequiresExplicitFolderSelection()
+    {
+        QTemporaryDir temporary;
+        const QString folder = temporary.filePath("Wallpapers");
+        const QString first = folder + "/first.png";
+        const QString second = folder + "/second.png";
+        const QString keep = folder + "/keep.png";
+        QVERIFY(writeFile(first, "first"));
+        QVERIFY(writeFile(second, "second"));
+        QVERIFY(writeFile(keep, "keep"));
+        WorkspaceController workspace;
+        auto *panel = workspace.leftPanel();
+        QVERIFY(panel->openPath(temporary.path()));
+        QTRY_VERIFY(!panel->navigationPending() && !panel->directoryModel()->loading());
+        auto *model = panel->directoryModel();
+        model->selectMapPath(folder, false);
+        model->selectMapPath(first, true);
+        model->selectMapPath(second, true);
+        QCOMPARE(model->selectedPaths(), QStringList({first, second}));
+        QCOMPARE(model->selectedCount(), 2);
+        QSignalSpy requested(&workspace, &WorkspaceController::deleteRequested);
+        workspace.requestDelete(model->selectedPaths(), temporary.path());
+        QCOMPARE(requested.size(), 1);
+        QCOMPARE(requested.first().at(0).toStringList(), QStringList({first, second}));
+        QVERIFY(workspace.deleteRequestDetails({folder, first}, {}).value("blocked").toBool());
+        QVERIFY(!workspace.confirmDelete({folder, first}));
+        QVERIFY(QFile::exists(first));
+        QVERIFY(QFile::exists(keep));
+        const auto result = completed(*workspace.operationQueue(), [&] {
+            workspace.confirmDelete(model->selectedPaths());
+        });
+        QCOMPARE(result.value("succeededCount").toInt(), 2);
+        QVERIFY(QFileInfo(folder).isDir());
+        QCOMPARE(readFile(keep), QByteArray("keep"));
+        QVERIFY(!QFile::exists(first));
+        QVERIFY(!QFile::exists(second));
+        model->selectMapPaths({folder, keep});
+        QCOMPARE(model->selectedPaths(), QStringList{keep});
+        model->selectMapPath(folder, true); // Explicit folder selection replaces its children.
+        QCOMPARE(model->selectedPaths(), QStringList{folder});
+        QVERIFY(!workspace.deleteRequestDetails({folder}, {}).value("blocked").toBool());
+    }
     void replaceOnOtherProvider_data()
     {
         QTest::addColumn<bool>("move");

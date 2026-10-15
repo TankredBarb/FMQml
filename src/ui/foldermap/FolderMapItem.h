@@ -20,9 +20,15 @@ class FolderMapItem : public QQuickItem
     QML_ELEMENT
     Q_PROPERTY(QAbstractItemModel *directoryModel READ directoryModel WRITE setDirectoryModel NOTIFY directoryModelChanged)
     Q_PROPERTY(QString currentPath READ currentPath WRITE setCurrentPath NOTIFY currentPathChanged)
+    Q_PROPERTY(int categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY categoryFilterChanged)
     Q_PROPERTY(bool showHidden READ showHidden WRITE setShowHidden NOTIFY showHiddenChanged)
     Q_PROPERTY(bool gpuEnabled READ gpuEnabled WRITE setGpuEnabled NOTIFY gpuEnabledChanged)
     Q_PROPERTY(QStringList selectedPaths READ selectedPaths WRITE setSelectedPaths NOTIFY selectedPathsChanged)
+    Q_PROPERTY(QStringList pinnedPaths READ pinnedPaths WRITE setPinnedPaths NOTIFY pinnedPathsChanged)
+    Q_PROPERTY(QColor badgeColor MEMBER m_badgeColor NOTIFY badgeColorChanged)
+    Q_PROPERTY(QColor warningBadgeColor MEMBER m_warningBadgeColor NOTIFY warningBadgeColorChanged)
+    Q_PROPERTY(QColor badgeTextColor MEMBER m_badgeTextColor NOTIFY badgeTextColorChanged)
+    Q_PROPERTY(QColor warningBadgeTextColor MEMBER m_warningBadgeTextColor NOTIFY warningBadgeTextColorChanged)
     Q_PROPERTY(QColor folderColor MEMBER m_folderColor NOTIFY paletteChanged)
     Q_PROPERTY(QColor fileColor MEMBER m_fileColor NOTIFY paletteChanged)
     Q_PROPERTY(QColor textColor MEMBER m_textColor NOTIFY paletteChanged)
@@ -49,12 +55,16 @@ public:
     void setDirectoryModel(QAbstractItemModel *model);
     QString currentPath() const { return m_currentPath; }
     void setCurrentPath(const QString &path);
+    int categoryFilter() const { return m_categoryFilter; }
+    void setCategoryFilter(int value);
     bool showHidden() const { return m_showHidden; }
     void setShowHidden(bool value);
     bool gpuEnabled() const { return m_gpuEnabled; }
     void setGpuEnabled(bool value);
     QStringList selectedPaths() const { return m_selectedPaths; }
     void setSelectedPaths(const QStringList &paths);
+    QStringList pinnedPaths() const { return m_pinnedPaths; }
+    void setPinnedPaths(const QStringList &paths);
     bool iconsEnabled() const { return m_iconsEnabled; }
     void setIconsEnabled(bool enabled);
     bool showThumbnails() const { return m_showThumbnails; }
@@ -76,13 +86,21 @@ public:
     Q_INVOKABLE void fitCurrent();
     Q_INVOKABLE void revealPath(const QString &path);
     Q_INVOKABLE void refresh();
+    Q_INVOKABLE void refreshFolder(const QString &path);
+    Q_INVOKABLE QStringList childPaths(const QString &path) const;
     Q_INVOKABLE void remapEntry(const QString &oldPath, const QString &newPath);
 signals:
     void directoryModelChanged();
     void currentPathChanged();
+    void categoryFilterChanged();
     void showHiddenChanged();
     void gpuEnabledChanged();
     void selectedPathsChanged();
+    void pinnedPathsChanged();
+    void badgeColorChanged();
+    void warningBadgeColorChanged();
+    void badgeTextColorChanged();
+    void warningBadgeTextColorChanged();
     void paletteChanged();
     void iconsChanged();
     void useNativeIconsChanged();
@@ -105,13 +123,15 @@ private:
     struct Thumbnail;
     void scheduleThumbnails();
     void clearThumbnails();
-    struct Entry { QString path; QString name; bool directory = false; bool symlink = false; int icon = 6; };
+    struct Entry { QString path; QString name; bool directory = false; bool symlink = false; int icon = 6; int badge = -1; };
     struct Listing { QList<Entry> entries; QString message; };
     struct Node {
         Entry entry;
         int parent = -1;
         QRectF rect;
         QList<int> children;
+        QList<int> allChildren;
+        bool filteredOut = false;
         QString message;
         int columns = 1;
         bool requested = false;
@@ -126,6 +146,8 @@ private:
     void applyListing(int index, const Listing &listing);
     void removeBranch(int index);
     void layoutChildren(int index);
+    void filterChildren(int index);
+    bool matchesCategory(const Entry &entry) const;
     void invalidateThumbnail(const QString &path);
     void requestListing(int index);
     void collectVisible(int index, const QRectF &viewport, QList<int> &requests);
@@ -152,6 +174,15 @@ private:
     QString m_status;
     QStringList m_selectedPaths;
     QSet<QString> m_selection;
+    QStringList m_pinnedPaths;
+    QSet<QString> m_pinned;
+    QImage m_badgeAtlas;
+    bool m_badgeAtlasDirty = true;
+    QColor m_badgeColor{"#72b7f0"};
+    QColor m_warningBadgeColor{"#ff6262"};
+    QColor m_badgeTextColor{"#101820"};
+    QColor m_warningBadgeTextColor{"#101820"};
+    int m_categoryFilter = 0;
     bool m_showHidden = false;
     bool m_gpuEnabled = false;
     bool m_moving = false;

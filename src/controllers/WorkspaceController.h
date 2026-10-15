@@ -98,7 +98,7 @@ public:
     Q_INVOKABLE QVariantList loadedPlugins() const;
     Q_INVOKABLE qint64 processMemoryUsage() const;
     Q_INVOKABLE QString qtVersion() const;
-    Q_INVOKABLE void pasteFromClipboard();
+    Q_INVOKABLE void pasteFromClipboard(const QString &destinationPath = {});
     Q_INVOKABLE void pasteFromClipboardAsAdministrator();
     Q_INVOKABLE void createFolderInActivePanelAsAdministrator();
     Q_INVOKABLE void extractArchiveTo(const QString &archivePath, const QString &destination);
@@ -144,7 +144,7 @@ private:
     void handleProviderPlaceRemoved(const QString &rootPath, const QString &displayName, const QString &section);
     void handleVolumeEjectFinished(const QString &rootPath, bool success, const QString &message);
     bool requestArchivePasswordForExtractIfNeeded(const QString &archivePath, const QString &destination);
-    bool copyPathsToPanel(const QStringList &sources, FilePanelController *destination);
+    bool copyPathsToPanel(const QStringList &sources, FilePanelController *destination, const QString &destinationPath = {});
     void recordOperationHistory(OperationQueue::Type type, const QStringList &sources,
                                 const QString &destination, const QStringList &resultPaths);
     void recordRenameHistory(const QString &oldPath, const QString &newPath);

@@ -125,6 +125,8 @@ public:
     QString pendingNavigationPath() const;
     bool canCreateInCurrentPath() const;
     bool canCreateManualItem() const;
+    Q_INVOKABLE bool canCreateInPath(const QString &path) const;
+    Q_INVOKABLE bool canPasteIntoPath(const QString &path) const;
     bool canCutSelection() const;
     bool canMovePaths(const QStringList &paths) const;
     bool remoteMutationPending() const { return m_remoteMutationPending; }
@@ -223,8 +225,10 @@ public:
     Q_INVOKABLE bool startBatchRename(const QStringList &paths, const QVariantList &rules);
 
     Q_INVOKABLE bool createFolder(const QString &name);
+    Q_INVOKABLE bool createFolderAtPath(const QString &parentPath, const QString &name);
     Q_INVOKABLE bool createFolderAsAdministrator(const QString &name);
     Q_INVOKABLE bool createFile(const QString &name);
+    Q_INVOKABLE bool createFileAtPath(const QString &parentPath, const QString &name);
     Q_INVOKABLE bool createFileAsAdministrator(const QString &name);
     Q_INVOKABLE void showProperties(int row);
     Q_INVOKABLE void showPropertiesForPath(const QString &path);

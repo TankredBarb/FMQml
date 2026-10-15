@@ -18,6 +18,7 @@ class FavoritesController final : public QObject {
     Q_PROPERTY(int pinnedCount READ pinnedCount NOTIFY countsChanged)
     Q_PROPERTY(int frequentCount READ frequentCount NOTIFY countsChanged)
     Q_PROPERTY(int tagCount READ tagCount NOTIFY countsChanged)
+    Q_PROPERTY(QStringList pinnedPaths READ pinnedPathSnapshot NOTIFY pinnedPathsChanged)
 
 public:
     static constexpr QLatin1String FAVORITES_ROOT{"favorites://"};

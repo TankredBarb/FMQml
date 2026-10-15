@@ -28,6 +28,22 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     bool ok = true;
 
+    ok &= DirectoryModelAlgorithms::selectionWithoutAncestors({"/w", "/w/a.png", "/w/b.png", "/w-other"})
+        == QStringList({"/w/a.png", "/w/b.png", "/w-other"})
+        || fail("Map selection retained an ancestor or removed an unrelated sibling");
+    ok &= DirectoryModelAlgorithms::selectionWithoutAncestors({"/w", "/w-early", "/w/sub", "/w/sub/image.png"})
+        == QStringList({"/w-early", "/w/sub/image.png"})
+        || fail("Nested ancestors or prefix collisions bypassed selection safety");
+    ok &= DirectoryModelAlgorithms::selectionWithoutAncestors({"sftp://user@host/a", "sftp://user@host/a/image.png"})
+        == QStringList({"sftp://user@host/a/image.png"})
+        || fail("Remote hierarchy bypassed selection safety");
+    const QStringList remoteCaseSensitivePaths{
+        "sftp://user@host/Photo.jpg", "sftp://user@host/photo.jpg",
+        "sftp://user@host/Dir", "sftp://user@host/dir/file"};
+    ok &= DirectoryModelAlgorithms::selectionWithoutAncestors(remoteCaseSensitivePaths)
+        == remoteCaseSensitivePaths
+        || fail("Remote path case was lost during selection normalization");
+
     QBitArray selection(12);
     selection.setBit(2);
     selection.setBit(10);

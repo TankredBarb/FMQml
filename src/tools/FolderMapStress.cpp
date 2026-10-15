@@ -3,6 +3,7 @@
 #include "../controllers/AppSettingsController.h"
 #include "../controllers/WorkspaceController.h"
 #include "../controllers/FilePanelController.h"
+#include "../controllers/FavoritesController.h"
 #include "../models/DirectoryModel.h"
 #include "../ui/foldermap/FolderMapItem.h"
 #include "../ui/foldermap/MapGpuProbe.h"
@@ -17,6 +18,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QQuickWindow>
+#include <QQmlEngine>
 #include <QScopeGuard>
 #include <QSGSimpleTextureNode>
 #include <QSGTextureMaterial>
@@ -37,6 +39,69 @@
 // Test instrumentation stays out of the QML API and the renderer's hot path.
 class FolderMapStressProbe {
 public:
+    static QImage badgeAtlas(FolderMapItem *map) { return map->m_badgeAtlas; }
+    static void setBadgeAtlas(FolderMapItem *map, const QImage &image) { map->m_badgeAtlas = image; map->update(); }
+    static quint64 listingSequence(FolderMapItem *map) { return map->m_listingSequence; }
+    static QRectF fileIconRect(FolderMapItem *map, const QString &path) {
+        const QRectF tile = map->screenRect(path);
+        QList<QSGNode *> pending;
+        if (auto *node = QQuickItemPrivate::get(map)->paintNode) pending.append(node);
+        while (!pending.isEmpty()) {
+            auto *node = pending.takeLast();
+            if (auto *geometry = dynamic_cast<QSGGeometryNode *>(node)) {
+                if (auto *material = dynamic_cast<QSGTextureMaterial *>(geometry->material());
+                    material && material->texture() && material->texture()->textureSize() == map->m_iconAtlas.size()) {
+                    const auto *vertices = geometry->geometry()->vertexDataAsTexturedPoint2D();
+                    for (int i = 0; i + 5 < geometry->geometry()->vertexCount(); i += 6) {
+                        const QRectF rect(QPointF(vertices[i].x, vertices[i].y), QPointF(vertices[i + 5].x, vertices[i + 5].y));
+                        if (tile.contains(rect.center())) return rect;
+                    }
+                }
+            }
+            for (auto *child = node->firstChild(); child; child = child->nextSibling()) pending.append(child);
+        }
+        return {};
+    }
+    static QJsonObject listingCost(const QString &path) {
+        QElapsedTimer timer; timer.start();
+        const auto listing = FolderMapItem::readDirectory(path, false, std::make_shared<std::atomic_bool>(false));
+        return {{"entries", listing.entries.size()}, {"elapsedMs", timer.nsecsElapsed() / 1e6}};
+    }
+    static int badgeQuads(FolderMapItem *map, const QSize &atlasSize) {
+        QList<QSGNode *> pending;
+        if (auto *node = QQuickItemPrivate::get(map)->paintNode) pending.append(node);
+        while (!pending.isEmpty()) {
+            auto *node = pending.takeLast();
+            if (auto *geometry = dynamic_cast<QSGGeometryNode *>(node)) {
+                if (auto *material = dynamic_cast<QSGTextureMaterial *>(geometry->material());
+                    material && material->texture() && material->texture()->textureSize() == atlasSize)
+                    return geometry->geometry()->vertexCount() / 6;
+            }
+            for (auto *child = node->firstChild(); child; child = child->nextSibling()) pending.append(child);
+        }
+        return 0;
+    }
+    static QRectF folderBadgeRect(FolderMapItem *map, const QString &path) {
+        const QRectF tile = map->screenRect(path);
+        const QRectF header(tile.topLeft(), QSizeF(tile.width(), std::max(qreal(20), tile.height() * 0.09)));
+        QList<QSGNode *> pending;
+        if (auto *node = QQuickItemPrivate::get(map)->paintNode) pending.append(node);
+        while (!pending.isEmpty()) {
+            auto *node = pending.takeLast();
+            if (auto *geometry = dynamic_cast<QSGGeometryNode *>(node)) {
+                if (auto *material = dynamic_cast<QSGTextureMaterial *>(geometry->material());
+                    material && material->texture() && material->texture()->textureSize() == map->m_badgeAtlas.size()) {
+                    const auto *vertices = geometry->geometry()->vertexDataAsTexturedPoint2D();
+                    for (int i = 0; i + 5 < geometry->geometry()->vertexCount(); i += 6) {
+                        const QRectF rect(QPointF(vertices[i].x, vertices[i].y), QPointF(vertices[i + 5].x, vertices[i + 5].y));
+                        if (header.contains(rect.center())) return rect;
+                    }
+                }
+            }
+            for (auto *child = node->firstChild(); child; child = child->nextSibling()) pending.append(child);
+        }
+        return {};
+    }
     static QJsonObject snapshot(FolderMapItem *map) {
         return {{"nodes", map->m_byPath.size()}, {"visible", map->m_visible.size()},
                 {"watchers", map->m_watchers.size()}, {"listings", map->m_loading},
@@ -328,4 +393,219 @@ int FolderMapStress::run(AppServices &services, QQuickWindow &window, const QStr
     if (output.open(QIODevice::WriteOnly)) output.write(json);
     std::puts(QJsonDocument(report).toJson(QJsonDocument::Compact).constData());
     return failures.isEmpty() ? 0 : 1;
+}
+
+int FolderMapStress::runBadges(AppServices &services, QQuickWindow &window, const QString &fixturePath)
+{
+    QStringList bindingLoops;
+    const auto warningConnection = QObject::connect(qmlEngine(&window), &QQmlEngine::warnings, &window,
+        [&](const QList<QQmlError> &errors) {
+            for (const auto &error : errors)
+                if (error.url().toString().contains(QStringLiteral("FilePanelMapView.qml"))
+                    && error.description().contains(QStringLiteral("Binding loop"))) bindingLoops.append(error.toString());
+        });
+    const auto disconnectWarnings = qScopeGuard([&] { QObject::disconnect(warningConnection); });
+    const auto originalMode = services.theme()->mode();
+    const bool originalThumbnails = services.settings()->showThumbnails();
+    QStringList temporaryPins;
+    const auto restore = qScopeGuard([&] {
+        services.favorites()->unpinPaths(temporaryPins);
+        services.settings()->setShowThumbnails(originalThumbnails);
+        services.theme()->setMode(originalMode);
+    });
+    const auto until = [&](const std::function<bool()> &ready) {
+        QElapsedTimer timer; timer.start();
+        while (timer.elapsed() < 15000) {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+            if (ready()) return true;
+            QThread::msleep(1);
+        }
+        return false;
+    };
+    auto *probe = window.findChild<MapGpuProbe *>();
+    if (!until([&] { return probe && probe->ready(); }) || !probe->available()) return 2;
+    auto *workspace = services.workspace();
+    workspace->setSplitEnabled(false);
+    workspace->setActivePanel(0);
+    auto *panel = workspace->leftPanel();
+    const QString root = fixturePath + QStringLiteral("/badges");
+    if (!QDir().mkpath(root)) return 2;
+    QStringList paths;
+    for (int i = 0; i < 512; ++i) {
+        const QString path = root + QStringLiteral("/archive-%1.zip").arg(i);
+        if (!writeMapStressFile(path)) return 2;
+        paths.append(path);
+    }
+    services.settings()->setShowThumbnails(false);
+    panel->openPath(root);
+    panel->setViewMode(3);
+    FolderMapItem *map = nullptr;
+    if (!until([&] {
+        for (auto *candidate : window.findChildren<FolderMapItem *>())
+            if (candidate->directoryModel() == panel->directoryModel()) map = candidate;
+        return map && map->gpuEnabled() && map->loadedCount() == 513 && map->iconsReady()
+            && !FolderMapStressProbe::badgeAtlas(map).isNull();
+    })) return 2;
+    services.favorites()->pinPaths(paths);
+    temporaryPins = paths;
+    if (!until([&] { return map->entryForPath(paths.first()).value("isPinned").toBool(); })) return 2;
+    map->zoomAt(map->width() / 2, map->height() / 2, 2);
+    if (!until([&] { return !map->moving(); })) return 2;
+    const QImage atlas = FolderMapStressProbe::badgeAtlas(map);
+    const auto listingCost = FolderMapStressProbe::listingCost(root);
+    const auto revision = FolderMapStressProbe::listingSequence(map);
+    const auto stats = [](QList<double> samples) {
+        std::sort(samples.begin(), samples.end());
+        if (samples.isEmpty()) return QJsonObject{};
+        return QJsonObject{{"frames", samples.size()}, {"p50Ms", samples[samples.size() / 2]},
+            {"p95Ms", samples[samples.size() * 95 / 100]}, {"maxMs", samples.last()}};
+    };
+    QJsonArray rounds;
+    bool success = true;
+    for (bool enabled : {false, true, true, false}) {
+        FolderMapStressProbe::setBadgeAtlas(map, enabled ? atlas : QImage{});
+        std::atomic<int> frames{0};
+        int quads = 0;
+        QList<double> intervals, syncTimes;
+        QElapsedTimer frameClock, syncClock;
+        frameClock.start();
+        std::mutex mutex;
+        const auto before = QObject::connect(&window, &QQuickWindow::beforeSynchronizing, &window,
+            [&] { syncClock.start(); }, Qt::DirectConnection);
+        const auto after = QObject::connect(&window, &QQuickWindow::afterSynchronizing, &window, [&] {
+            std::lock_guard lock(mutex);
+            if (frames > 40) syncTimes.append(syncClock.nsecsElapsed() / 1e6);
+            quads = FolderMapStressProbe::badgeQuads(map, atlas.size());
+        }, Qt::DirectConnection);
+        const auto timing = QObject::connect(&window, &QQuickWindow::frameSwapped, &window, [&] {
+            std::lock_guard lock(mutex);
+            if (frames > 40) intervals.append(frameClock.nsecsElapsed() / 1e6);
+            frameClock.restart();
+        }, Qt::DirectConnection);
+        const auto motion = QObject::connect(&window, &QQuickWindow::frameSwapped, &window, [&] {
+            ++frames;
+            map->panBy(frames % 120 < 60 ? 0.6 : -0.6, 0);
+            window.update();
+        }, Qt::QueuedConnection);
+        window.update();
+        const bool complete = until([&] { return frames >= 280; });
+        QObject::disconnect(motion); QObject::disconnect(timing);
+        QObject::disconnect(before); QObject::disconnect(after);
+        {
+            std::lock_guard lock(mutex);
+            rounds.append(QJsonObject{{"enabled", enabled}, {"frameIntervals", stats(intervals)},
+                {"sync", stats(syncTimes)}, {"badgeQuads", quads}});
+            success = complete && (enabled ? quads > 100 : quads == 0) && success;
+        }
+        if (enabled) window.grabWindow().save(QStringLiteral("/tmp/fmqml-map-badges-dense.png"));
+    }
+    FolderMapStressProbe::setBadgeAtlas(map, atlas);
+    const bool noReloads = FolderMapStressProbe::listingSequence(map) == revision;
+    success = noReloads && success;
+    map->revealPath(paths.first());
+    bool iconFillsTile = until([&] { return !map->moving(); });
+    QJsonArray iconSizes;
+    qreal previousIconSize = 0;
+    for (qreal steps : {-4.0, 2.0}) {
+        map->zoomAt(map->width() / 2, map->height() / 2, steps);
+        iconFillsTile = until([&] { return !map->moving(); }) && iconFillsTile;
+        QRectF icon;
+        std::mutex iconMutex;
+        const auto capture = QObject::connect(&window, &QQuickWindow::afterSynchronizing, &window, [&] {
+            std::lock_guard lock(iconMutex);
+            icon = FolderMapStressProbe::fileIconRect(map, paths.first());
+        }, Qt::DirectConnection);
+        const auto image = window.grabWindow();
+        QObject::disconnect(capture);
+        std::lock_guard lock(iconMutex);
+        const QRectF tile = map->screenRect(paths.first());
+        const qreal available = std::min(tile.width() - 12, tile.height() - 24);
+        iconFillsTile = std::abs(icon.width() - available) < 1 && icon.width() > 64
+            && icon.width() > previousIconSize && iconFillsTile;
+        previousIconSize = icon.width();
+        iconSizes.append(QJsonObject{{"tileWidth", tile.width()}, {"tileHeight", tile.height()}, {"iconSize", icon.width()}});
+        image.save(QStringLiteral("/tmp/fmqml-map-icon-zoom-%1.png").arg(iconSizes.size()));
+    }
+    success = iconFillsTile && success;
+    const QString gallery = fixturePath + QStringLiteral("/badge-examples");
+    const QString pinnedFolder = gallery + QStringLiteral("/Pinned folder");
+    const QString lockedFolder = gallery + QStringLiteral("/Locked folder");
+    const QString lockedFile = gallery + QStringLiteral("/Locked file.txt");
+    bool examples = QDir().mkpath(pinnedFolder) && QDir().mkpath(lockedFolder)
+        && writeMapStressFile(gallery + QStringLiteral("/Archive.zip")) && writeMapStressFile(lockedFile);
+    QImage preview(320, 240, QImage::Format_RGB32); preview.fill(QColor("#638eaa"));
+    const QString previewPath = gallery + QStringLiteral("/Pinned preview.png");
+    examples = preview.save(previewPath) && examples;
+#ifdef Q_OS_UNIX
+    examples = QFile::setPermissions(lockedFolder, {}) && QFile::setPermissions(lockedFile, {})
+        && QFile::link(pinnedFolder, gallery + QStringLiteral("/Folder link"))
+        && QFile::link(gallery + QStringLiteral("/missing"), gallery + QStringLiteral("/Broken link")) && examples;
+#endif
+    const auto restorePermissions = qScopeGuard([&] {
+        QFile::setPermissions(lockedFolder, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+        QFile::setPermissions(lockedFile, QFile::ReadOwner | QFile::WriteOwner);
+    });
+    services.favorites()->pinPaths({pinnedFolder, previewPath});
+    temporaryPins.append({pinnedFolder, previewPath});
+    services.settings()->setShowThumbnails(true);
+    panel->openPath(gallery);
+    examples = until([&] { return map->currentPath() == gallery && map->thumbnailsReady() > 0
+        && !map->entryForPath(lockedFile).isEmpty(); }) && examples;
+    if (examples) {
+        examples = map->entryForPath(pinnedFolder).value("isPinned").toBool()
+            && map->entryForPath(previewPath).value("isPinned").toBool();
+#ifdef Q_OS_UNIX
+        examples = map->entryForPath(lockedFile).value("primaryBadgeKind").toString() == QStringLiteral("locked")
+            && map->entryForPath(lockedFolder).value("primaryBadgeKind").toString() == QStringLiteral("locked") && examples;
+#endif
+        for (auto mode : {ThemeController::Light, ThemeController::Dark}) {
+            const auto oldAtlas = FolderMapStressProbe::badgeAtlas(map).cacheKey();
+            const bool changed = services.theme()->mode() != mode;
+            services.theme()->setMode(mode);
+            if (changed) examples = until([&] { return FolderMapStressProbe::badgeAtlas(map).cacheKey() != oldAtlas; }) && examples;
+            QElapsedTimer settle; settle.start();
+            until([&] { return settle.elapsed() >= 200; });
+            examples = window.grabWindow().save(QStringLiteral("/tmp/fmqml-map-badges-%1.png").arg(mode == ThemeController::Light ? "light" : "dark")) && examples;
+        }
+        services.favorites()->unpinPath(pinnedFolder);
+        examples = until([&] { return !map->entryForPath(pinnedFolder).value("isPinned").toBool(); }) && examples;
+    }
+    services.favorites()->pinPath(gallery);
+    temporaryPins.append(gallery);
+    bool headerBadgeScales = until([&] { return map->entryForPath(gallery).value("isPinned").toBool(); });
+    map->fitCurrent();
+    headerBadgeScales = until([&] { return !map->moving(); }) && headerBadgeScales;
+    QJsonArray headerBadgeSizes;
+    qreal previousBadgeSize = 0;
+    for (int step = 0; step < 3; ++step) {
+        if (step > 0) {
+            const QRectF tile = map->screenRect(gallery);
+            map->zoomAt(tile.right() - 20, tile.top() + tile.height() * 0.045, 2);
+            headerBadgeScales = until([&] { return !map->moving(); }) && headerBadgeScales;
+        }
+        QRectF badge;
+        std::mutex badgeMutex;
+        const auto capture = QObject::connect(&window, &QQuickWindow::afterSynchronizing, &window, [&] {
+            std::lock_guard lock(badgeMutex);
+            badge = FolderMapStressProbe::folderBadgeRect(map, gallery);
+        }, Qt::DirectConnection);
+        const auto image = window.grabWindow();
+        QObject::disconnect(capture);
+        std::lock_guard lock(badgeMutex);
+        const qreal headerHeight = std::max(qreal(20), map->screenRect(gallery).height() * 0.09);
+        const qreal expected = std::clamp(headerHeight * 0.5, qreal(12), qreal(64));
+        headerBadgeScales = std::abs(badge.width() - expected) < 1 && badge.width() > previousBadgeSize && headerBadgeScales;
+        previousBadgeSize = badge.width();
+        headerBadgeSizes.append(QJsonObject{{"headerHeight", headerHeight}, {"badgeSize", badge.width()}});
+        image.save(QStringLiteral("/tmp/fmqml-map-header-badge-%1.png").arg(step));
+    }
+    success = examples && headerBadgeScales && bindingLoops.isEmpty() && success;
+    QJsonObject report{{"reportType", "map-badges"}, {"device", probe->deviceName()},
+        {"rounds", rounds}, {"noListingReloads", noReloads}, {"nestedListing", listingCost}, {"examples", examples},
+        {"badgeBindingLoops", QJsonArray::fromStringList(bindingLoops)},
+        {"iconFillsTile", iconFillsTile}, {"iconZoom", iconSizes},
+        {"headerBadgeScales", headerBadgeScales}, {"headerBadgeZoom", headerBadgeSizes},
+        {"atlasBytes", atlas.sizeInBytes()}, {"success", success}};
+    std::puts(QJsonDocument(report).toJson(QJsonDocument::Compact).constData());
+    return success ? 0 : 1;
 }

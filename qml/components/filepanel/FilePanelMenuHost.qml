@@ -48,7 +48,19 @@ Component {
         showMediaHoverPreviews: host.panelRoot.showMediaHoverPreviews
         showFolderHoverPreviews: host.panelRoot.showFolderHoverPreviews
         folderPeekEnabled: host.panelRoot.folderPeekEnabled
-        onSelectAllRequested: host.panelRoot.selectAll()
+        onSelectAllRequested: (path) => {
+            const view = host.panelRoot.activeView()
+            if (host.panelRoot.viewMode === 3 && view && view.navigationMap)
+                host.panelRoot.controller.directoryModel.selectMapPaths(view.navigationMap.childPaths(path))
+            else host.panelRoot.selectAll()
+        }
+        onRefreshFolderRequested: (path) => {
+            const view = host.panelRoot.activeView()
+            if (host.panelRoot.viewMode === 3 && view && view.navigationMap
+                && path !== host.panelRoot.controller.currentPath)
+                view.navigationMap.refreshFolder(path)
+            else host.panelRoot.controller.refresh()
+        }
         onActionBarVisibilityRequested: (visible) => host.panelRoot.showActionBar = visible
         onSelectionBadgesVisibilityRequested: (visible) => host.panelRoot.showSelectionBadges = visible
         onMediaHoverPreviewsVisibilityRequested: (visible) => host.panelRoot.showMediaHoverPreviews = visible

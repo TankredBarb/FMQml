@@ -72,26 +72,31 @@ void DirectoryModel::selectOnly(int row)
 
 void DirectoryModel::selectMapPath(const QString &path, bool toggle)
 {
-    const int row = indexOfPath(path);
-    if (row >= 0) {
-        if (toggle) toggleSelected(row);
-        else selectOnly(row);
-        return;
-    }
+    if (path.isEmpty()) return;
     if (!toggle) {
         selectMapPaths({path});
         return;
     }
-    if (!m_mapSelectedPaths.removeOne(path)) m_mapSelectedPaths.append(path);
-    emit selectionChanged();
+    QStringList paths = selectedPaths();
+    if (!paths.removeOne(path)) {
+        const QString key = DirectoryModelAlgorithms::pathKey(path);
+        const QString prefix = key.endsWith(QLatin1Char('/')) ? key : key + QLatin1Char('/');
+        // Explicitly selecting a folder replaces its selected descendants.
+        paths.removeIf([&](const QString &selected) {
+            return DirectoryModelAlgorithms::pathKey(selected).startsWith(prefix);
+        });
+        paths.append(path);
+    }
+    selectMapPaths(paths);
 }
 
 void DirectoryModel::selectMapPaths(const QStringList &paths)
 {
-    if (selectedPaths() == paths) return;
+    const QStringList safePaths = DirectoryModelAlgorithms::selectionWithoutAncestors(paths);
+    if (selectedPaths() == safePaths) return;
     QVariantList rows;
     QStringList nested;
-    for (const QString &path : paths) {
+    for (const QString &path : safePaths) {
         const int row = indexOfPath(path);
         if (row >= 0) rows.append(row);
         else if (!nested.contains(path)) nested.append(path);

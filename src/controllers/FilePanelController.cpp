@@ -1579,6 +1579,16 @@ bool FilePanelController::canCreateManualItem() const
         && manualMutationPath(currentPath());
 }
 
+bool FilePanelController::canCreateInPath(const QString &path) const
+{
+    return !m_remoteMutationPending && manualMutationPath(path) && pathCanCreateChildren(path);
+}
+
+bool FilePanelController::canPasteIntoPath(const QString &path) const
+{
+    return !m_remoteMutationPending && pathCanCreateChildren(path);
+}
+
 bool FilePanelController::manualMutationPath(const QString &path) const
 {
     return !pathIsProvider(path) || path.startsWith(QLatin1String("sftp://"), Qt::CaseInsensitive);
@@ -1617,8 +1627,7 @@ bool FilePanelController::canCopyPaths(const QStringList &paths) const
 
 bool FilePanelController::canRenameSelection() const
 {
-    if (isVirtualRoot() || m_remoteMutationPending || !manualMutationPath(currentPath())
-        || !pathCanCreateChildren(currentPath())) {
+    if (isVirtualRoot() || m_remoteMutationPending || !manualMutationPath(currentPath())) {
         return false;
     }
     const QStringList paths = selectedPaths();
@@ -1626,7 +1635,7 @@ bool FilePanelController::canRenameSelection() const
         return false;
     }
     for (const QString &path : paths) {
-        if (!pathCanDelete(path)) {
+        if (!pathCanDelete(path) || !pathCanCreateChildren(parentPathForPath(path))) {
             return false;
         }
     }

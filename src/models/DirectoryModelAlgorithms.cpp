@@ -59,9 +59,30 @@ QString pathKey(const QString &path)
 {
     QString key = QDir::cleanPath(QDir::fromNativeSeparators(path));
 #ifdef Q_OS_WIN
-    key = key.toLower();
+    if (!path.contains(QStringLiteral("://"))) key = key.toLower();
 #endif
     return key;
+}
+
+QStringList selectionWithoutAncestors(const QStringList &paths)
+{
+    QStringList keys;
+    keys.reserve(paths.size());
+    for (const QString &path : paths) keys.append(pathKey(path));
+    std::sort(keys.begin(), keys.end());
+    QStringList result;
+    QSet<QString> included;
+    for (const QString &path : paths) {
+        const QString key = pathKey(path);
+        if (key.isEmpty() || included.contains(key)) continue;
+        const QString prefix = key.endsWith(QLatin1Char('/')) ? key : key + QLatin1Char('/');
+        auto child = std::lower_bound(keys.cbegin(), keys.cend(), prefix);
+        while (child != keys.cend() && *child == key) ++child;
+        if (child != keys.cend() && child->startsWith(prefix)) continue;
+        included.insert(key);
+        result.append(path);
+    }
+    return result;
 }
 
 bool matchesFilter(const FileEntry &entry,

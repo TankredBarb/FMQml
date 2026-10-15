@@ -49,6 +49,30 @@ bool DirectoryModel::matchesFilter(const FileEntry &entry) const
     return entryMatchesFilterSnapshot(entry, m_searchText, m_categoryFilter);
 }
 
+QList<FileEntry> DirectoryModel::mapEntries(int maximumEntries) const
+{
+    if (maximumEntries <= 0) return {};
+    QList<int> indices;
+    if (m_categoryFilter == FilterAll) indices = m_filteredIndices;
+    else {
+        indices.reserve(m_entries.size());
+        for (int index = 0; index < m_entries.size(); ++index) {
+            const auto &entry = m_entries.at(index);
+            if ((m_showHidden || !entry.isHidden)
+                && DirectoryModelAlgorithms::matchesFilter(entry, m_searchText, FilterAll))
+                indices.append(index);
+        }
+        const int count = std::min(maximumEntries, int(indices.size()));
+        std::partial_sort(indices.begin(), indices.begin() + count, indices.end(),
+            [this](int a, int b) { return compareEntries(m_entries.at(a), m_entries.at(b)); });
+    }
+    QList<FileEntry> result;
+    const int count = std::min(maximumEntries, int(indices.size()));
+    result.reserve(count);
+    for (int index = 0; index < count; ++index) result.append(m_entries.at(indices.at(index)));
+    return result;
+}
+
 void DirectoryModel::notifyFiltersChanged()
 {
     emit filtersChanged();

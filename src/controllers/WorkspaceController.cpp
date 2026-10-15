@@ -647,6 +647,9 @@ WorkspaceController::WorkspaceController(QObject *parent)
 
             for (const QString &path : treeRefreshPaths) {
                 m_treeModel.refreshPath(path);
+                for (FilePanelController *panel : panels) {
+                    if (panel->currentPath() != path) emit panel->contentsChanged(path);
+                }
             }
 
             if (m_replayingHistory) {

@@ -6,4 +6,5 @@ class QString;
 
 namespace FolderMapStress {
 int run(AppServices &services, QQuickWindow &window, const QString &fixturePath);
+int runBadges(AppServices &services, QQuickWindow &window, const QString &fixturePath);
 }

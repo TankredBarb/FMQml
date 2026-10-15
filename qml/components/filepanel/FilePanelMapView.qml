@@ -124,6 +124,7 @@ Item {
     Connections {
         target: root.controller
         function onCurrentPathChanged() { root.clearNestedSelection() }
+        function onContentsChanged(path) { if (root.visible && root.mapUsable) map.refreshFolder(path) }
         function onEntryRenamed(oldPath, newPath) {
             if (!root.visible || !root.mapUsable) return
             const remap = path => path === oldPath || path.startsWith(oldPath + "/")
@@ -160,6 +161,12 @@ Item {
         visible: root.mapUsable
         currentPath: root.controller.currentPath
         directoryModel: root.controller.directoryModel
+        categoryFilter: root.controller.directoryModel.categoryFilter
+        pinnedPaths: root.panel.favoritesBackend ? root.panel.favoritesBackend.pinnedPaths : []
+        badgeColor: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.92 : 0.86)
+        warningBadgeColor: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.92 : 0.86)
+        badgeTextColor: Theme.readableOn(badgeColor, Theme.textPrimary)
+        warningBadgeTextColor: Theme.readableOn(warningBadgeColor, Theme.textPrimary)
         showHidden: root.controller.directoryModel.showHidden
         useNativeIcons: root.panel.useNativeIcons
         showThumbnails: root.panel.showThumbnails
@@ -222,8 +229,10 @@ Item {
         onClicked: mouse => {
             if (dragged || root.spacePressed || mouse.button === Qt.MiddleButton) return
             const entry = map.entryAt(mouse.x, mouse.y)
-            if (!entry.path || entry.path === root.controller.currentPath) {
-                if (mouse.button === Qt.RightButton) root.panel.popupFilePanelEmptyMenu()
+            // Left-clicking a folder body is explicit selection; right-clicking opens its background menu.
+            if (!entry.path || entry.path === root.controller.currentPath
+                    || (mouse.button === Qt.RightButton && entry.selectable === false)) {
+                if (mouse.button === Qt.RightButton) root.panel.popupFilePanelEmptyMenu(entry.directory ? entry.path : root.controller.currentPath)
                 return
             }
             if (mouse.button === Qt.RightButton) {
@@ -233,7 +242,7 @@ Item {
         onDoubleClicked: mouse => {
             if (mouse.button !== Qt.LeftButton || root.spacePressed) return
             const entry = map.entryAt(mouse.x, mouse.y)
-            if (!entry.path) return
+            if (!entry.path || entry.selectable === false) return
             if (entry.directory) root.controller.openPath(entry.path)
             else root.controller.openFilePath(entry.path)
         }

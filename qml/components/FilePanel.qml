@@ -1707,7 +1707,7 @@ Pane {
         if (request.kind === "empty") {
             const menu = root.ensureFilePanelEmptyMenu()
             if (menu) {
-                menu.popupEmptyMenu()
+                menu.popupEmptyMenuAtPath(request.path || root.controller.currentPath)
             } else {
                 root.contextMenuOpen = false
             }
@@ -1736,8 +1736,8 @@ Pane {
         })
     }
 
-    function popupFilePanelEmptyMenu() {
-        root.scheduleContextMenuRequest({ kind: "empty" })
+    function popupFilePanelEmptyMenu(path) {
+        root.scheduleContextMenuRequest({ kind: "empty", path: path || root.controller.currentPath })
     }
 
     function sidebarHasActiveFocus() {
@@ -2878,7 +2878,9 @@ Pane {
         root.noteUserInteraction("select-all")
         root.invertSelectionActive = false
         if (root.controller && root.controller.directoryModel) {
-            root.controller.directoryModel.selectAll()
+            if (root.viewMode === 3)
+                root.controller.directoryModel.selectMapPaths(mapView.navigationMap.childPaths(root.controller.currentPath))
+            else root.controller.directoryModel.selectAll()
         }
         root.queueCurrentIndexEnsure()
     }

@@ -519,7 +519,8 @@ Popup {
         }
 
         root.filteredSuggestions = processed
-        root.selectedIndex = processed.length > 0 ? 0 : -1
+        root.selectedIndex = processed.length > 0
+                && (!root.selectedArgumentCommand || root.selectedArgumentCommand.suggestionKind !== "path") ? 0 : -1
     }
 
     function requestPathSuggestions(text, requestId) {

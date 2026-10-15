@@ -574,6 +574,11 @@ QtObject {
             root.clearRenameIdentity()
             return
         }
+        if (purpose === "create" && panel.viewMode === 3) {
+            root.finishCreateRenameSession()
+            if (success) panel.startRename()
+            return
+        }
         if (purpose !== "create"
                 || panel.createRenamePath.length === 0
                 || !panel.samePanelPath(panel.createRenamePath, path)) {

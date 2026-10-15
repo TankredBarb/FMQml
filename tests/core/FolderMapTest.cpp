@@ -1,8 +1,10 @@
 #include "FolderMapItem.h"
+#include "../../src/models/DirectoryModel.h"
 #include "MapGpuProbe.h"
 #include "IconProvider.h"
 #include "ArchiveFileProvider.h"
 #include "ArchiveSupport.h"
+#include "LocalMountPointIndex.h"
 #include <QPainter>
 #include <QProcess>
 #include <QScopeGuard>
@@ -79,6 +81,19 @@ signals:
     void loadingChanged();
 };
 
+class MapSnapshotModel : public MapDirectoryModel
+{
+    Q_OBJECT
+public:
+    Q_INVOKABLE QList<FileEntry> mapEntries(int maximumEntries) const {
+        Q_UNUSED(maximumEntries)
+        FileEntry folder; folder.name = "sub"; folder.path = path + "/sub"; folder.isDirectory = true;
+        FileEntry image; image.name = "photo.png"; image.path = path + "/photo.png"; image.suffix = "png";
+        image.primaryBadgeKind = "locked";
+        return {folder, image};
+    }
+};
+
 class MapThumbnailProvider : public QQuickImageProvider
 {
 public:
@@ -115,6 +130,237 @@ class FolderMapTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void badgeColorBindingsDoNotLoop()
+    {
+        QQmlEngine engine;
+        engine.setOutputWarningsToStandardError(false);
+        QStringList warnings;
+        connect(&engine, &QQmlEngine::warnings, &engine, [&](const QList<QQmlError> &errors) {
+            for (const auto &error : errors) warnings.append(error.toString());
+        });
+        FolderMapItem map;
+        engine.rootContext()->setContextProperty("badgeMap", &map);
+        QQmlComponent component(&engine);
+        component.setData(QStringLiteral(R"(
+            import QtQuick
+            Item {
+                id: fixture
+                property color accent: "#4488cc"
+                property color warning: "#dd5544"
+                Binding { target: badgeMap; property: "badgeColor"; value: fixture.accent }
+                Binding { target: badgeMap; property: "warningBadgeColor"; value: fixture.warning }
+                Binding { target: badgeMap; property: "badgeTextColor"; value: Qt.lighter(badgeMap.badgeColor, 1.5) }
+                Binding { target: badgeMap; property: "warningBadgeTextColor"; value: Qt.lighter(badgeMap.warningBadgeColor, 1.5) }
+            }
+        )").toUtf8(), QUrl());
+        std::unique_ptr<QObject> fixture(component.create());
+        QVERIFY2(fixture, qPrintable(component.errorString()));
+        fixture->setProperty("accent", QColor("#224466"));
+        fixture->setProperty("warning", QColor("#992211"));
+        QCoreApplication::processEvents();
+        QCOMPARE(map.property("badgeTextColor").value<QColor>(), QColor("#224466").lighter(150));
+        QCOMPARE(map.property("warningBadgeTextColor").value<QColor>(), QColor("#992211").lighter(150));
+        map.m_badgeAtlasDirty = false;
+        map.setProperty("folderColor", QColor("#334455"));
+        QVERIFY(!map.m_badgeAtlasDirty);
+        map.setProperty("badgeColor", QColor("#778899"));
+        QVERIFY(map.m_badgeAtlasDirty);
+        QCOMPARE(map.property("badgeTextColor").value<QColor>(), QColor("#778899").lighter(150));
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join('\n')));
+    }
+    void nestedBadgesAndLivePins()
+    {
+        QTemporaryDir temporary;
+        const QString folder = temporary.filePath("folder");
+        QVERIFY(QDir().mkpath(folder));
+        const QString archive = folder + "/archive.zip";
+        QFile file(archive);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.close();
+        const QString locked = folder + "/locked";
+        QVERIFY(QDir().mkpath(locked));
+#ifdef Q_OS_UNIX
+        QVERIFY(QFile::setPermissions(locked, {}));
+#endif
+        const auto restorePermissions = qScopeGuard([&] {
+            QFile::setPermissions(locked, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+            LocalMountPointIndex::setMountRoots({});
+        });
+#ifdef Q_OS_UNIX
+        QVERIFY(QFile::link(archive, folder + "/link"));
+        QVERIFY(QFile::link(folder + "/missing", folder + "/broken"));
+#endif
+        const QString mount = folder + "/mount";
+        QVERIFY(QDir().mkpath(mount));
+        LocalMountPointIndex::setMountRoots({mount});
+        FolderMapItem map;
+        map.m_currentPath = folder;
+        map.m_nodes.append(FolderMapItem::Node{});
+        map.m_nodes[0].entry = {folder, "folder", true};
+        map.m_nodes[0].rect = QRectF(0, 0, 1024, 768);
+        map.m_byPath.insert(folder, 0);
+        const auto listing = FolderMapItem::readDirectory(folder, false, map.m_cancelled);
+        map.applyListing(0, listing);
+        QCOMPARE(map.entryForPath(archive).value("primaryBadgeKind").toString(), QStringLiteral("archive"));
+#ifdef Q_OS_UNIX
+        QCOMPARE(map.entryForPath(locked).value("primaryBadgeKind").toString(), QStringLiteral("locked"));
+#endif
+        QCOMPARE(map.entryForPath(mount).value("primaryBadgeKind").toString(), QStringLiteral("mount-point"));
+#ifdef Q_OS_UNIX
+        QCOMPARE(map.entryForPath(folder + "/link").value("primaryBadgeKind").toString(), QStringLiteral("link"));
+        QCOMPARE(map.entryForPath(folder + "/broken").value("primaryBadgeKind").toString(), QStringLiteral("broken-link"));
+#endif
+        const auto revision = map.m_listingSequence;
+        map.setPinnedPaths({archive, locked});
+        QVERIFY(map.entryForPath(archive).value("isPinned").toBool());
+        QVERIFY(map.entryForPath(locked).value("isPinned").toBool());
+        map.setPinnedPaths({});
+        QVERIFY(!map.entryForPath(archive).value("isPinned").toBool());
+        QCOMPARE(map.m_listingSequence, revision);
+    }
+    void expandedFolderBodiesHaveDistinctHitRegions()
+    {
+        FolderMapItem map;
+        map.setWidth(1024); map.setHeight(768);
+        map.m_currentPath = "/root";
+        map.m_nodes.append(FolderMapItem::Node{});
+        map.m_nodes[0].entry = {"/root", "root", true};
+        map.m_nodes[0].rect = QRectF(0, 0, 1024, 768);
+        map.m_byPath.insert("/root", 0);
+        FolderMapItem::Listing listing;
+        listing.entries = {{"/root/folder", "folder", true}};
+        map.applyListing(0, listing);
+        const int folder = map.m_byPath.value("/root/folder");
+        FolderMapItem::Listing files;
+        files.entries = {{"/root/folder/a.png", "a.png"}, {"/root/folder/b.png", "b.png"}};
+        map.applyListing(folder, files);
+        QList<int> requests;
+        map.collectVisible(0, map.boundingRect(), requests);
+        const QRectF rect = map.screenRect("/root/folder");
+        const auto header = map.entryAt(rect.center().x(), rect.top() + 2);
+        QCOMPARE(header.value("path").toString(), QStringLiteral("/root/folder"));
+        QVERIFY(header.value("selectable").toBool());
+        const auto gap = map.entryAt(rect.left() + 1, rect.center().y());
+        QCOMPARE(gap.value("path").toString(), QStringLiteral("/root/folder"));
+        QVERIFY(!gap.value("selectable").toBool());
+        const QRectF file = map.screenRect("/root/folder/a.png");
+        const auto child = map.entryAt(file.center().x(), file.center().y());
+        QCOMPARE(child.value("path").toString(), QStringLiteral("/root/folder/a.png"));
+        QVERIFY(child.value("selectable").toBool());
+        map.setCategoryFilter(DirectoryModel::FilterDocuments);
+        requests.clear();
+        map.collectVisible(0, map.boundingRect(), requests);
+        QVERIFY(!map.entryAt(rect.center().x(), rect.center().y()).value("selectable").toBool());
+        map.setCategoryFilter(DirectoryModel::FilterAll);
+        map.applyListing(folder, {});
+        map.m_visible.clear();
+        requests.clear();
+        map.collectVisible(0, map.boundingRect(), requests);
+        const auto emptyBody = map.entryAt(rect.center().x(), rect.center().y());
+        QCOMPARE(emptyBody.value("path").toString(), QStringLiteral("/root/folder"));
+        QVERIFY(!emptyBody.value("selectable").toBool());
+        QVERIFY(map.entryAt(rect.center().x(), rect.top() + 2).value("selectable").toBool());
+    }
+    void rootUsesSnapshotBeforeCategoryFiltering()
+    {
+        MapSnapshotModel model;
+        model.path = "/root";
+        FolderMapItem map;
+        map.m_directoryModel = &model;
+        map.m_currentPath = model.path;
+        map.m_gpuEnabled = true;
+        map.m_nodes.append(FolderMapItem::Node{});
+        map.m_nodes[0].entry = {model.path, "root", true};
+        map.m_nodes[0].rect = QRectF(0, 0, 1024, 768);
+        map.m_byPath.insert(model.path, 0);
+        map.setCategoryFilter(DirectoryModel::FilterImages);
+        map.syncModel();
+        QCOMPARE(model.rowCount(), 0);
+        QCOMPARE(map.m_nodes[0].children.size(), 2);
+        QVERIFY(!map.entryForPath("/root/sub").isEmpty());
+        QVERIFY(!map.entryForPath("/root/photo.png").isEmpty());
+        QCOMPARE(map.entryForPath("/root/photo.png").value("primaryBadgeKind").toString(), QStringLiteral("locked"));
+    }
+    void denseCategorySwitchDoesNotReload()
+    {
+        FolderMapItem map;
+        map.m_nodes.append(FolderMapItem::Node{});
+        map.m_nodes[0].entry = {"/root", "root", true};
+        map.m_nodes[0].rect = QRectF(0, 0, 1024, 768);
+        map.m_byPath.insert("/root", 0);
+        FolderMapItem::Listing listing;
+        for (int i = 0; i < 4096; ++i) {
+            const QString name = QString::number(i) + (i % 2 ? ".png" : ".txt");
+            listing.entries.append({"/root/" + name, name});
+        }
+        map.applyListing(0, listing);
+        const auto revision = map.m_listingSequence;
+        QElapsedTimer timer; timer.start();
+        for (int i = 0; i < 20; ++i) {
+            map.setCategoryFilter(DirectoryModel::FilterImages);
+            map.setCategoryFilter(DirectoryModel::FilterDocuments);
+        }
+        const double average = timer.nsecsElapsed() / 40.0 / 1e6;
+        std::printf("Map category switch: 4096 cached entries, average %.3f ms\n", average);
+        QVERIFY(average < 25);
+        QCOMPARE(map.m_listingSequence, revision);
+        QCOMPARE(map.m_loading, 0);
+        QCOMPARE(map.m_nodes[0].children.size(), 2048);
+        QCOMPARE(map.loadedCount(), 4097);
+    }
+    void categoriesKeepFoldersAndCachedChildren()
+    {
+        FolderMapItem map;
+        map.m_nodes.append(FolderMapItem::Node{});
+        map.m_nodes[0].entry = {"/root", "root", true};
+        map.m_nodes[0].rect = QRectF(0, 0, 1024, 768);
+        map.m_byPath.insert("/root", 0);
+        FolderMapItem::Listing root;
+        root.entries = {{"/root/sub", "sub", true}, {"/root/top.png", "top.png"},
+                        {"/root/top.txt", "top.txt"}};
+        map.applyListing(0, root);
+        const int sub = map.m_byPath.value("/root/sub");
+        FolderMapItem::Listing nested;
+        nested.entries = {{"/root/sub/photo.JPG", "photo.JPG"}, {"/root/sub/note.txt", "note.txt"}};
+        map.applyListing(sub, nested);
+        const auto generation = map.m_generation;
+        const auto revision = map.m_listingSequence;
+        const auto center = map.m_center;
+        const auto scale = map.m_scale;
+        map.setCategoryFilter(DirectoryModel::FilterImages);
+        QCOMPARE(map.m_nodes[0].children.size(), 2);
+        QVERIFY(!map.entryForPath("/root/sub").isEmpty());
+        QVERIFY(map.entryForPath("/root/top.txt").isEmpty());
+        QVERIFY(map.entryForPath("/root/sub/note.txt").isEmpty());
+        QCOMPARE(map.selectionContext("/root/sub/photo.JPG").value("paths").toStringList(),
+                 QStringList{"/root/sub/photo.JPG"});
+        map.applyListing(sub, nested); // A late listing must use the current category.
+        QCOMPARE(map.m_nodes[sub].children.size(), 1);
+        const auto afterListing = map.m_listingSequence;
+        QElapsedTimer timer; timer.start();
+        for (int i = 0; i < 100; ++i) {
+            map.setCategoryFilter(DirectoryModel::FilterDocuments);
+            map.setCategoryFilter(DirectoryModel::FilterImages);
+        }
+        QVERIFY(timer.elapsed() < 1000);
+        QCOMPARE(map.m_generation, generation);
+        QCOMPARE(map.m_listingSequence, afterListing);
+        QCOMPARE(revision, afterListing);
+        QCOMPARE(map.m_center, center);
+        QCOMPARE(map.m_scale, scale);
+        map.setCategoryFilter(DirectoryModel::FilterAll);
+        QCOMPARE(map.m_nodes[0].children.size(), 3);
+        QCOMPARE(map.m_nodes[sub].children.size(), 2);
+        QVERIFY(!map.entryForPath("/root/sub/note.txt").isEmpty());
+        map.setCategoryFilter(DirectoryModel::FilterImages);
+        map.remapEntry("/root/sub", "/root/renamed");
+        map.setCategoryFilter(DirectoryModel::FilterAll);
+        QVERIFY(!map.entryForPath("/root/renamed/note.txt").isEmpty());
+        QVERIFY(map.entryForPath("/root/sub/note.txt").isEmpty());
+        map.setCategoryFilter(DirectoryModel::FilterImages);
+        map.removeBranch(sub);
+        QVERIFY(!map.m_byPath.contains("/root/renamed/note.txt"));
+    }
     void wheelZoomUsesRotationForMouseAndPixelsForGestures()
     {
         QFile source(QFINDTESTDATA("../../qml/components/filepanel/FilePanelMapView.qml"));
@@ -363,14 +609,14 @@ private slots:
         QTRY_VERIFY(map.iconsReady());
         const QImage nativeAtlas = map.m_iconAtlas;
         IconProvider provider;
-        QImage expected(64, 64, QImage::Format_ARGB32_Premultiplied);
+        QImage expected(128, 128, QImage::Format_ARGB32_Premultiplied);
         expected.fill(Qt::transparent);
         {
             QPainter painter(&expected);
-            painter.drawImage(QRectF(0, 0, 64, 64), provider.requestImage(
-                QStringLiteral("folder-map-folder?directory=true&generic=true"), nullptr, QSize(64, 64)));
+            painter.drawImage(QRectF(0, 0, 128, 128), provider.requestImage(
+                QStringLiteral("folder-map-folder?directory=true&generic=true"), nullptr, QSize(128, 128)));
         }
-        QCOMPARE(nativeAtlas.copy(148, 76, 64, 64), expected);
+        QCOMPARE(nativeAtlas.copy(276, 140, 128, 128), expected);
         map.setUseNativeIcons(false);
         QVERIFY(!map.iconsReady());
         // A late bundled result must not replace the requested native atlas.
@@ -379,15 +625,15 @@ private slots:
         QCOMPARE(map.m_iconAtlas, nativeAtlas);
         map.setUseNativeIcons(false);
         QVERIFY(map.iconsReady());
-        expected = QImage(288, 288, QImage::Format_ARGB32_Premultiplied);
+        expected = QImage(544, 544, QImage::Format_ARGB32_Premultiplied);
         expected.fill(Qt::transparent);
         {
             QPainter painter(&expected);
             painter.setRenderHint(QPainter::Antialiasing);
             QSvgRenderer renderer(QStringLiteral(":/qt/qml/FM/qml/assets/filetypes-next/folder.svg"));
-            renderer.render(&painter, QRectF(148, 76, 64, 64));
+            renderer.render(&painter, QRectF(276, 140, 128, 128));
         }
-        QCOMPARE(map.m_iconAtlas.copy(148, 76, 64, 64), expected.copy(148, 76, 64, 64));
+        QCOMPARE(map.m_iconAtlas.copy(276, 140, 128, 128), expected.copy(276, 140, 128, 128));
         const qint64 bundledKey = map.m_iconAtlas.cacheKey();
         map.setUseNativeIcons(true);
         QCOMPARE(map.m_iconAtlas.cacheKey(), nativeAtlas.cacheKey());

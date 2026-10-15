@@ -3,6 +3,8 @@
 #include "FolderMapStress.h"
 #ifdef FM_ENABLE_RESIZE_BENCHMARK
 #include "PanelResizeBenchmark.h"
+#include <QTest>
+#include <qpa/qwindowsysteminterface.h>
 #endif
 
 #include "../app/AppServices.h"
@@ -870,6 +872,8 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
     }
 
     WorkspaceController *workspace = services.workspace();
+    if (app.arguments().contains(QStringLiteral("--map-badges")))
+        return FolderMapStress::runBadges(services, window, fixtureRoot.path());
     if (app.arguments().contains(QStringLiteral("--map-stress")))
         return FolderMapStress::run(services, window, fixtureRoot.path());
     workspace->setSplitEnabled(false);
@@ -957,6 +961,10 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
                 return controller->currentPath() == location && !controller->navigationPending()
                     && !controller->directoryModel()->loading();
             })) return 2;
+            QMetaObject::invokeMethod(menu, "popupEmptyMenu");
+            if (!waitFor([&] { return popup->property("opened").toBool(); })) return 2;
+            QMetaObject::invokeMethod(popup, "close");
+            if (!waitFor([&] { return !popup->property("visible").toBool(); })) return 2;
             const auto itemPath = [&](const QString &name) {
                 if (location != url) return QDir(location).filePath(name);
                 QUrl createdUrl(url);
@@ -1681,6 +1689,7 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
         report.insert(QStringLiteral("placeholderPassed"), placeholderPassed);
         success = success && placeholderPassed;
         if (gpu && map) {
+            if (app.arguments().contains(QStringLiteral("--map-context-create"))) controller->setViewMode(3);
             const QString child = fixture.filePath(QStringLiteral("Folder 0"));
             controller->openPath(child);
             wait.restart();
@@ -1784,6 +1793,276 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
                 }
                 return ready();
             };
+            auto clickMapEntry = [&](const QString &entryPath, Qt::KeyboardModifiers modifiers, bool header = false) {
+                window.grabWindow(); // Settle layout and visible hit regions before synthesizing a click.
+                const QRectF rect = map->screenRect(entryPath);
+                const QPointF position = map->mapToScene((header || map->entryForPath(entryPath).value(QStringLiteral("directory")).toBool())
+                    ? QPointF(rect.center().x(), rect.top() + std::min(qreal(5), rect.height() * 0.04)) : rect.center());
+                const QPointF global(window.mapToGlobal(position.toPoint()));
+                QMouseEvent press(QEvent::MouseButtonPress, position, global,
+                                  Qt::LeftButton, Qt::LeftButton, modifiers);
+                QMouseEvent release(QEvent::MouseButtonRelease, position, global,
+                                    Qt::LeftButton, Qt::NoButton, modifiers);
+                QCoreApplication::sendEvent(&window, &press);
+                QCoreApplication::sendEvent(&window, &release);
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+            };
+
+            if (app.arguments().contains(QStringLiteral("--map-empty-menu"))
+                || app.arguments().contains(QStringLiteral("--map-context-create"))) {
+                const bool createCase = app.arguments().contains(QStringLiteral("--map-context-create"));
+                const QString folder = child + (createCase ? QStringLiteral("/New Folder") : QStringLiteral("/Child 2"));
+                bool createdByF7 = true;
+                if (createCase) {
+                    window.requestActivate();
+#ifdef FM_ENABLE_RESIZE_BENCHMARK
+                    // Inject application focus as well as keys; Wayland may deny activation.
+                    QWindowSystemInterface::handleFocusWindowChanged(&window);
+#endif
+                    createdByF7 = until([&] { return window.isActive(); });
+                    map->parentItem()->forceActiveFocus();
+#ifdef FM_ENABLE_RESIZE_BENCHMARK
+                    QTest::keyClick(&window, Qt::Key_F7);
+#else
+                    createdByF7 = false;
+#endif
+                    createdByF7 = until([&] { return QFileInfo(folder).isDir() && !map->entryForPath(folder).isEmpty(); }) && createdByF7;
+                    report.insert(QStringLiteral("mapCreatedByF7"), createdByF7);
+                    QObject *rename = nullptr;
+                    const bool renameOpened = until([&] {
+                        rename = window.findChild<QObject *>(QStringLiteral("mapRenameDialog"));
+                        return rename && rename->property("opened").toBool();
+                    });
+                    report.insert(QStringLiteral("mapF7RenameOpened"), renameOpened);
+                    if (!createdByF7 || !renameOpened) std::fprintf(stderr, "Map F7: active=%d mode=%d exists=%d entry=%d status=%s\n",
+                        window.isActive(), controller->viewMode(), QFileInfo(folder).isDir(), !map->entryForPath(folder).isEmpty(), qPrintable(controller->statusMessage()));
+                    createdByF7 = renameOpened && createdByF7;
+                    if (rename) QMetaObject::invokeMethod(rename, "reject");
+                    until([&] { return !rename || !rename->property("visible").toBool(); });
+                }
+                map->revealPath(folder);
+                bool passed = until([&] {
+                    const QPointF point = map->screenRect(folder).center();
+                    const auto hit = map->entryAt(point.x(), point.y());
+                    return !map->moving() && hit.value(QStringLiteral("path")).toString() == folder
+                        && !hit.value(QStringLiteral("selectable")).toBool();
+                });
+                controller->directoryModel()->clearSelection();
+                QObject *host = map->parentItem()->property("panel").value<QObject *>();
+                auto clickPoint = [&](QPointF point, Qt::MouseButton button = Qt::RightButton) {
+                    const QPointF scene = map->mapToScene(point);
+                    const QPointF global(window.mapToGlobal(scene.toPoint()));
+                    QMouseEvent press(QEvent::MouseButtonPress, scene, global, button, button, Qt::NoModifier);
+                    QMouseEvent release(QEvent::MouseButtonRelease, scene, global, button, Qt::NoButton, Qt::NoModifier);
+                    QCoreApplication::sendEvent(&window, &press);
+                    QCoreApplication::sendEvent(&window, &release);
+                };
+                clickPoint(map->screenRect(folder).center(), Qt::LeftButton);
+                const bool emptyBodySelected = controller->selectedPaths() == QStringList{folder};
+                report.insert(QStringLiteral("nestedEmptyBodySelection"), emptyBodySelected);
+                passed = emptyBodySelected && passed;
+                controller->directoryModel()->clearSelection();
+                clickPoint(map->screenRect(folder).center());
+                QObject *popup = nullptr;
+                const bool emptyMenu = until([&] {
+                    QObject *menu = host ? host->property("filePanelEmptyMenuItem").value<QObject *>() : nullptr;
+                    popup = menu ? menu->findChild<QObject *>(QStringLiteral("filePanelEmptyPopup")) : nullptr;
+                    return popup && popup->property("opened").toBool();
+                }) && controller->selectedPaths().isEmpty() && controller->currentPath() == child;
+                passed = emptyMenu && createdByF7 && passed;
+                report.insert(QStringLiteral("nestedEmptyBodyMenu"), emptyMenu);
+                if (createCase) {
+                    QObject *menu = host ? host->property("filePanelEmptyMenuItem").value<QObject *>() : nullptr;
+                    QObject *action = nullptr;
+                    if (menu) for (auto *object : menu->findChildren<QObject *>()) {
+                        if (object->metaObject()->indexOfSignal("triggered()") >= 0
+                            && object->property("text").toString() == QStringLiteral("New Folder")) action = object;
+                    }
+                    if (popup) QMetaObject::invokeMethod(popup, "close");
+                    until([&] { return popup && !popup->property("visible").toBool(); });
+                    if (action) QMetaObject::invokeMethod(action, "triggered");
+                    const QString nested = folder + QStringLiteral("/New Folder");
+                    const bool nestedCreated = until([&] { return QFileInfo(nested).isDir() && !map->entryForPath(nested).isEmpty(); });
+                    if (!nestedCreated) std::fprintf(stderr, "Map context create: action=%p target=%s exists=%d entry=%d status=%s\n",
+                        static_cast<void *>(action), qPrintable(menu ? menu->property("contextPath").toString() : QString()),
+                        QFileInfo(nested).isDir(), !map->entryForPath(nested).isEmpty(), qPrintable(controller->statusMessage()));
+                    report.insert(QStringLiteral("mapCreatedInsideContextFolder"), nestedCreated);
+                    report.insert(QStringLiteral("mapNoSiblingCreated"), !QFileInfo::exists(child + QStringLiteral("/New Folder (1)")));
+                    QObject *rename = window.findChild<QObject *>(QStringLiteral("mapRenameDialog"));
+                    const bool renameOpened = until([&] { return rename && rename->property("opened").toBool(); });
+                    if (rename) QMetaObject::invokeMethod(rename, "submit");
+                    const bool defaultNameAccepted = until([&] { return rename && !rename->property("visible").toBool(); })
+                        && rename->property("errorMessage").toString().isEmpty() && controller->lastError().isEmpty();
+                    report.insert(QStringLiteral("mapDefaultNameAccepted"), defaultNameAccepted);
+                    map->revealPath(folder);
+                    until([&] { return !map->moving(); });
+                    const QRectF rect = map->screenRect(folder);
+                    clickPoint(QPointF(rect.left() + 1, rect.center().y()));
+                    const bool menuAgain = until([&] { return popup && popup->property("opened").toBool(); });
+                    const bool idle = host && host->property("createRenamePath").toString().isEmpty()
+                        && !host->property("isRenaming").toBool();
+                    report.insert(QStringLiteral("mapContextMenuAfterCreate"), menuAgain);
+                    report.insert(QStringLiteral("mapCreateRenameIdle"), idle);
+                    passed = passed && action && nestedCreated && renameOpened && defaultNameAccepted && menuAgain && idle
+                        && !QFileInfo::exists(child + QStringLiteral("/New Folder (1)")) && controller->currentPath() == child;
+                }
+                if (popup) QMetaObject::invokeMethod(popup, "close");
+                passed = until([&] { return popup && !popup->property("visible").toBool(); }) && passed;
+                const QRectF rect = map->screenRect(folder);
+                clickPoint(QPointF(rect.center().x(), rect.top() + 5));
+                const bool folderMenu = until([&] {
+                    QObject *menu = host ? host->property("filePanelContextMenuItem").value<QObject *>() : nullptr;
+                    QObject *item = menu ? menu->findChild<QObject *>(QStringLiteral("filePanelItemPopup")) : nullptr;
+                    return item && item->property("opened").toBool();
+                }) && controller->selectedPaths() == QStringList{folder};
+                report.insert(QStringLiteral("nestedEmptyHeaderMenu"), folderMenu);
+                passed = folderMenu && passed;
+                report.insert(QStringLiteral("mapEmptyMenu"), passed);
+                std::puts(QJsonDocument(report).toJson(QJsonDocument::Compact).constData());
+                return passed ? 0 : 1;
+            }
+            if (app.arguments().contains(QStringLiteral("--map-delete-safety"))) {
+                const QString folder = child + QStringLiteral("/Child 2");
+                const QString first = folder + QStringLiteral("/delete-first.png");
+                const QString second = folder + QStringLiteral("/delete-second.png");
+                const QString keep = folder + QStringLiteral("/keep.png");
+                bool safe = writeFile(first) && writeFile(second) && writeFile(keep);
+                map->revealPath(folder);
+                safe = until([&] { return !map->moving() && !map->entryForPath(keep).isEmpty(); }) && safe;
+                controller->directoryModel()->clearSelection();
+                const auto clickBody = [&](Qt::MouseButton button, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+                    const QRectF rect = map->screenRect(folder);
+                    const QPointF position = map->mapToScene(QPointF(rect.left() + 1, rect.center().y()));
+                    const QPointF global(window.mapToGlobal(position.toPoint()));
+                    QMouseEvent press(QEvent::MouseButtonPress, position, global, button, button, modifiers);
+                    QMouseEvent release(QEvent::MouseButtonRelease, position, global, button, Qt::NoButton, modifiers);
+                    QCoreApplication::sendEvent(&window, &press);
+                    QCoreApplication::sendEvent(&window, &release);
+                    QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+                };
+                clickBody(Qt::LeftButton);
+                const bool bodySelected = controller->selectedPaths() == QStringList{folder};
+                report.insert(QStringLiteral("mapFolderBodySelection"), bodySelected);
+                safe = bodySelected && safe;
+                clickBody(Qt::LeftButton, Qt::ControlModifier);
+                const bool bodyToggled = controller->selectedPaths().isEmpty();
+                report.insert(QStringLiteral("mapFolderBodyCtrlToggle"), bodyToggled);
+                safe = bodyToggled && safe;
+                clickBody(Qt::LeftButton);
+                clickMapEntry(first, Qt::ControlModifier);
+                clickMapEntry(second, Qt::ControlModifier);
+                const QStringList targets{first, second};
+                const bool onlyFiles = controller->selectedPaths() == targets;
+                report.insert(QStringLiteral("mapOnlySelectedFiles"), onlyFiles);
+                safe = onlyFiles && safe;
+                clickBody(Qt::RightButton);
+                QObject *host = map->parentItem()->property("panel").value<QObject *>();
+                QObject *menu = host ? host->property("filePanelEmptyMenuItem").value<QObject *>() : nullptr;
+                QObject *popup = menu ? menu->findChild<QObject *>(QStringLiteral("filePanelEmptyPopup")) : nullptr;
+                const bool gapSafe = until([&] { return popup && popup->property("opened").toBool(); })
+                    && menu->property("contextPath").toString() == folder && controller->selectedPaths() == targets;
+                report.insert(QStringLiteral("mapRightBodyPreservesSelection"), gapSafe);
+                safe = gapSafe && safe;
+                if (popup) QMetaObject::invokeMethod(popup, "close");
+                safe = until([&] { return popup && !popup->property("visible").toBool(); }) && safe;
+                clickBody(Qt::LeftButton);
+                const bool bodyReplacesChildren = controller->selectedPaths() == QStringList{folder};
+                report.insert(QStringLiteral("mapBodyReplacesChildSelection"), bodyReplacesChildren);
+                clickMapEntry(first, Qt::ControlModifier);
+                clickMapEntry(second, Qt::ControlModifier);
+                safe = bodyReplacesChildren && controller->selectedPaths() == targets && safe;
+                const QRectF folderRect = map->screenRect(folder);
+                const QPointF dragStart = map->mapToScene(QPointF(folderRect.left() + 1, folderRect.center().y()));
+                const QPointF dragEnd = dragStart + QPointF(24, 12);
+                QMouseEvent dragPress(QEvent::MouseButtonPress, dragStart, window.mapToGlobal(dragStart.toPoint()),
+                                     Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                QMouseEvent dragMove(QEvent::MouseMove, dragEnd, window.mapToGlobal(dragEnd.toPoint()),
+                                    Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+                QMouseEvent dragRelease(QEvent::MouseButtonRelease, dragEnd, window.mapToGlobal(dragEnd.toPoint()),
+                                       Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(&window, &dragPress);
+                QCoreApplication::sendEvent(&window, &dragMove);
+                QCoreApplication::sendEvent(&window, &dragRelease);
+                const bool dragSafe = until([&] { return !map->moving(); }) && controller->selectedPaths() == targets;
+                report.insert(QStringLiteral("mapBodyDragPreservesSelection"), dragSafe);
+                safe = dragSafe && safe;
+                map->fitCurrent();
+                safe = until([&] { return !map->moving(); }) && safe;
+                const QRectF rootRect = map->screenRect(child);
+                const QPointF rootGap(rootRect.left() + 1, rootRect.center().y());
+                const bool rootHit = map->entryAt(rootGap.x(), rootGap.y()).value(QStringLiteral("path")).toString() == child;
+                const QPointF rootPosition = map->mapToScene(rootGap);
+                QMouseEvent rootPress(QEvent::MouseButtonPress, rootPosition, window.mapToGlobal(rootPosition.toPoint()),
+                                     Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                QMouseEvent rootRelease(QEvent::MouseButtonRelease, rootPosition, window.mapToGlobal(rootPosition.toPoint()),
+                                       Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(&window, &rootPress);
+                QCoreApplication::sendEvent(&window, &rootRelease);
+                const bool rootSafe = rootHit && controller->selectedPaths() == targets;
+                report.insert(QStringLiteral("mapCurrentRootNotSelected"), rootSafe);
+                safe = rootSafe && safe;
+                const bool blocked = workspace->deleteRequestDetails({folder, first}, {}).value(QStringLiteral("blocked")).toBool()
+                    && !workspace->confirmDelete({folder, first});
+                report.insert(QStringLiteral("mapOverlappingDeleteBlocked"), blocked);
+                safe = blocked && safe;
+                if (safe) {
+                    safe = workspace->confirmDelete(controller->selectedPaths());
+                    safe = until([&] { return !workspace->operationQueue()->busy(); }) && safe;
+                }
+                const bool survived = QFileInfo(folder).isDir() && QFile::exists(keep)
+                    && !QFile::exists(first) && !QFile::exists(second);
+                report.insert(QStringLiteral("mapParentAndUnselectedFileSurvive"), survived);
+                safe = survived && safe;
+                clickMapEntry(folder, Qt::NoModifier);
+                const bool explicitFolder = controller->selectedPaths() == QStringList{folder}
+                    && !workspace->deleteRequestDetails({folder}, {}).value(QStringLiteral("blocked")).toBool();
+                report.insert(QStringLiteral("mapExplicitFolderSelection"), explicitFolder);
+                safe = explicitFolder && safe;
+                report.insert(QStringLiteral("mapDeleteSafety"), safe);
+                std::puts(QJsonDocument(report).toJson(QJsonDocument::Compact).constData());
+                return safe ? 0 : 1;
+            }
+            const QString filterFolder = child + QStringLiteral("/Child 2");
+            const QString filterImage = filterFolder + QStringLiteral("/Filter-test.PNG");
+            const QString filterText = filterFolder + QStringLiteral("/Filter-test.txt");
+            bool mapCategoryFilter = writeFile(filterImage) && writeFile(filterText);
+            map->revealPath(filterFolder);
+            mapCategoryFilter = until([&] { return !map->moving() && !map->entryForPath(filterText).isEmpty(); }) && mapCategoryFilter;
+            report.insert(QStringLiteral("filterInitialReady"), mapCategoryFilter);
+            const QRectF filterCamera = map->screenRect(child);
+            const QPointF filterCameraOffset = filterCamera.center() - QPointF(map->width() / 2, map->height() / 2);
+            controller->directoryModel()->setCategoryFilter(DirectoryModel::FilterImages);
+            mapCategoryFilter = until([&] {
+                return map->categoryFilter() == DirectoryModel::FilterImages
+                    && !map->entryForPath(filterFolder).isEmpty()
+                    && !map->entryForPath(filterImage).isEmpty()
+                    && map->entryForPath(filterText).isEmpty()
+                    && map->entryForPath(child + QStringLiteral("/Document.pdf")).isEmpty();
+            }) && mapCategoryFilter;
+            report.insert(QStringLiteral("filterFilesReady"), mapCategoryFilter);
+            report.insert(QStringLiteral("filterRootCount"), controller->directoryModel()->count());
+            const QRectF filterCameraAfter = map->screenRect(child);
+            const bool filterCameraPreserved = QLineF(filterCameraOffset, filterCameraAfter.center() - QPointF(map->width() / 2, map->height() / 2)).length() < 0.1
+                && qAbs(filterCamera.width() - filterCameraAfter.width()) < 0.1
+                && qAbs(filterCamera.height() - filterCameraAfter.height()) < 0.1;
+            report.insert(QStringLiteral("filterCameraEqual"), filterCameraPreserved);
+            report.insert(QStringLiteral("filterCameraBefore"), QJsonArray{filterCamera.x(), filterCamera.y(), filterCamera.width(), filterCamera.height()});
+            report.insert(QStringLiteral("filterCameraAfter"), QJsonArray{filterCameraAfter.x(), filterCameraAfter.y(), filterCameraAfter.width(), filterCameraAfter.height()});
+            mapCategoryFilter = controller->directoryModel()->count() == 1
+                && filterCameraPreserved && mapCategoryFilter;
+            controller->directoryModel()->setCategoryFilter(DirectoryModel::FilterAll);
+            mapCategoryFilter = until([&] { return !map->entryForPath(filterText).isEmpty()
+                && !map->entryForPath(child + QStringLiteral("/Document.pdf")).isEmpty(); }) && mapCategoryFilter;
+            report.insert(QStringLiteral("mapCategoryFilter"), mapCategoryFilter);
+            if (app.arguments().contains(QStringLiteral("--map-category"))) {
+                std::puts(QJsonDocument(report).toJson(QJsonDocument::Compact).constData());
+                return mapCategoryFilter ? 0 : 1;
+            }
+            success = mapCategoryFilter && success;
+            QFile::remove(filterImage);
+            QFile::remove(filterText);
+            map->fitCurrent();
+            success = until([&] { return !map->moving(); }) && success;
             const QString source = child + QStringLiteral("/Photo.jpg");
             until([&] { const QPointF point = map->screenRect(source).center();
                 return map->entryAt(point.x(), point.y()).value(QStringLiteral("path")).toString() == source; });
@@ -1890,20 +2169,6 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
                 && map->screenRect(renamed).isEmpty(); }) && transfers;
             report.insert(QStringLiteral("transfersPassed"), transfers);
             success = success && transfers;
-
-            auto clickMapEntry = [&](const QString &entryPath, Qt::KeyboardModifiers modifiers, bool header = false) {
-                window.grabWindow(); // Settle layout and visible hit regions before synthesizing a click.
-                const QRectF rect = map->screenRect(entryPath);
-                const QPointF position = map->mapToScene(header ? rect.topLeft() + QPointF(15, 10) : rect.center());
-                const QPointF global(window.mapToGlobal(position.toPoint()));
-                QMouseEvent press(QEvent::MouseButtonPress, position, global,
-                                  Qt::LeftButton, Qt::LeftButton, modifiers);
-                QMouseEvent release(QEvent::MouseButtonRelease, position, global,
-                                    Qt::LeftButton, Qt::NoButton, modifiers);
-                QCoreApplication::sendEvent(&window, &press);
-                QCoreApplication::sendEvent(&window, &release);
-                QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-            };
 
             QObject *mapView = map->parentItem();
             QObject *mapPanelHost = mapView->property("panel").value<QObject *>();
@@ -2190,9 +2455,9 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
             clickMapEntry(nestedFolder, Qt::ControlModifier);
             nestedCtrlSelection = hasMapSelection({nestedSibling}) && nestedCtrlSelection;
             clickMapEntry(child, Qt::ControlModifier, true);
-            nestedCtrlSelection = hasMapSelection({nestedSibling, child}) && nestedCtrlSelection;
+            nestedCtrlSelection = hasMapSelection({child}) && nestedCtrlSelection;
             clickMapEntry(nestedFolder, Qt::ControlModifier);
-            nestedCtrlSelection = hasMapSelection({nestedSibling, child, nestedFolder}) && nestedCtrlSelection;
+            nestedCtrlSelection = hasMapSelection({nestedFolder}) && nestedCtrlSelection;
             clickMapEntry(child, Qt::NoModifier, true);
             nestedCtrlSelection = hasMapSelection({child}) && nestedCtrlSelection;
             clickMapEntry(nestedFolder, Qt::NoModifier);
@@ -2239,7 +2504,8 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
             window.grabWindow();
             map->revealPath(nestedFolder);
             success = until([&] { return !map->moving(); }) && success;
-            const QPointF nestedPosition = map->mapToScene(map->screenRect(nestedFolder).center());
+            const QRectF nestedRect = map->screenRect(nestedFolder);
+            const QPointF nestedPosition = map->mapToScene(QPointF(nestedRect.center().x(), nestedRect.top() + 5));
             const QPointF nestedGlobal(window.mapToGlobal(nestedPosition.toPoint()));
             QMouseEvent nestedPress(QEvent::MouseButtonPress, nestedPosition, nestedGlobal,
                                     Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);

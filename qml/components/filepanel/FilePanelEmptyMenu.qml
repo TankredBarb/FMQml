@@ -20,8 +20,16 @@ Item {
     property bool showFolderHoverPreviews: false
     property bool folderPeekEnabled: false
     property var customActions: []
+    property string contextPath: controller ? controller.currentPath : ""
+    readonly property bool nestedContext: controller && contextPath !== controller.currentPath
+    readonly property bool canCreateHere: controller && !controller.remoteMutationPending
+        && (nestedContext ? controller.canCreateInPath(contextPath) : controller.canCreateManualItem)
+    readonly property bool canPasteHere: workspaceController && workspaceController.hasClipboard
+        && !workspaceController.operationQueue.busy && controller
+        && (nestedContext ? controller.canPasteIntoPath(contextPath) : controller.canPasteIntoCurrentPath)
 
-    signal selectAllRequested()
+    signal selectAllRequested(string path)
+    signal refreshFolderRequested(string path)
     signal menuOpenChanged(bool open)
     signal actionBarVisibilityRequested(bool visible)
     signal selectionBadgesVisibilityRequested(bool visible)
@@ -37,6 +45,11 @@ Item {
     }
 
     function popupEmptyMenu() {
+        root.popupEmptyMenuAtPath(root.controller ? root.controller.currentPath : "")
+    }
+
+    function popupEmptyMenuAtPath(path) {
+        root.contextPath = path || (root.controller ? root.controller.currentPath : "")
         root.customActions = root.availableCustomActions()
         emptyContextMenu.popup()
     }
@@ -49,18 +62,19 @@ Item {
     }
 
     function currentFolderPinned() {
-        return menuPolicy.currentFolderPinned()
+        const revision = menuPolicy.favoritesPinnedCount
+        return revision >= 0 && root.favoritesController && root.favoritesController.isPinned(root.contextPath)
     }
 
     function canFavoriteCurrentFolder() {
-        return menuPolicy.canFavoriteCurrentFolder()
+        return root.favoritesController && menuPolicy.actionPolicy.pathCanBeFavorited(root.contextPath)
     }
 
     function customActionContext() {
         return {
             scope: "folder",
-            currentPath: root.controller ? root.controller.currentPath : "",
-            targetPath: root.controller ? root.controller.currentPath : "",
+            currentPath: root.contextPath,
+            targetPath: root.contextPath,
             targetIsDirectory: true,
             selectedPaths: root.controller && root.controller.selectedPaths ? root.controller.selectedPaths() : []
         }
@@ -89,7 +103,7 @@ Item {
             }
         }
         if (result && result.ok === true && result.refreshCurrentPath === true && root.controller) {
-            root.controller.refresh()
+            root.refreshFolderRequested(root.contextPath)
         }
         if (root.windowObject && root.windowObject.openPluginActionResult) {
             root.windowObject.openPluginActionResult(result)
@@ -107,7 +121,7 @@ Item {
             iconColor: Theme.actionIconColor("terminal")
             visible: menuPolicy.canOpenTerminal()
             enabled: visible
-            onTriggered: root.controller.openInTerminal()
+            onTriggered: root.controller.openPathInTerminal(root.contextPath)
         }
         FmMenuSeparator {
             visible: menuPolicy.canOpenTerminal()
@@ -116,16 +130,16 @@ Item {
             text: "New Folder"
             icon.source: "../assets/icons-classic/folder-plus.svg"
             iconColor: Theme.actionIconColor("create")
-            visible: menuPolicy.canCreateInCurrentPath()
+            visible: root.canCreateHere
             enabled: visible
-            onTriggered: root.controller.createFolder("New Folder")
+            onTriggered: root.controller.createFolderAtPath(root.contextPath, "New Folder")
         }
         FmMenuItem {
             text: "New Folder as Administrator"
             icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
             active: true
-            visible: root.adminModeActive()
+            visible: !root.nestedContext && root.adminModeActive()
                      && root.controller
                      && !root.controller.isVirtualRoot
                      && !menuPolicy.currentPathIsProvider()
@@ -142,16 +156,16 @@ Item {
             text: "New Text File"
             icon.source: "../assets/icons-classic/text-file.svg"
             iconColor: Theme.actionIconColor("text-file")
-            visible: menuPolicy.canCreateInCurrentPath()
+            visible: root.canCreateHere
             enabled: visible
-            onTriggered: root.controller.createFile("New Text File.txt")
+            onTriggered: root.controller.createFileAtPath(root.contextPath, "New Text File.txt")
         }
         FmMenuItem {
             text: "New File as Administrator"
             icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
             active: true
-            visible: root.adminModeActive()
+            visible: !root.nestedContext && root.adminModeActive()
                      && root.controller
                      && !root.controller.isVirtualRoot
                      && !menuPolicy.currentPathIsProvider()
@@ -168,26 +182,26 @@ Item {
             text: "New File"
             icon.source: "../assets/icons-classic/file-plus.svg"
             iconColor: Theme.actionIconColor("document")
-            visible: menuPolicy.canCreateInCurrentPath()
+            visible: root.canCreateHere
             enabled: visible
-            onTriggered: root.controller.createFile("New File")
+            onTriggered: root.controller.createFileAtPath(root.contextPath, "New File")
         }
         FmMenuSeparator {
-            visible: menuPolicy.canCreateInCurrentPath()
+            visible: root.canCreateHere
         }
         FmMenuItem {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons-classic/paste.svg"
             iconColor: Theme.actionIconColor("paste")
-            enabled: menuPolicy.canPasteFromClipboard()
-            onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
+            enabled: root.canPasteHere
+            onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard(root.contextPath)
         }
         FmMenuItem {
             text: "Paste as Administrator"
             icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
             active: true
-            visible: root.adminModeActive()
+            visible: !root.nestedContext && root.adminModeActive()
                      && root.controller
                      && !root.controller.isVirtualRoot
                      && !menuPolicy.currentPathIsProvider()
@@ -214,7 +228,7 @@ Item {
             enabled: visible
             onTriggered: {
                 if (root.favoritesController && root.controller) {
-                    root.favoritesController.togglePinned(root.controller.currentPath)
+                    root.favoritesController.togglePinned(root.contextPath)
                 }
             }
         }
@@ -225,7 +239,7 @@ Item {
             text: "Select All"
             icon.source: "../assets/icons-classic/select-all.svg"
             iconColor: Theme.actionIconColor("primary")
-            onTriggered: root.selectAllRequested()
+            onTriggered: root.selectAllRequested(root.contextPath)
         }
         FmMenuToggleItem {
             text: root.controller.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
@@ -291,13 +305,13 @@ Item {
             text: "Refresh"
             icon.source: "../assets/icons-classic/refresh.svg"
             iconColor: Theme.actionIconColor("refresh")
-            onTriggered: root.controller.refresh()
+            onTriggered: root.refreshFolderRequested(root.contextPath)
         }
         FmMenuItem {
             text: "Load More"
             icon.source: menuPolicy.loadMoreIconSource
             recolorEnabled: false
-            visible: menuPolicy.canLoadMore()
+            visible: !root.nestedContext && menuPolicy.canLoadMore()
             enabled: visible
             onTriggered: root.controller.loadMore()
         }
@@ -305,17 +319,17 @@ Item {
             text: "Analyze Disk Usage"
             icon.source: "../assets/icons-classic/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")
-            visible: menuPolicy.canAnalyzeCurrentFolder()
+            visible: menuPolicy.actionPolicy.canAnalyzePath(root.contextPath, true)
             enabled: visible
-            onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.controller.currentPath)
+            onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.contextPath)
         }
         FmMenuItem {
             text: "Properties"
             icon.source: "../assets/icons-classic/info.svg"
             iconColor: Theme.actionIconColor("info")
-            visible: menuPolicy.canShowCurrentFolderProperties()
+            visible: menuPolicy.actionPolicy.canShowPropertiesPath(root.contextPath)
             enabled: visible
-            onTriggered: if (root.propertiesController) root.propertiesController.load(root.controller.currentPath)
+            onTriggered: if (root.propertiesController) root.propertiesController.load(root.contextPath)
         }
         FmMenuSeparator {
             visible: root.customActions.length > 0

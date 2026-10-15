@@ -1,4 +1,5 @@
 #include "FolderMapItem.h"
+#include "../../core/LocalFileBadgeResolver.h"
 #include "FileTypeIconResolver.h"
 #include "IconProvider.h"
 #include "MapGpuProbe.h"
@@ -6,6 +7,7 @@
 #include "ArchiveSupport.h"
 #include "IsoSupport.h"
 #include "DirectoryChangeWatcher.h"
+#include "../../models/DirectoryModelAlgorithms.h"
 
 #include <QDirIterator>
 #include <QFileInfo>
@@ -34,8 +36,8 @@ constexpr int MaximumNodes = 40000;
 constexpr int MaximumVisible = 2048;
 constexpr qreal HeaderFraction = 0.09;
 constexpr qreal PaddingFraction = 0.018;
-constexpr int IconSize = 64;
-constexpr int IconStride = 72;
+constexpr int IconSize = 128;
+constexpr int IconStride = 136;
 constexpr int IconPadding = (IconStride - IconSize) / 2;
 constexpr int AtlasColumns = 4;
 constexpr int EmptyFolderIcon = 16;
@@ -43,6 +45,49 @@ constexpr int MaximumThumbnails = 64;
 constexpr int MaximumThumbnailRequests = 2;
 constexpr int MaximumWatches = 32;
 constexpr int ThumbnailSize = 256;
+constexpr int BadgeSize = 64;
+constexpr int BadgeStride = 72;
+
+const QStringList &badgeNames()
+{
+    static const QStringList names{QStringLiteral("broken-link"), QStringLiteral("link"),
+        QStringLiteral("mount-point"), QStringLiteral("locked"), QStringLiteral("archive"), QStringLiteral("pinned")};
+    return names;
+}
+
+QImage createBadgeAtlas(const QColor &accent, const QColor &warning,
+                       const QColor &accentText, const QColor &warningText)
+{
+    QImage image(BadgeStride * badgeNames().size(), BadgeStride, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+    for (int i = 0; i < badgeNames().size(); ++i) {
+        const bool danger = i == 0 || i == 3;
+        const QColor foreground = danger ? warningText : accentText;
+        const QRectF circle(i * BadgeStride + 4, 4, BadgeSize, BadgeSize);
+        QColor border = foreground;
+        border.setAlphaF(0.32);
+        const qreal borderWidth = BadgeSize / 16.0;
+        painter.setPen(QPen(border, borderWidth));
+        painter.setBrush(danger ? warning : accent);
+        painter.drawEllipse(circle.adjusted(borderWidth / 2, borderWidth / 2, -borderWidth / 2, -borderWidth / 2));
+        const QString glyph = i == 0 ? QStringLiteral("link-broken")
+            : i == 2 ? QStringLiteral("mount") : i == 3 ? QStringLiteral("lock") : badgeNames()[i];
+        QImage mask(BadgeSize, BadgeSize, QImage::Format_ARGB32_Premultiplied);
+        mask.fill(Qt::transparent);
+        QPainter glyphPainter(&mask);
+        QSvgRenderer svg(QStringLiteral(":/qt/qml/FM/qml/assets/icons/badge-%1.svg").arg(glyph));
+        const qreal glyphSize = BadgeSize * 0.64;
+        const qreal inset = (BadgeSize - glyphSize) / 2;
+        svg.render(&glyphPainter, QRectF(inset, inset, glyphSize, glyphSize));
+        glyphPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        glyphPainter.fillRect(mask.rect(), foreground);
+        glyphPainter.end();
+        painter.drawImage(circle.topLeft(), mask);
+    }
+    return image;
+}
 
 const QStringList &iconNames()
 {
@@ -130,6 +175,10 @@ struct MapScene : QSGNode {
     struct Preview { QSGSimpleTextureNode *node = nullptr; qint64 key = 0; };
     QHash<QString, Preview> previews;
     QList<QSGGeometry::TexturedPoint2D> iconVertices;
+    QSGGeometryNode *badges = nullptr;
+    std::unique_ptr<QSGTexture> badgeAtlas;
+    qint64 badgeAtlasKey = 0;
+    QList<QSGGeometry::TexturedPoint2D> badgeVertices;
 };
 
 void appendQuad(QList<QSGGeometry::ColoredPoint2D> &vertices, const QRectF &rect, const QColor &color)
@@ -183,6 +232,9 @@ FolderMapItem::FolderMapItem(QQuickItem *parent) : QQuickItem(parent)
     m_watchTimer.setInterval(75);
     connect(&m_watchTimer, &QTimer::timeout, this, &FolderMapItem::reloadChangedFolders);
     connect(this, &FolderMapItem::paletteChanged, this, &FolderMapItem::update);
+    for (auto signal : {&FolderMapItem::badgeColorChanged, &FolderMapItem::warningBadgeColorChanged,
+                        &FolderMapItem::badgeTextColorChanged, &FolderMapItem::warningBadgeTextColorChanged})
+        connect(this, signal, this, [this] { m_badgeAtlasDirty = true; polish(); });
     connect(this, &QQuickItem::visibleChanged, this, [this] {
         if (isVisible()) { queueModelSync(); polish(); }
         else { clearThumbnails(); m_watchers.clear(); }
@@ -258,21 +310,27 @@ void FolderMapItem::syncModel()
     };
     Listing listing;
     FileTypeIconResolver resolver;
-    const int count = std::min(m_directoryModel->rowCount(), MaximumEntries);
+    QList<FileEntry> snapshot;
+    const bool hasSnapshot = m_directoryModel->metaObject()->indexOfMethod("mapEntries(int)") >= 0
+        && QMetaObject::invokeMethod(m_directoryModel, "mapEntries", Qt::DirectConnection,
+                                     Q_RETURN_ARG(QList<FileEntry>, snapshot), Q_ARG(int, MaximumEntries + 1));
+    const int total = hasSnapshot ? snapshot.size() : m_directoryModel->rowCount();
+    const int count = std::min(total, MaximumEntries);
     for (int row = 0; row < count; ++row) {
         Entry entry;
-        entry.path = value(row, "path").toString();
+        entry.path = hasSnapshot ? snapshot[row].path : value(row, "path").toString();
         if (entry.path.isEmpty()) continue;
-        entry.name = value(row, "name").toString();
-        entry.directory = value(row, "isDirectory").toBool();
-        entry.symlink = value(row, "isSymLink").toBool();
-        QString suffix = value(row, "suffix").toString();
+        entry.name = hasSnapshot ? snapshot[row].name : value(row, "name").toString();
+        entry.directory = hasSnapshot ? snapshot[row].isDirectory : value(row, "isDirectory").toBool();
+        entry.symlink = hasSnapshot ? snapshot[row].isSymLink : value(row, "isSymLink").toBool();
+        entry.badge = badgeNames().indexOf(hasSnapshot ? snapshot[row].primaryBadgeKind : value(row, "primaryBadgeKind").toString());
+        QString suffix = hasSnapshot ? snapshot[row].suffix : value(row, "suffix").toString();
         if (entry.path.endsWith(QStringLiteral(".fb2.zip"), Qt::CaseInsensitive)) suffix = QStringLiteral("fb2.zip");
         const QString source = resolver.iconForSuffix(suffix, entry.directory);
         entry.icon = iconNames().indexOf(QFileInfo(source).baseName());
         listing.entries.append(entry);
     }
-    if (m_directoryModel->rowCount() > count) listing.message = QStringLiteral("Listing limited to 4096 entries; zoom or use another view");
+    if (total > count) listing.message = QStringLiteral("Listing limited to 4096 entries; zoom or use another view");
     const int index = m_byPath.value(m_currentPath);
     m_nodes[index].listingRevision = ++m_listingSequence;
     applyListing(index, listing);
@@ -309,7 +367,7 @@ void FolderMapItem::remapEntry(const QString &oldPath, const QString &newPath)
         const int index = pending.takeLast();
         auto &node = m_nodes[index];
         const QString path = node.entry.path;
-        pending.append(node.children);
+        pending.append(node.allChildren);
         m_byPath.remove(path);
         invalidateThumbnail(path);
         m_watchers.remove(path);
@@ -328,7 +386,7 @@ void FolderMapItem::remapEntry(const QString &oldPath, const QString &newPath)
 
 void FolderMapItem::removeBranch(int index)
 {
-    const QList<int> children = m_nodes[index].children;
+    const QList<int> children = m_nodes[index].allChildren;
     for (int child : children) removeBranch(child);
     const QString path = m_nodes[index].entry.path;
     invalidateThumbnail(path);
@@ -342,7 +400,7 @@ void FolderMapItem::removeBranch(int index)
 void FolderMapItem::applyListing(int index, const Listing &listing)
 {
     QHash<QString, int> previous;
-    for (int child : m_nodes[index].children) previous.insert(m_nodes[child].entry.path, child);
+    for (int child : m_nodes[index].allChildren) previous.insert(m_nodes[child].entry.path, child);
     QSet<QString> listed;
     for (const Entry &entry : listing.entries) listed.insert(entry.path);
     for (auto it = previous.begin(); it != previous.end();) {
@@ -371,7 +429,8 @@ void FolderMapItem::applyListing(int index, const Listing &listing)
         children.append(child);
     }
     for (int child : previous) removeBranch(child);
-    m_nodes[index].children = children;
+    m_nodes[index].allChildren = children;
+    filterChildren(index);
     m_nodes[index].loaded = true;
     m_nodes[index].requested = true;
     m_nodes[index].message = children.size() < listing.entries.size()
@@ -379,6 +438,41 @@ void FolderMapItem::applyListing(int index, const Listing &listing)
     layoutChildren(index);
     constrainCamera(m_center, m_scale);
     constrainCamera(m_targetCenter, m_targetScale);
+}
+
+bool FolderMapItem::matchesCategory(const Entry &entry) const
+{
+    if (entry.directory || m_categoryFilter == DirectoryModel::FilterAll) return true;
+    FileEntry file;
+    file.name = entry.name;
+    file.suffix = QFileInfo(entry.name).suffix();
+    return DirectoryModelAlgorithms::matchesFilter(file, {},
+        static_cast<DirectoryModel::CategoryFilter>(m_categoryFilter));
+}
+
+void FolderMapItem::filterChildren(int index)
+{
+    auto &node = m_nodes[index];
+    node.children.clear();
+    for (int child : node.allChildren) {
+        m_nodes[child].filteredOut = !matchesCategory(m_nodes[child].entry);
+        if (!m_nodes[child].filteredOut) node.children.append(child);
+    }
+}
+
+void FolderMapItem::setCategoryFilter(int value)
+{
+    if (m_categoryFilter == value) return;
+    m_categoryFilter = value;
+    for (int index = 0; index < m_nodes.size(); ++index)
+        if (m_nodes[index].loaded) filterChildren(index);
+    if (!m_nodes.isEmpty()) layoutChildren(m_byPath.value(m_currentPath, 0));
+    m_visible.clear();
+    emit categoryFilterChanged();
+    emit treeChanged();
+    emit entriesChanged();
+    polish();
+    update();
 }
 
 void FolderMapItem::layoutChildren(int index)
@@ -626,6 +720,15 @@ void FolderMapItem::scheduleThumbnails()
     }
 }
 
+void FolderMapItem::setPinnedPaths(const QStringList &paths)
+{
+    if (m_pinnedPaths == paths) return;
+    m_pinnedPaths = paths;
+    m_pinned = QSet<QString>(paths.cbegin(), paths.cend());
+    emit pinnedPathsChanged();
+    update();
+}
+
 void FolderMapItem::setSelectedPaths(const QStringList &paths)
 {
     if (m_selectedPaths == paths) return;
@@ -650,6 +753,24 @@ void FolderMapItem::refresh()
         m_dirtyFolders.insert(m_currentPath);
         reloadChangedFolders();
     }
+}
+
+void FolderMapItem::refreshFolder(const QString &path)
+{
+    if (path == m_currentPath && m_directoryModel) { queueModelSync(); return; }
+    const auto found = m_byPath.constFind(path);
+    if (found == m_byPath.cend() || !m_nodes[*found].entry.directory) return;
+    m_dirtyFolders.insert(path);
+    m_watchTimer.start();
+}
+
+QStringList FolderMapItem::childPaths(const QString &path) const
+{
+    const auto found = m_byPath.constFind(path);
+    if (found == m_byPath.cend()) return {};
+    QStringList paths;
+    for (int child : m_nodes[*found].children) paths.append(m_nodes[child].entry.path);
+    return paths;
 }
 
 void FolderMapItem::resetTree()
@@ -684,6 +805,10 @@ void FolderMapItem::resetTree()
         root.entry = {m_currentPath, ArchiveSupport::isArchivePath(m_currentPath)
             ? ArchiveSupport::archiveFileName(m_currentPath) : QFileInfo(m_currentPath).fileName(), true, false};
         if (root.entry.name.isEmpty()) root.entry.name = m_currentPath;
+        if (!ArchiveSupport::isArchivePath(m_currentPath)) {
+            const QFileInfo info(m_currentPath);
+            root.entry.badge = badgeNames().indexOf(LocalFileBadgeResolver::resolve(info, info.isSymLink()).primaryBadgeKind);
+        }
         root.rect = QRectF(0, 0, 1024, 768);
         m_nodes.append(root);
         m_byPath.insert(m_currentPath, 0);
@@ -718,7 +843,7 @@ FolderMapItem::Listing FolderMapItem::readDirectory(const QString &path, bool hi
             }
             const QString source = resolver.iconForSuffix(entry.suffix, entry.isDirectory);
             result.entries.append({entry.path, entry.name, entry.isDirectory, entry.isSymLink,
-                int(iconNames().indexOf(QFileInfo(source).baseName()))});
+                int(iconNames().indexOf(QFileInfo(source).baseName())), int(badgeNames().indexOf(entry.primaryBadgeKind))});
         }
         std::sort(result.entries.begin(), result.entries.end(), [](const Entry &a, const Entry &b) {
             if (a.directory != b.directory) return a.directory;
@@ -746,7 +871,9 @@ FolderMapItem::Listing FolderMapItem::readDirectory(const QString &path, bool hi
             ? QStringLiteral("fb2") : info.suffix();
         const QString source = resolver.iconForSuffix(suffix, info.isDir());
         const int icon = int(iconNames().indexOf(QFileInfo(source).baseName()));
-        result.entries.append({info.absoluteFilePath(), info.fileName(), info.isDir(), info.isSymLink(), icon});
+        const auto badge = LocalFileBadgeResolver::resolve(info, info.isSymLink());
+        result.entries.append({info.absoluteFilePath(), info.fileName(), info.isDir(), info.isSymLink(), icon,
+            int(badgeNames().indexOf(badge.primaryBadgeKind))});
     }
     std::sort(result.entries.begin(), result.entries.end(), [](const Entry &a, const Entry &b) {
         if (a.directory != b.directory) return a.directory;
@@ -795,7 +922,7 @@ QRectF FolderMapItem::screenRect(const QString &path) const
     const QString prefix = m_currentPath.endsWith(QLatin1Char('/')) ? m_currentPath : m_currentPath + QLatin1Char('/');
     if (path != m_currentPath && !path.startsWith(prefix)) return {};
     const auto found = m_byPath.constFind(path);
-    if (found == m_byPath.constEnd()) return {};
+    if (found == m_byPath.constEnd() || m_nodes[*found].filteredOut) return {};
     const QRectF rect = m_nodes[*found].rect;
     return QRectF((rect.topLeft() - m_center) * m_scale + QPointF(width() / 2, height() / 2),
                   rect.size() * m_scale);
@@ -809,6 +936,11 @@ QVariantMap FolderMapItem::entryAt(qreal x, qreal y) const
         if (entry.path != it->path) continue; // A removed node's slot can be reused before the next polish.
         QVariantMap result = entryForPath(entry.path);
         result.insert(QStringLiteral("iconName"), entry.icon >= 0 ? iconNames()[entry.icon] : QString{});
+        const auto &node = m_nodes[it->index];
+        const bool expanded = entry.directory && node.loaded
+            && it->rect.width() >= 50 && it->rect.height() * HeaderFraction >= 18;
+        result.insert(QStringLiteral("selectable"), !expanded
+            || y <= it->rect.top() + it->rect.height() * HeaderFraction);
         return result;
     }
     return {};
@@ -817,10 +949,12 @@ QVariantMap FolderMapItem::entryAt(qreal x, qreal y) const
 QVariantMap FolderMapItem::entryForPath(const QString &path) const
 {
     const auto found = m_byPath.constFind(path);
-    if (found == m_byPath.constEnd()) return {};
+    if (found == m_byPath.constEnd() || m_nodes[*found].filteredOut) return {};
     const auto &entry = m_nodes[*found].entry;
     const QString suffix = QFileInfo(entry.name).suffix();
     return {{QStringLiteral("path"), entry.path}, {QStringLiteral("directory"), entry.directory},
+            {QStringLiteral("primaryBadgeKind"), entry.badge >= 0 ? badgeNames().value(entry.badge) : QString()},
+            {QStringLiteral("isPinned"), m_pinned.contains(entry.path)},
             {QStringLiteral("isArchiveFile"), !entry.directory && ArchiveSupport::isArchiveExtension(suffix)},
             {QStringLiteral("isIsoImageFile"), !entry.directory && IsoSupport::isIsoImageExtension(suffix)}};
 }
@@ -828,7 +962,7 @@ QVariantMap FolderMapItem::entryForPath(const QString &path) const
 QVariantMap FolderMapItem::selectionContext(const QString &path) const
 {
     const auto found = m_byPath.constFind(path.isEmpty() ? m_currentPath : path);
-    if (found == m_byPath.constEnd()) return {};
+    if (found == m_byPath.constEnd() || m_nodes[*found].filteredOut) return {};
     const int parent = path.isEmpty() || path == m_currentPath ? *found : m_nodes[*found].parent;
     if (parent < 0) return {};
     QStringList paths;
@@ -929,7 +1063,8 @@ void FolderMapItem::collectVisible(int index, const QRectF &viewport, QList<int>
     if (node.entry.directory) {
         if (node.entry.symlink) label += QStringLiteral(" ↗");
         else if (!node.loaded && node.requested) label += QStringLiteral(" · loading…");
-        else if (node.loaded && node.children.isEmpty() && node.message.isEmpty()) label += QStringLiteral(" · empty");
+        else if (node.loaded && node.children.isEmpty() && node.message.isEmpty())
+            label += node.allChildren.isEmpty() ? QStringLiteral(" · empty") : QStringLiteral(" · no matching files");
         if (!node.message.isEmpty()) label += QStringLiteral(" · ") + node.message;
     }
     m_visible.append({index, rect, label, node.entry.path, m_selection.contains(node.entry.path)});
@@ -962,6 +1097,10 @@ void FolderMapItem::collectVisible(int index, const QRectF &viewport, QList<int>
 void FolderMapItem::updatePolish()
 {
     if (!m_gpuEnabled || !isVisible()) return;
+    if (m_badgeAtlasDirty) {
+        m_badgeAtlas = createBadgeAtlas(m_badgeColor, m_warningBadgeColor, m_badgeTextColor, m_warningBadgeTextColor);
+        m_badgeAtlasDirty = false;
+    }
     if (m_moving) {
         const qreal seconds = std::clamp(m_clock.restart() / 1000.0, 0.001, 0.05);
         const qreal amount = 1 - std::exp(-18 * seconds);
@@ -1056,6 +1195,43 @@ QSGNode *FolderMapItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
             iconVertices.append(vertex);
         }
     };
+    if (!m_badgeAtlas.isNull()) {
+        if (!scene->badges) {
+            scene->badges = new QSGGeometryNode;
+            auto *geometry = new QSGGeometry(QSGGeometry::defaultAttributes_TexturedPoint2D(), 0);
+            geometry->setDrawingMode(QSGGeometry::DrawTriangles);
+            geometry->setVertexDataPattern(QSGGeometry::DynamicPattern);
+            scene->badges->setGeometry(geometry);
+            scene->badges->setFlag(QSGNode::OwnsGeometry);
+            auto *material = new QSGTextureMaterial;
+            material->setFiltering(QSGTexture::Linear);
+            material->setMipmapFiltering(QSGTexture::Linear);
+            scene->badges->setMaterial(material);
+            scene->badges->setFlag(QSGNode::OwnsMaterial);
+            scene->appendChildNode(scene->badges);
+        }
+        if (scene->badgeAtlasKey != m_badgeAtlas.cacheKey()) {
+            scene->badgeAtlas.reset(window()->createTextureFromImage(m_badgeAtlas, QQuickWindow::TextureHasMipmaps));
+            static_cast<QSGTextureMaterial *>(scene->badges->material())->setTexture(scene->badgeAtlas.get());
+            scene->badgeAtlasKey = m_badgeAtlas.cacheKey();
+            scene->badges->markDirty(QSGNode::DirtyMaterial);
+        }
+    }
+    auto &badgeVertices = scene->badgeVertices;
+    badgeVertices.clear();
+    const auto appendBadge = [&](int badge, const QRectF &rect) {
+        const QRectF uv(qreal(badge * BadgeStride + 4) / m_badgeAtlas.width(), qreal(4) / m_badgeAtlas.height(),
+                        qreal(BadgeSize) / m_badgeAtlas.width(), qreal(BadgeSize) / m_badgeAtlas.height());
+        const QPointF points[]{rect.topLeft(), rect.topRight(), rect.bottomLeft(),
+                               rect.bottomLeft(), rect.topRight(), rect.bottomRight()};
+        const QPointF coords[]{uv.topLeft(), uv.topRight(), uv.bottomLeft(),
+                               uv.bottomLeft(), uv.topRight(), uv.bottomRight()};
+        for (int i = 0; i < 6; ++i) {
+            QSGGeometry::TexturedPoint2D vertex;
+            vertex.set(float(points[i].x()), float(points[i].y()), float(coords[i].x()), float(coords[i].y()));
+            badgeVertices.append(vertex);
+        }
+    };
     QSet<int> retained;
     QSet<int> retainedEmpty;
     QSet<QString> retainedPreviews;
@@ -1091,8 +1267,22 @@ QSGNode *FolderMapItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
             && visible.rect.width() >= 32 && visible.rect.height() >= 24;
         const qreal iconSize = node.entry.directory
             ? std::clamp(headerHeight - 4, qreal(12), qreal(24))
-            : std::clamp(std::min(visible.rect.width() - 12, visible.rect.height() - 24) * 0.8, qreal(12), qreal(64));
+            : std::max(qreal(12), std::min(visible.rect.width() - 12, visible.rect.height() - 24));
         const qreal textLeft = node.entry.directory && showIcon ? iconSize + 13 : 7;
+        const bool showBadges = showIcon && !m_badgeAtlas.isNull();
+        const bool pinned = showBadges && m_pinned.contains(node.entry.path);
+        const int badgeCount = showBadges ? int(node.entry.badge >= 0) + int(pinned) : 0;
+        qreal headerBadgeSize = 12;
+        if (node.entry.directory && badgeCount > 0) {
+            const qreal limit = std::max(qreal(12), std::min(qreal(64),
+                (visible.rect.width() - textLeft - 14) / badgeCount));
+            headerBadgeSize = std::clamp(headerHeight * 0.5, qreal(12), limit);
+        }
+        const qreal badgeRoom = node.entry.directory ? badgeCount * (headerBadgeSize + 2) : 0;
+        QRectF badgeAnchor(node.entry.directory ? visible.rect.x() + 6 : visible.rect.center().x() - iconSize / 2,
+                          node.entry.directory ? visible.rect.y() + 3
+                            : visible.rect.y() + std::max(qreal(3), (visible.rect.height() - 20 - iconSize) / 2),
+                          iconSize, iconSize);
         bool showPreview = false;
         const auto thumbnail = m_thumbnails.constFind(node.entry.path);
         if (m_showThumbnails && thumbnail != m_thumbnails.constEnd() && !(*thumbnail)->image.isNull()) {
@@ -1121,17 +1311,34 @@ QSGNode *FolderMapItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
                 const QRectF previewRect(QPointF(visible.rect.center().x() - size.width() / 2,
                     visible.rect.top() + 4 + (room.height() - size.height()) / 2), size);
                 preview.node->setRect(previewRect);
+                badgeAnchor = previewRect;
                 if (node.entry.icon == 10) appendQuad(vertices, previewRect.intersected(boundingRect()), Qt::white);
                 showPreview = true;
             }
             retainedPreviews.insert(node.entry.path);
         }
         if (showIcon && !showPreview && m_iconsEnabled && scene->icons) {
-            const QRectF rect(node.entry.directory ? visible.rect.x() + 6 : visible.rect.center().x() - iconSize / 2,
-                              node.entry.directory ? visible.rect.y() + 3
-                                : visible.rect.y() + std::max(qreal(3), (visible.rect.height() - 20 - iconSize) / 2),
-                              iconSize, iconSize);
-            appendIcon(node.entry.icon, rect);
+            appendIcon(node.entry.icon, badgeAnchor);
+        }
+        if (showBadges) {
+            if (node.entry.directory && visible.rect.width() >= 65) {
+                // Keep both status glyphs legible in a short folder header.
+                qreal right = visible.rect.right() - 6;
+                const qreal top = visible.rect.top() + (headerHeight - headerBadgeSize) / 2;
+                if (pinned) {
+                    appendBadge(5, QRectF(right - headerBadgeSize, top, headerBadgeSize, headerBadgeSize));
+                    right -= headerBadgeSize + 2;
+                }
+                if (node.entry.badge >= 0)
+                    appendBadge(node.entry.badge, QRectF(right - headerBadgeSize, top, headerBadgeSize, headerBadgeSize));
+            } else {
+                if (std::min(badgeAnchor.width(), badgeAnchor.height()) < 24)
+                    badgeAnchor = visible.rect.adjusted(3, 3, -3, visible.rect.height() >= 50 ? -23 : -3);
+                const qreal size = std::clamp(std::min(badgeAnchor.width(), badgeAnchor.height()) * 0.42, qreal(10), qreal(18));
+                if (node.entry.badge >= 0)
+                    appendBadge(node.entry.badge, QRectF(badgeAnchor.right() - size, badgeAnchor.bottom() - size, size, size));
+                if (pinned) appendBadge(5, QRectF(badgeAnchor.right() - size, badgeAnchor.top(), size, size));
+            }
         }
         if (node.entry.directory && node.loaded && node.children.isEmpty() && node.message.isEmpty()
             && visible.rect.width() >= 210 && visible.rect.height() >= 170) {
@@ -1177,7 +1384,7 @@ QSGNode *FolderMapItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
             label.node->setRenderType(QSGTextNode::QtRendering);
             scene->appendChildNode(label.node);
         }
-        const int room = std::max(0, int((visible.rect.width() - textLeft - 7) / textScale / 8) * 8);
+        const int room = std::max(0, int((visible.rect.width() - textLeft - badgeRoom - 7) / textScale / 8) * 8);
         if (label.source != visible.label) {
             label.source = visible.label;
             label.naturalWidth = metrics.horizontalAdvance(visible.label);
@@ -1247,6 +1454,13 @@ QSGNode *FolderMapItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         std::copy(iconVertices.cbegin(), iconVertices.cend(), geometry->vertexDataAsTexturedPoint2D());
         geometry->markVertexDataDirty();
         scene->icons->markDirty(QSGNode::DirtyGeometry);
+    }
+    if (scene->badges) {
+        auto *geometry = scene->badges->geometry();
+        geometry->allocate(int(badgeVertices.size()));
+        std::copy(badgeVertices.cbegin(), badgeVertices.cend(), geometry->vertexDataAsTexturedPoint2D());
+        geometry->markVertexDataDirty();
+        scene->badges->markDirty(QSGNode::DirtyGeometry);
     }
     return scene;
 }
