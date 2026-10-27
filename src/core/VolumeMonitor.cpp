@@ -715,7 +715,7 @@ void VolumeMonitor::refreshNow()
 #ifdef Q_OS_LINUX
     QList<VolumeInfo> nextUnmounted;
     if (m_linuxDeviceMonitor) {
-        for (const LinuxDeviceInfo &device : m_linuxDeviceMonitor->unmountedDevices()) {
+        for (const LinuxDeviceInfo &device : m_linuxDeviceMonitor->devicesForDisplay()) {
             if (!device.rootPath.isEmpty()) continue;
             VolumeInfo info;
             info.displayName = !device.label.isEmpty() ? device.label : device.model;
@@ -728,6 +728,7 @@ void VolumeMonitor::refreshNow()
             info.stableDeviceId = device.stableId;
             info.blockDevice = device.blockDevice;
             info.driveObjectPath = device.driveObjectPath;
+            info.inStandby = device.inStandby;
             nextUnmounted.append(info);
         }
     }
@@ -1003,6 +1004,7 @@ bool VolumeMonitor::volumeInfoChanged(const VolumeInfo &lhs, const VolumeInfo &r
         || lhs.isEjectable != rhs.isEjectable
         || lhs.canUnmount != rhs.canUnmount
         || lhs.canSafelyRemove != rhs.canSafelyRemove
+        || lhs.inStandby != rhs.inStandby
         || lhs.stableDeviceId != rhs.stableDeviceId
         || lhs.blockDevice != rhs.blockDevice
         || lhs.driveObjectPath != rhs.driveObjectPath;

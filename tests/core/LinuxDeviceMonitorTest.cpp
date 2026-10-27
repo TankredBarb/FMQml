@@ -76,5 +76,38 @@ int main(int argc, char **argv)
         return fail(QStringLiteral("mapped UDisks device metadata is incorrect"));
     }
 
+    QList<LinuxDeviceInfo> partitions;
+    for (int i = 2; i <= 4; ++i) {
+        LinuxDeviceInfo partition;
+        partition.driveObjectPath = drivePath;
+        partition.stableId = QStringLiteral("partition%1").arg(i);
+        partition.blockDevice = QStringLiteral("/dev/sdc%1").arg(i);
+        partition.model = QStringLiteral("TOSHIBA HDWD110");
+        partition.label = QStringLiteral("Volume %1").arg(i);
+        partition.fileSystem = QStringLiteral("ntfs");
+        partitions.append(partition);
+    }
+    const auto sleeping = LinuxDeviceMonitor::groupStandbyDevices(partitions, {drivePath});
+    if (sleeping.size() != 1 || !sleeping.first().inStandby
+        || sleeping.first().stableId != drivePath || !sleeping.first().blockDevice.isEmpty()
+        || !sleeping.first().label.isEmpty() || !sleeping.first().fileSystem.isEmpty()
+        || sleeping.first().model != QLatin1String("TOSHIBA HDWD110")) {
+        return fail(QStringLiteral("standby partitions must collapse into one physical drive"));
+    }
+    if (LinuxDeviceMonitor::groupStandbyDevices(partitions, {}).size() != 3) {
+        return fail(QStringLiteral("unknown or awake drives must retain all partitions"));
+    }
+    LinuxDeviceInfo otherDrive = partitions.first();
+    otherDrive.driveObjectPath += QStringLiteral("_other");
+    partitions.append(otherDrive);
+    if (LinuxDeviceMonitor::groupStandbyDevices(partitions, {drivePath, otherDrive.driveObjectPath}).size() != 2) {
+        return fail(QStringLiteral("different physical drives must remain separate"));
+    }
+    partitions[0].rootPath = QStringLiteral("/mnt/test");
+    const auto mounted = LinuxDeviceMonitor::groupStandbyDevices(partitions, {drivePath});
+    if (mounted.size() != 4 || mounted.first().inStandby) {
+        return fail(QStringLiteral("a drive with a mounted partition must not collapse"));
+    }
+
     return 0;
 }

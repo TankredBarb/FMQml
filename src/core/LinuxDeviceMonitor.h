@@ -5,6 +5,8 @@
 #include <QList>
 #include <QString>
 #include <QVariantMap>
+#include <QElapsedTimer>
+#include <QSet>
 
 struct LinuxDeviceInfo {
     QString rootPath;
@@ -18,6 +20,8 @@ struct LinuxDeviceInfo {
     bool optical = false;
     bool ejectable = false;
     bool canPowerOff = false;
+    bool supportsPowerManagement = false;
+    bool inStandby = false;
 };
 
 class LinuxDeviceMonitor final : public QObject {
@@ -29,6 +33,9 @@ public:
     bool available() const;
     QList<LinuxDeviceInfo> mountedDevices() const;
     QList<LinuxDeviceInfo> unmountedDevices() const;
+    QList<LinuxDeviceInfo> devicesForDisplay();
+    static QList<LinuxDeviceInfo> groupStandbyDevices(const QList<LinuxDeviceInfo> &devices,
+                                                     const QSet<QString> &standbyDrives);
     static QList<LinuxDeviceInfo> devicesFromManagedObjects(const QVariantMap &objects);
     bool unmountOrEject(const QString &rootPath, QString *error) const;
     bool mount(const QString &stableId, QString *rootPath, QString *error) const;
@@ -45,4 +52,7 @@ private slots:
 private:
     mutable bool m_snapshotValid = false;
     mutable QList<LinuxDeviceInfo> m_cachedDevices;
+    QElapsedTimer m_powerStateTimer;
+    QSet<QString> m_standbyDrives;
+    QSet<QString> m_pendingPowerQueries;
 };

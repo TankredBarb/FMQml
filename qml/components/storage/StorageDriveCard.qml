@@ -24,6 +24,7 @@ readonly property bool canMount: cardWrapper.storageRoot.modelValue(sourceIndex,
 readonly property string mountId: cardWrapper.storageRoot.modelValue(sourceIndex, cardWrapper.storageRoot.mountIdRole, "")
 readonly property bool actionPending: cardWrapper.storageRoot.modelValue(sourceIndex, cardWrapper.storageRoot.actionPendingRole, false)
 readonly property string deviceDescription: cardWrapper.storageRoot.modelValue(sourceIndex, cardWrapper.storageRoot.deviceDescriptionRole, "")
+readonly property string subtitle: cardWrapper.storageRoot.modelValue(sourceIndex, cardWrapper.storageRoot.subtitleRole, "")
 readonly property real usagePercent: cardWrapper.storageRoot.modelValue(sourceIndex, cardWrapper.storageRoot.usagePercentRole, 0)
 readonly property real freeSpace: cardWrapper.storageRoot.modelValue(sourceIndex, cardWrapper.storageRoot.freeSpaceRole, 0)
 readonly property real totalSpace: cardWrapper.storageRoot.modelValue(sourceIndex, cardWrapper.storageRoot.totalSpaceRole, 0)
@@ -161,7 +162,7 @@ RowLayout {
                 text: cardWrapper.isReady
                     ? (cardWrapper.storageRoot.formatBytes(cardWrapper.freeSpace) + " free of " + cardWrapper.storageRoot.formatBytes(cardWrapper.totalSpace)
                        + (cardWrapper.drivePath.length > 0 ? " • " + cardWrapper.storageRoot.displayPath(cardWrapper.drivePath) : ""))
-                    : (cardWrapper.canMount ? "Not mounted" : "Not ready")
+                    : (cardWrapper.subtitle.length > 0 ? cardWrapper.subtitle : "Not ready")
                 font.pixelSize: Theme.fontSizeCaption
                 color: cardWrapper.isCritical ? Theme.danger : TextColors.thisPcText
                 opacity: 0.88

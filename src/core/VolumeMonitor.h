@@ -28,6 +28,7 @@ struct VolumeInfo {
     bool isEjectable = false;
     bool canUnmount = false;
     bool canSafelyRemove = false;
+    bool inStandby = false;
     QString stableDeviceId;
     QString blockDevice;
     QString driveObjectPath;

@@ -558,10 +558,10 @@ void PlacesModel::refresh()
             item.name = volume.displayName.isEmpty() ? volume.blockDevice : volume.displayName;
             item.icon = QStringLiteral("drive");
             item.section = QStringLiteral("drive");
-            item.subtitle = QStringLiteral("Not mounted");
+            item.subtitle = volume.inStandby ? QStringLiteral("Standby") : QStringLiteral("Not mounted");
             item.deviceDescription = volume.deviceDescription;
             item.isDrive = true;
-            item.canMount = true;
+            item.canMount = !volume.inStandby;
             item.mountId = volume.stableDeviceId;
             item.actionPending = m_volumeMonitor->isDeviceActionPending(volume.stableDeviceId);
             item.driveType = volume.driveType;
@@ -664,7 +664,7 @@ void PlacesModel::refreshDriveInfo()
     // Update only storage data for drive items, no full model reset.
     for (int i = 0; i < m_items.size(); ++i) {
         PlaceItem &item = m_items[i];
-        if (!item.isDrive) continue;
+        if (!item.isDrive || item.path.isEmpty()) continue;
 
         QStorageInfo storage(item.path);
         storage.refresh();

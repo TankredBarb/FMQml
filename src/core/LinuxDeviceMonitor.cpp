@@ -7,6 +7,8 @@
 #include <QDBusMessage>
 #include <QDBusObjectPath>
 #include <QDBusVariant>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QDir>
 #include <QStorageInfo>
 #include <QSet>
@@ -208,6 +210,8 @@ QList<LinuxDeviceInfo> LinuxDeviceMonitor::unmountedDevices() const
             {QStringLiteral("IdLabel"), objectProperty(it.key(), QString::fromLatin1(kBlock), QStringLiteral("IdLabel"))},
             {QStringLiteral("IdType"), objectProperty(it.key(), QString::fromLatin1(kBlock), QStringLiteral("IdType"))},
         };
+        const bool supportsPowerManagement = objectProperty(drivePath,
+            QStringLiteral("org.freedesktop.UDisks2.Drive.Ata"), QStringLiteral("PmSupported")).toBool();
         const MountPointList deviceRoots = roots == mountPointsByBlockDevice.cend()
             ? MountPointList{QByteArray{}}
             : roots.value();
@@ -229,6 +233,7 @@ QList<LinuxDeviceInfo> LinuxDeviceMonitor::unmountedDevices() const
             info.optical = driveProperties.value(QStringLiteral("Optical")).toBool();
             info.ejectable = driveProperties.value(QStringLiteral("Ejectable")).toBool();
             info.canPowerOff = driveProperties.value(QStringLiteral("CanPowerOff")).toBool();
+            info.supportsPowerManagement = supportsPowerManagement;
             devices.append(info);
         }
     }
@@ -247,6 +252,67 @@ QList<LinuxDeviceInfo> LinuxDeviceMonitor::unmountedDevices() const
     m_cachedDevices = devices;
     m_snapshotValid = true;
     return m_cachedDevices;
+}
+
+QList<LinuxDeviceInfo> LinuxDeviceMonitor::groupStandbyDevices(
+    const QList<LinuxDeviceInfo> &devices, const QSet<QString> &standbyDrives)
+{
+    QSet<QString> mountedDrives;
+    for (const auto &device : devices) {
+        if (!device.rootPath.isEmpty()) mountedDrives.insert(device.driveObjectPath);
+    }
+    QSet<QString> seenDrives;
+    QList<LinuxDeviceInfo> result;
+    for (auto device : devices) {
+        const QString drive = device.driveObjectPath;
+        if (!drive.isEmpty() && standbyDrives.contains(drive) && !mountedDrives.contains(drive)) {
+            if (seenDrives.contains(drive)) continue;
+            seenDrives.insert(drive);
+            device.inStandby = true;
+            device.label.clear();
+            device.fileSystem.clear();
+            device.blockDevice.clear();
+            device.stableId = drive;
+        }
+        result.append(device);
+    }
+    return result;
+}
+
+QList<LinuxDeviceInfo> LinuxDeviceMonitor::devicesForDisplay()
+{
+    const auto devices = unmountedDevices();
+    if (!m_powerStateTimer.isValid() || m_powerStateTimer.elapsed() >= 5000) {
+        m_powerStateTimer.start();
+        QSet<QString> mountedDrives;
+        for (const auto &device : devices) {
+            if (!device.rootPath.isEmpty()) mountedDrives.insert(device.driveObjectPath);
+        }
+        QSet<QString> queriedDrives;
+        for (const auto &device : devices) {
+            const QString drive = device.driveObjectPath;
+            if (!device.supportsPowerManagement || drive.isEmpty()
+                || mountedDrives.contains(drive) || queriedDrives.contains(drive)
+                || m_pendingPowerQueries.contains(drive)) continue;
+            queriedDrives.insert(drive);
+            m_pendingPowerQueries.insert(drive);
+            QDBusMessage message = QDBusMessage::createMethodCall(QString::fromLatin1(kService), drive,
+                QStringLiteral("org.freedesktop.UDisks2.Drive.Ata"), QStringLiteral("PmGetState"));
+            message << QVariantMap{{QStringLiteral("auth.no_user_interaction"), true}};
+            auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::systemBus().asyncCall(message), this);
+            connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, drive, watcher]() {
+                const QDBusPendingReply<uchar> reply = *watcher;
+                const bool wasStandby = m_standbyDrives.contains(drive);
+                const bool standby = !reply.isError() && reply.value() == 0;
+                if (standby) m_standbyDrives.insert(drive);
+                else m_standbyDrives.remove(drive);
+                m_pendingPowerQueries.remove(drive);
+                watcher->deleteLater();
+                if (standby != wasStandby) emit topologyChanged();
+            });
+        }
+    }
+    return groupStandbyDevices(devices, m_standbyDrives);
 }
 
 QList<LinuxDeviceInfo> LinuxDeviceMonitor::devicesFromManagedObjects(const QVariantMap &objects)
