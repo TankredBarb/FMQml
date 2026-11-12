@@ -8,6 +8,7 @@ import "../dialogs"
 ColumnLayout {
     id: pageRoot
 
+    property var menuBackdropSource: null
     property bool stateMatrix: true
     property bool labVisible: false
     width: parent ? parent.width : 700
@@ -41,6 +42,7 @@ ColumnLayout {
             Label { text: "No action changes application state"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
         }
         FmMenu {
+            backdropSource: pageRoot.menuBackdropSource
             id: actionMenu
             parent: Overlay.overlay
             z: 10002
@@ -52,6 +54,7 @@ ColumnLayout {
             FmMenuItem { text: "Delete"; destructive: true; icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/delete.svg" }
         }
         FmMenu {
+            backdropSource: pageRoot.menuBackdropSource
             id: longMenu
             parent: Overlay.overlay
             z: 10002
@@ -99,6 +102,7 @@ ColumnLayout {
         }
 
         FmMenu {
+            backdropSource: pageRoot.menuBackdropSource
             id: proposedMainMenu
             parent: Overlay.overlay
             z: 10002
@@ -119,6 +123,7 @@ ColumnLayout {
             FmMenuSeparator {}
 
             FmMenu {
+                backdropSource: pageRoot.menuBackdropSource
                 title: "View"
                 z: 10003
                 width: 280
@@ -152,6 +157,7 @@ ColumnLayout {
             }
 
             FmMenu {
+                backdropSource: pageRoot.menuBackdropSource
                 title: "Tools"
                 z: 10003
                 width: 280

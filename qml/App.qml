@@ -19,6 +19,8 @@ ApplicationWindow {
     minimumWidth: 760
     minimumHeight: 480
     visible: false
+    readonly property Item menuBackdropSource: appContent
+
     title: "FM"
     color: Theme.panelSurface
 

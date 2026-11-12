@@ -16,13 +16,10 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     // ── Visual container ─────────────────────────────────────────────────────
-    background: FmMenuVisual {
-        textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
-        surfaceColor: Theme.menuSurface
-        borderColor: Theme.menuBorder
-        accentColor: Theme.accent
-        shadowColor: Theme.shadow
-        dark: themeController.isDark
+    background: FmMenuBackground {
+        id: menuBackground
+        active: root.visible
+        backdropTransformItem: root
     }
 
     enter: Transition {
@@ -329,6 +326,7 @@ Popup {
 
         // Hover background
         FmMenuItemVisual {
+            translucent: menuBackground.transparentSurface
             anchors.fill: parent
             anchors.leftMargin: 4
             anchors.rightMargin: 4
@@ -338,7 +336,11 @@ Popup {
             pressedColor: Theme.menuItemPressed
             accentColor: colRow.iconColor
 
-            Behavior on activation { NumberAnimation { duration: Theme.motionFast } }
+            Behavior on activation {
+                id: activationBehavior
+                enabled: activationBehavior.targetValue > 0
+                NumberAnimation { duration: 40; easing.type: Easing.OutCubic }
+            }
         }
 
         MouseArea {

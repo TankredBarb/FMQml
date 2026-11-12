@@ -15,13 +15,17 @@ void FmMenuItemVisual::paint(QPainter *painter)
     if (width() <= 1.0 || height() <= 1.0)
         return;
 
-    const qreal activation = qBound(0.0, m_activation, 1.0);
+    const qreal activation = m_pressed ? 1.0 : qBound(0.0, m_activation, 1.0);
     const QRectF frame(0.0, 0.0, width(), height());
     painter->save();
     painter->setOpacity(isEnabled() ? 1.0 : 0.38);
 
     if (activation > 0.0) {
         QColor fill = m_pressed ? m_pressedColor : m_hoverColor;
+        if (m_translucent) {
+            fill = m_accentColor;
+            fill.setAlphaF(m_pressed ? 0.18 : 0.08);
+        }
         fill.setAlphaF(fill.alphaF() * activation);
         painter->setPen(Qt::NoPen);
         painter->setBrush(fill);
@@ -46,6 +50,7 @@ void FmMenuItemVisual::paint(QPainter *painter)
     void FmMenuItemVisual::Name(Type value) { if (Member == value) return; Member = value; emit Signal(); update(); }
 
 FM_SETTER(setPressed, bool, m_pressed, stateChanged)
+FM_SETTER(setTranslucent, bool, m_translucent, stateChanged)
 FM_SETTER(setHoverColor, const QColor &, m_hoverColor, colorsChanged)
 FM_SETTER(setPressedColor, const QColor &, m_pressedColor, colorsChanged)
 FM_SETTER(setAccentColor, const QColor &, m_accentColor, colorsChanged)

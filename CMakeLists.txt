@@ -650,6 +650,7 @@ set(MY_QML_FILES
     qml/components/framework/FmToggleRow.qml
     qml/components/framework/FmCheckBox.qml
     qml/components/framework/FmComboBox.qml
+    qml/components/framework/FmMenuBackground.qml
     qml/components/framework/FmMenu.qml
     qml/components/framework/FmMenuItem.qml
     qml/components/framework/FmMenuItemContent.qml
@@ -2327,6 +2328,18 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME framework_wheel_test COMMAND framework_wheel_test)
     set_tests_properties(framework_wheel_test PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+
+    add_executable(fm_menu_surface_test
+        tests/core/FmMenuSurfaceTest.cpp
+        src/ui/framework/FmMenuVisual.cpp
+        src/ui/framework/FmMenuItemVisual.cpp
+    )
+    target_include_directories(fm_menu_surface_test PRIVATE src)
+    target_link_libraries(fm_menu_surface_test PRIVATE Qt6::Quick Qt6::Test)
+    target_compile_definitions(fm_menu_surface_test PRIVATE FM_MENU_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME fm_menu_surface_test COMMAND fm_menu_surface_test)
+    set_tests_properties(fm_menu_surface_test PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 20)
 
     add_executable(file_action_policy_evaluator_test
         tests/core/FileActionPolicyEvaluatorTest.cpp

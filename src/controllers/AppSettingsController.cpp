@@ -281,6 +281,7 @@ AppSettingsController::AppSettingsController(QObject *parent)
     m_quickLookTransparency = settings.value(QStringLiteral("quickLookTransparency"), false).toBool();
     m_quickLookImageBackground = boundedInt(settings.value(QStringLiteral("quickLookImageBackground")), 0, 0, 2);
     m_propertiesDialogTransparency = settings.value(QStringLiteral("propertiesDialogTransparency"), false).toBool();
+    m_menusTransparency = settings.value(QStringLiteral("menusTransparency"), false).toBool();
     m_workspaceDialogsTransparency = settings.value(QStringLiteral("workspaceDialogsTransparency"), false).toBool();
     settings.remove(QStringLiteral("useNativeFileEnumerators"));
     m_previewDetailsRaised = settings.value(QStringLiteral("previewDetailsRaised"), false).toBool();
@@ -614,6 +615,25 @@ void AppSettingsController::setPropertiesDialogTransparency(bool enabled)
     settings.setValue(QStringLiteral("propertiesDialogTransparency"), m_propertiesDialogTransparency);
     settings.endGroup();
     emit propertiesDialogTransparencyChanged();
+}
+
+bool AppSettingsController::menusTransparency() const
+{
+    return m_menusTransparency;
+}
+
+void AppSettingsController::setMenusTransparency(bool enabled)
+{
+    if (m_menusTransparency == enabled) {
+        return;
+    }
+
+    m_menusTransparency = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("menusTransparency"), m_menusTransparency);
+    settings.endGroup();
+    emit menusTransparencyChanged();
 }
 
 bool AppSettingsController::workspaceDialogsTransparency() const
@@ -1229,6 +1249,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("quickLookTransparency")] = m_quickLookTransparency;
     appearance[QStringLiteral("quickLookImageBackground")] = m_quickLookImageBackground;
     appearance[QStringLiteral("propertiesDialogTransparency")] = m_propertiesDialogTransparency;
+    appearance[QStringLiteral("menusTransparency")] = m_menusTransparency;
     appearance[QStringLiteral("workspaceDialogsTransparency")] = m_workspaceDialogsTransparency;
     appearance[QStringLiteral("previewDetailsRaised")] = m_previewDetailsRaised;
     appearance[QStringLiteral("useSystemTrayIcon")] = m_useSystemTrayIcon;
@@ -1272,6 +1293,8 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
                                                  m_quickLookImageBackground).toInt());
     setPropertiesDialogTransparency(appearance.value(QStringLiteral("propertiesDialogTransparency"),
                                                      m_propertiesDialogTransparency).toBool());
+    setMenusTransparency(appearance.value(QStringLiteral("menusTransparency"),
+                                          m_menusTransparency).toBool());
     setWorkspaceDialogsTransparency(appearance.value(QStringLiteral("workspaceDialogsTransparency"),
                                                      m_workspaceDialogsTransparency).toBool());
     setPreviewDetailsRaised(appearance.value(QStringLiteral("previewDetailsRaised"),

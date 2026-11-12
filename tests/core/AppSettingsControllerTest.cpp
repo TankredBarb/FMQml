@@ -72,6 +72,9 @@ int main(int argc, char **argv)
     if (controller.propertiesDialogTransparency()) {
         return fail("properties dialog transparency should be disabled by default");
     }
+    if (controller.menusTransparency()) {
+        return fail("menus transparency should be disabled by default");
+    }
     if (controller.workspaceDialogsTransparency()) {
         return fail("workspace dialogs transparency should be disabled by default");
     }
@@ -121,6 +124,13 @@ int main(int argc, char **argv)
     controller.setFolderPeekTransparency(true);
     controller.setQuickLookTransparency(true);
     controller.setPropertiesDialogTransparency(true);
+    controller.setMenusTransparency(true);
+    {
+        AppSettingsController persistedController;
+        if (!persistedController.menusTransparency()) {
+            return fail("menus transparency was not persisted");
+        }
+    }
     controller.setWorkspaceDialogsTransparency(true);
 
     const QVariantMap defaultWorkspace = controller.workspaceState();
@@ -411,6 +421,9 @@ int main(int argc, char **argv)
     }
     if (!freshController.propertiesDialogTransparency()) {
         return fail("properties dialog transparency not imported correctly");
+    }
+    if (!freshController.menusTransparency()) {
+        return fail("menus transparency not imported correctly");
     }
     if (!freshController.workspaceDialogsTransparency()) {
         return fail("workspace dialogs transparency not imported correctly");

@@ -65,6 +65,8 @@ AbstractButton {
     Accessible.role: Accessible.MenuItem
 
     background: FmMenuItemVisual {
+        translucent: root.ListView.view
+                     ? root.ListView.view.translucentMenuSurface === true : false
         textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
         enabled: root.enabled
         activation: root.paintActivation
@@ -79,6 +81,8 @@ AbstractButton {
     }
 
     Behavior on paintActivation {
-        NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic }
+        id: activationBehavior
+        enabled: activationBehavior.targetValue > 0
+        NumberAnimation { duration: 40; easing.type: Easing.OutCubic }
     }
 }

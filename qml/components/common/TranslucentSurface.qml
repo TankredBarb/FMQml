@@ -8,6 +8,7 @@ Item {
     property bool translucent: true
     property bool active: visible
     property bool backgroundBlurEnabled: false
+    property bool liveBackdrop: false
     property int blurStrength: typeof appSettings !== "undefined" && appSettings
                                ? appSettings.surfaceBlurStrength
                                : 72
@@ -79,7 +80,7 @@ Item {
         }
         textureSize: Qt.size(Math.max(1, Math.round(width)),
                              Math.max(1, Math.round(height)))
-        live: false
+        live: root.liveBackdrop && root.active && root.blurActive
         smooth: true
 
         onSourceItemChanged: root.refreshBackdrop()

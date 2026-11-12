@@ -1060,7 +1060,9 @@ Popup {
                 }
 
                 delegate: ItemDelegate {
-                    width: ListView.view ? ListView.view.width : 0
+                    width: commandScrollBar.scrollNeeded
+                           ? Math.max(0, commandScrollBar.x - 6)
+                           : commandList.width
                     height: 60
                     padding: 0
                     hoverEnabled: true
@@ -1165,6 +1167,7 @@ Popup {
                 }
 
                 ScrollBar.vertical: FmScrollBar {
+                    id: commandScrollBar
                     policy: ScrollBar.AsNeeded
                 }
             }

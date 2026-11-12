@@ -21,6 +21,7 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool quickLookTransparency READ quickLookTransparency WRITE setQuickLookTransparency NOTIFY quickLookTransparencyChanged)
     Q_PROPERTY(int quickLookImageBackground READ quickLookImageBackground WRITE setQuickLookImageBackground NOTIFY quickLookImageBackgroundChanged)
     Q_PROPERTY(bool propertiesDialogTransparency READ propertiesDialogTransparency WRITE setPropertiesDialogTransparency NOTIFY propertiesDialogTransparencyChanged)
+    Q_PROPERTY(bool menusTransparency READ menusTransparency WRITE setMenusTransparency NOTIFY menusTransparencyChanged)
     Q_PROPERTY(bool workspaceDialogsTransparency READ workspaceDialogsTransparency WRITE setWorkspaceDialogsTransparency NOTIFY workspaceDialogsTransparencyChanged)
     Q_PROPERTY(bool previewDetailsRaised READ previewDetailsRaised WRITE setPreviewDetailsRaised NOTIFY previewDetailsRaisedChanged)
     Q_PROPERTY(bool useSystemTrayIcon READ useSystemTrayIcon WRITE setUseSystemTrayIcon NOTIFY useSystemTrayIconChanged)
@@ -65,6 +66,8 @@ public:
     void setQuickLookImageBackground(int mode);
     bool propertiesDialogTransparency() const;
     void setPropertiesDialogTransparency(bool enabled);
+    bool menusTransparency() const;
+    void setMenusTransparency(bool enabled);
     bool workspaceDialogsTransparency() const;
     void setWorkspaceDialogsTransparency(bool enabled);
     bool previewDetailsRaised() const;
@@ -131,6 +134,7 @@ signals:
     void quickLookTransparencyChanged();
     void quickLookImageBackgroundChanged();
     void propertiesDialogTransparencyChanged();
+    void menusTransparencyChanged();
     void workspaceDialogsTransparencyChanged();
     void previewDetailsRaisedChanged();
     void useSystemTrayIconChanged();
@@ -169,6 +173,7 @@ private:
     bool m_quickLookTransparency = false;
     int m_quickLookImageBackground = 0;
     bool m_propertiesDialogTransparency = false;
+    bool m_menusTransparency = false;
     bool m_workspaceDialogsTransparency = false;
     bool m_previewDetailsRaised = false;
     bool m_useSystemTrayIcon = false;

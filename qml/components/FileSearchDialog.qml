@@ -541,6 +541,7 @@ Dialog {
 
     FmMenu {
         id: resultContextMenu
+        backdropSource: root.contentItem ? root.contentItem.parent : null
 
         property string targetPath: ""
         property bool targetIsDirectory: false

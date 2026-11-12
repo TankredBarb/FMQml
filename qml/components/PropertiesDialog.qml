@@ -588,6 +588,7 @@ Popup {
 
                         FmMenu {
                             id: exportMenu
+                            backdropSource: root.contentItem ? root.contentItem.parent : null
                             implicitWidth: 160
                             onClosed: {
                                 if (root.suppressDialog && !root.exportDialogPending) {
@@ -779,6 +780,7 @@ Popup {
 
                 PropertiesGeneralPage {
                     id: generalPage
+                    menuBackdropSource: root.contentItem ? root.contentItem.parent : null
                     currentIndex: root.currentStackIndex
                     rows: root.propertyGroupRows(root.multiMode ? "selection.summary" : "general")
                     sectionTitle: root.propertyGroupTitle(root.multiMode ? "selection.summary" : "general", "OVERVIEW")
@@ -786,6 +788,7 @@ Popup {
 
                 PropertiesDetailsPage {
                     id: detailsPage
+                    menuBackdropSource: root.contentItem ? root.contentItem.parent : null
                     visible: root.hasDetailsTab
                     currentIndex: root.currentStackIndex
                     rows: root.propertyGroupRows("details")
@@ -794,6 +797,7 @@ Popup {
 
                 PropertiesAccessPage {
                     id: accessPage
+                    menuBackdropSource: root.contentItem ? root.contentItem.parent : null
                     currentIndex: root.currentStackIndex
                     multiMode: root.multiMode
                     controller: propertiesController
@@ -811,6 +815,7 @@ Popup {
 
                 PropertiesOwnershipPage {
                     id: ownershipPage
+                    menuBackdropSource: root.contentItem ? root.contentItem.parent : null
                     pageVisible: root.hasAccessOwnershipTab
                     visible: pageVisible
                     currentIndex: root.currentStackIndex

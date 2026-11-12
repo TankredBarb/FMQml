@@ -679,6 +679,14 @@ Popup {
                     }
 
                     FmToggleRow {
+                        title: "Menus"
+                        subtitle: "Main menu, context menus, submenus, and column picker"
+                        checked: appSettings ? appSettings.menusTransparency : false
+                        accentColor: root.dialogAccent
+                        onToggled: checked => root.setSetting("menusTransparency", checked)
+                    }
+
+                    FmToggleRow {
                         title: "Hover previews"
                         subtitle: "Media and folder hover cards"
                         checked: appSettings ? appSettings.hoverPreviewTransparency : false

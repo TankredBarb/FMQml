@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import FM
 import "../../style"
 
 Menu {
@@ -14,6 +13,8 @@ Menu {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     dim: false
     transformOrigin: Item.TopLeft
+
+    property alias backdropSource: menuBackground.backdropSource
 
     property color itemIconColor: Theme.textSecondary
 
@@ -35,16 +36,14 @@ Menu {
         }
     }
 
-    background: FmMenuVisual {
-        textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
-        surfaceColor: Theme.menuSurface
-        borderColor: Theme.menuBorder
-        accentColor: Theme.accent
-        shadowColor: Theme.shadow
-        dark: themeController.isDark
+    background: FmMenuBackground {
+        id: menuBackground
+        active: root.visible
+        backdropTransformItem: root
     }
 
     contentItem: ListView {
+        readonly property bool translucentMenuSurface: menuBackground.transparentSurface
         implicitHeight: contentHeight
         model: root.contentModel
         clip: true

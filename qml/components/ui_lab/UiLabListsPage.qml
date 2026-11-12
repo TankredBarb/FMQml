@@ -6,6 +6,8 @@ import "../common"
 import "../dialogs"
 
 ColumnLayout {
+    id: pageRoot
+    property var menuBackdropSource: null
     property bool stateMatrix: true
     property bool labVisible: false
     width: parent ? parent.width : 700
@@ -16,11 +18,11 @@ ColumnLayout {
 
     DialogSection {
         title: "DIALOG LIST ROWS"
-        DialogListRow { label: "Name"; value: "Example document.txt"; iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/document.svg" }
-        DialogListRow { label: "Status"; value: "Ready"; emphasizeValue: true; valueColor: Theme.success }
-        DialogListRow { label: "Location"; value: "/example/a/deliberately/long/path/that/exercises/middle/elision/document.txt"; isLink: true; valueMaximumLineCount: 1 }
-        DialogListRow { visible: stateMatrix; label: "Unavailable"; value: "Not available in this environment"; valueColor: Theme.textSecondary }
-        DialogListRow { visible: stateMatrix; label: "Activity"; value: "Calculating deterministic result"; showBusy: labVisible }
+        DialogListRow { menuBackdropSource: pageRoot.menuBackdropSource; label: "Name"; value: "Example document.txt"; iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/document.svg" }
+        DialogListRow { menuBackdropSource: pageRoot.menuBackdropSource; label: "Status"; value: "Ready"; emphasizeValue: true; valueColor: Theme.success }
+        DialogListRow { menuBackdropSource: pageRoot.menuBackdropSource; label: "Location"; value: "/example/a/deliberately/long/path/that/exercises/middle/elision/document.txt"; isLink: true; valueMaximumLineCount: 1 }
+        DialogListRow { menuBackdropSource: pageRoot.menuBackdropSource; visible: stateMatrix; label: "Unavailable"; value: "Not available in this environment"; valueColor: Theme.textSecondary }
+        DialogListRow { menuBackdropSource: pageRoot.menuBackdropSource; visible: stateMatrix; label: "Activity"; value: "Calculating deterministic result"; showBusy: labVisible }
     }
 
     DialogSection {

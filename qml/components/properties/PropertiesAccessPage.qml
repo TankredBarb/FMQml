@@ -8,6 +8,7 @@ import "../dialogs"
 
 ScrollView {
                     id: page
+    property var menuBackdropSource: null
                     required property int currentIndex
     required property bool multiMode
     required property var controller
@@ -143,6 +144,7 @@ ScrollView {
                                     model: page.attributeRows
 
                                     DialogListRow {
+                                        menuBackdropSource: page.menuBackdropSource
                                         required property var modelData
                                         visible: !(modelData && modelData.editable)
                                         label: modelData && modelData.label ? modelData.label : ""

@@ -9,6 +9,8 @@ import ".."
 Rectangle {
     id: root
 
+    property var menuBackdropSource: undefined
+
     property string label: ""
     property string value: ""
     property string iconSource: ""
@@ -81,6 +83,10 @@ Rectangle {
 
     FmMenu {
         id: rowContextMenu
+        backdropSource: root.menuBackdropSource !== undefined
+                        ? root.menuBackdropSource
+                        : (root.Window.window && root.Window.window.menuBackdropSource !== undefined
+                           ? root.Window.window.menuBackdropSource : null)
         implicitWidth: 180
 
         FmMenuItem {

@@ -8,6 +8,7 @@ import "../dialogs"
 
 ScrollView {
     id: page
+    property var menuBackdropSource: null
     required property int currentIndex
     required property var rows
     required property string sectionTitle
@@ -47,6 +48,7 @@ ScrollView {
             Repeater {
                 model: page.rows
                 DialogListRow {
+                    menuBackdropSource: page.menuBackdropSource
                     required property var modelData
                     label: modelData && modelData.label ? modelData.label : ""
                     value: modelData && modelData.value ? modelData.value : ""

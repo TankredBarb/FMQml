@@ -254,14 +254,14 @@ Popup {
     Component { id: buttonsPage; UiLabButtonsPage {} }
     Component { id: inputsPage; UiLabInputsPage {} }
     Component { id: selectionPage; UiLabSelectionPage {} }
-    Component { id: menusPage; UiLabMenusPage {} }
+    Component { id: menusPage; UiLabMenusPage { menuBackdropSource: root.contentItem ? root.contentItem.parent : null } }
     Component { id: progressPage; UiLabProgressPage {} }
     Component { id: scrollbarsPage; UiLabScrollbarsPage {} }
     Component { id: tabsPage; UiLabTabsPage {} }
     Component { id: typographyPage; UiLabTypographyPage {} }
     Component { id: colorsPage; UiLabColorsPage {} }
     Component { id: iconsPage; UiLabIconsPage {} }
-    Component { id: listsPage; UiLabListsPage {} }
+    Component { id: listsPage; UiLabListsPage { menuBackdropSource: root.contentItem ? root.contentItem.parent : null } }
     Component { id: dialogsPage; UiLabDialogsPage {} }
     Component { id: folderPreviewPage; UiLabFolderPreviewPage {} }
     Component { id: compositePage; UiLabCompositePage {} }
