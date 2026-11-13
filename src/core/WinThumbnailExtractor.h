@@ -8,6 +8,6 @@
 class WinThumbnailExtractor {
 public:
     // Uses Windows Shell (IThumbnailProvider or IExtractImage) to get the system thumbnail.
-    static QImage extract(const QString &path, const QSize &requestedSize);
+    static QImage extract(const QString &path, const QSize &requestedSize, bool allowIconFallback = true);
 };
 #endif

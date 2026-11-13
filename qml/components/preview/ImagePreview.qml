@@ -46,6 +46,8 @@ Item {
     ]
 
     readonly property int imageStatus: previewImage.status
+    readonly property real imageImplicitWidth: previewImage.implicitWidth
+    readonly property real imageImplicitHeight: previewImage.implicitHeight
     readonly property string formatText: imageFormatText.length > 0 ? imageFormatText : (extraValue("Format").length > 0 ? extraValue("Format") : (extension.length > 0 ? extension.toUpperCase() : ""))
     readonly property string dimensionsText: imageWidth > 0 && imageHeight > 0 ? imageWidth + " x " + imageHeight : extraValue("Dimensions")
     readonly property string colorDepthText: imageColorDepthText.length > 0 ? "CD=" + imageColorDepthText : (extraValue("Color Depth").length > 0 ? "CD=" + extraValue("Color Depth") : "")

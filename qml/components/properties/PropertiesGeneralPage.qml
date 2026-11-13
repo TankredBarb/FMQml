@@ -1,14 +1,15 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import FM
 import "../../style"
 import "../common"
 import "../framework"
-import "../dialogs"
 
 ScrollView {
     id: page
     property var menuBackdropSource: null
+    property string identityIconName: "document"
     required property int currentIndex
     required property var rows
     required property string sectionTitle
@@ -42,24 +43,13 @@ ScrollView {
                : page.availableWidth - 32
         spacing: 12
         Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
-        DialogSection {
-            title: page.sectionTitle
-            visible: page.rows.length > 0
-            Repeater {
-                model: page.rows
-                DialogListRow {
-                    menuBackdropSource: page.menuBackdropSource
-                    required property var modelData
-                    label: modelData && modelData.label ? modelData.label : ""
-                    value: modelData && modelData.value ? modelData.value : ""
-                    isLink: modelData && (modelData.key === "general.location"
-                                                  || modelData.key === "general.fullPath"
-                                                  || modelData.key === "selection.location")
-                    valueMaximumLineCount: isLink ? 4 : 2
-                    showBusy: modelData && modelData.busy ? true : false
-                    accentColor: Theme.accent
-                    emphasizeValue: modelData && modelData.emphasize ? true : false
-                }
+        Repeater {
+            model: PropertiesLayout.generalSections(page.rows)
+            PropertiesOverviewSection {
+                required property var modelData
+                section: modelData
+                menuBackdropSource: page.menuBackdropSource
+                identityIconName: page.identityIconName
             }
         }
         Item { Layout.preferredHeight: 4; Layout.fillWidth: true }

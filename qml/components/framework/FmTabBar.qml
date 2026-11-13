@@ -8,24 +8,33 @@ Control {
     id: root
 
     property var model: []
-    property int currentIndex: 0
+    property alias currentIndex: tabVisual.currentIndex
     property string textRole: "text"
     property string valueRole: "value"
     property color accentColor: Theme.accent
     property var hoveredTab: null
     property int delegateRevision: 0
+    property bool animateHighlight: false
     readonly property var activeTab: {
         root.delegateRevision
         return tabRepeater.itemAt(currentIndex)
     }
     signal activated(int index, var value)
 
+    Component.onCompleted: Qt.callLater(() => root.animateHighlight = root.visible)
+    onVisibleChanged: {
+        root.animateHighlight = false
+        if (visible)
+            Qt.callLater(() => root.animateHighlight = root.visible)
+    }
+
     function activateTab(index, focusTab) {
         const boundedIndex = Math.max(0, Math.min(tabRepeater.count - 1, index))
         const item = tabRepeater.itemAt(boundedIndex)
         if (!item)
             return
-        root.currentIndex = boundedIndex
+        // The native setter preserves an externally supplied currentIndex binding.
+        tabVisual.setCurrentIndex(boundedIndex)
         root.activated(boundedIndex, root.itemValue(item.modelData, boundedIndex))
         if (focusTab)
             item.forceActiveFocus()
@@ -58,8 +67,8 @@ Control {
         borderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.90 : 0.78)
         accentColor: root.accentColor
 
-        Behavior on highlightX { NumberAnimation { duration: 280; easing.type: Easing.InOutCubic } }
-        Behavior on highlightWidth { NumberAnimation { duration: 280; easing.type: Easing.InOutCubic } }
+        Behavior on highlightX { enabled: root.animateHighlight; NumberAnimation { duration: 280; easing.type: Easing.InOutCubic } }
+        Behavior on highlightWidth { enabled: root.animateHighlight; NumberAnimation { duration: 280; easing.type: Easing.InOutCubic } }
         Behavior on hoverAmount { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
     }
 

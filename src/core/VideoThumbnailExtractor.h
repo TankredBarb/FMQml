@@ -3,11 +3,13 @@
 #include <QImage>
 #include <QSize>
 #include <QString>
+#include <functional>
 
 struct VideoThumbnailRequest {
     QString path;
     QSize targetSize;
     qint64 preferredTimestampMs = -1;
+    std::function<bool()> cancelled = {};
 };
 
 struct VideoThumbnailResult {

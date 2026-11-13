@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
+import FM
 import "../style"
 import "common"
 import "framework"
@@ -91,7 +92,7 @@ Popup {
     function copyJson() {
         if (typeof workspaceController !== "undefined" && workspaceController) {
             workspaceController.copyTextToClipboard(propertiesController.exportableJson())
-            copyJsonTooltip.show(copyJsonTooltip.text)
+            jsonAction.showCopied()
         }
     }
 
@@ -135,7 +136,7 @@ Popup {
     function copyActionPaths() {
         if (typeof workspaceController !== "undefined" && workspaceController) {
             workspaceController.copyTextToClipboard(root.actionPathsText())
-            actionTooltip.show(root.multiMode ? "Selected paths copied" : "Path copied")
+            pathAction.showCopied()
         }
     }
 
@@ -254,6 +255,7 @@ Popup {
     readonly property bool blurSurface: root.translucentSurface
                                         && typeof appSettings !== "undefined" && appSettings
                                         && appSettings.surfaceBlur && root.backdropSource
+    readonly property bool hasPreviewTab: propertiesPreview.available
     readonly property bool hasDetailsTab: !root.multiMode && propertiesController.extraProperties.length > 0
     readonly property bool hasAccessOwnershipTab: !root.multiMode
                                                   && root.propertyGroupRows("accessOwnership.unix").length > 0
@@ -270,7 +272,24 @@ Popup {
         previousStackIndex = root.currentStackIndex
     }
 
+    PropertiesPreviewController {
+        id: propertiesPreview
+        path: propertiesController.path
+        active: root.visible && !root.multiMode && !root.driveMode && !propertiesController.isDirectory
+    }
+
+    PropertiesPreviewProbe {
+        controller: propertiesPreview
+    }
+
+    onHasPreviewTabChanged: {
+        if (!hasPreviewTab && root.currentTab === 5)
+            root.currentTab = 0
+    }
+
     function availableTab(tab) {
+        if (tab === 5)
+            return root.hasPreviewTab
         if (tab === 1) {
             return root.hasDetailsTab
         }
@@ -285,6 +304,8 @@ Popup {
 
     function visibleTabs() {
         var tabs = [{ text: "General", value: 0 }]
+        if (root.hasPreviewTab)
+            tabs.push({ text: "Preview", value: 5 })
         if (root.hasDetailsTab)
             tabs.push({ text: "Details", value: 1 })
         tabs.push({ text: root.multiMode ? "Selection" : "Access", value: 2 })
@@ -305,6 +326,8 @@ Popup {
     }
 
     function activeTabImplicitHeight() {
+        if (root.currentStackIndex === 5 && root.hasPreviewTab)
+            return previewPage.contentImplicitHeight
         if (root.currentStackIndex === 0) {
             return generalPage.contentImplicitHeight
         }
@@ -489,150 +512,152 @@ Popup {
             onCloseRequested: root.close()
         }
 
-        Rectangle {
+        ColumnLayout {
             Layout.fillWidth: true
             Layout.leftMargin: 14
             Layout.rightMargin: 14
             Layout.bottomMargin: 8
-            Layout.preferredHeight: quickActionsColumn.implicitHeight + 18
-            radius: Theme.radiusSm
-            color: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.72 : 0.86)
-            border.color: Theme.withAlpha(Theme.panelBorder, 0.90)
-            border.width: 1
-            clip: false
+            spacing: 5
 
-            ColumnLayout {
-                id: quickActionsColumn
-
-                anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                anchors.topMargin: 6
-                anchors.bottomMargin: 8
-                spacing: 5
-
-                Label {
-                    text: "QUICK ACTIONS"
-                    Layout.fillWidth: true
-                    color: Theme.textSecondary
-                    font.pixelSize: Theme.scaledSize(9)
-                    font.weight: Font.DemiBold
-                    opacity: 0.82
-                }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
 
                 Flow {
                     id: quickActionsFlow
                     Layout.fillWidth: true
-                    Layout.preferredHeight: quickActionsFlow.implicitHeight
-                    spacing: 5
+                    Layout.preferredHeight: implicitHeight
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 6
 
-                    ActionPill {
-                        text: "Path"
-                        pillWidth: 56
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
-                        accentColor: Theme.categoryInfo
-                        enabled: root.actionPathsText().length > 0
-                        onClicked: root.copyActionPaths()
-                        ToolTip.text: root.multiMode ? "Copy selected paths" : "Copy path"
-                        ToolTip.visible: hovered
-                        ToolTip.delay: 500
+                    Row {
+                        spacing: 2
+                        ActionPill {
+                            id: pathAction
+                            copyFeedback: true
+                            text: "Path"
+                            pillWidth: 56
+                            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
+                            accentColor: Theme.categoryInfo
+                            enabled: root.actionPathsText().length > 0
+                            onClicked: root.copyActionPaths()
+                            ToolTip.text: root.multiMode ? "Copy selected paths" : "Copy path"
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 500
+                        }
+
+                        ActionPill {
+                            id: jsonAction
+                            copyFeedback: true
+                            text: "JSON"
+                            pillWidth: 58
+                            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/document.svg"
+                            accentColor: Theme.categoryInfo
+                            onClicked: root.copyJson()
+                            ToolTip.text: "Copy properties JSON"
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 500
+                        }
                     }
 
-                    ActionPill {
-                        text: "Reveal"
-                        pillWidth: 66
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/reveal.svg"
-                        accentColor: Theme.categoryInfo
+                    Row {
                         visible: root.canRevealActionPath()
-                        enabled: root.canRevealActionPath()
-                        onClicked: root.revealActionPath()
-                        ToolTip.text: Qt.platform.os === "windows" ? "Show in Explorer" : "Reveal in file manager"
-                        ToolTip.visible: hovered
-                        ToolTip.delay: 500
+                        spacing: 2
+
+                        Rectangle {
+                            width: 1
+                            height: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                            opacity: parent.y === 0 ? 1 : 0
+                            color: Theme.withAlpha(Theme.panelBorder, 0.7)
+                        }
+
+                        ActionPill {
+                            text: "Reveal"
+                            pillWidth: 66
+                            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/reveal.svg"
+                            accentColor: Theme.categoryInfo
+                            visible: root.canRevealActionPath()
+                            enabled: root.canRevealActionPath()
+                            onClicked: root.revealActionPath()
+                            ToolTip.text: Qt.platform.os === "windows" ? "Show in Explorer" : "Reveal in file manager"
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 500
+                        }
+
+                        ActionPill {
+                            text: "Terminal"
+                            pillWidth: 76
+                            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/terminal.svg"
+                            accentColor: Theme.categoryInfo
+                            visible: root.canRevealActionPath()
+                            enabled: root.canRevealActionPath()
+                            onClicked: root.openActionTerminal()
+                            ToolTip.text: Qt.platform.os === "windows" ? "Open PowerShell here" : "Open terminal here"
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 500
+                        }
                     }
+                }
 
-                    ActionPill {
-                        text: "Terminal"
-                        pillWidth: 76
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/terminal.svg"
-                        accentColor: Theme.categoryUtility
-                        visible: root.canRevealActionPath()
-                        enabled: root.canRevealActionPath()
-                        onClicked: root.openActionTerminal()
-                        ToolTip.text: Qt.platform.os === "windows" ? "Open PowerShell here" : "Open terminal here"
-                        ToolTip.visible: hovered
-                        ToolTip.delay: 500
-                    }
+                ActionPill {
+                    id: exportButton
+                    Layout.alignment: Qt.AlignTop
+                    menuIndicator: true
+                    text: "Export"
+                    pillWidth: 70
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/download.svg"
+                    accentColor: Theme.categoryInfo
+                    onClicked: root.openExportMenu()
+                    ToolTip.text: "Copy text or export to file"
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 500
 
-                    ActionPill {
-                        text: "JSON"
-                        pillWidth: 58
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/document.svg"
-                        accentColor: Theme.accent
-                        onClicked: root.copyJson()
-                        ToolTip.text: "Copy properties JSON"
-                        ToolTip.visible: hovered
-                        ToolTip.delay: 500
-                    }
-
-                    ActionPill {
-                        id: exportButton
-                        text: "Export"
-                        pillWidth: 70
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/download.svg"
-                        accentColor: Theme.categoryAction
-                        onClicked: root.openExportMenu()
-                        ToolTip.text: "Copy JSON or export to file"
-                        ToolTip.visible: hovered
-                        ToolTip.delay: 500
-
-                        FmMenu {
-                            id: exportMenu
-                            backdropSource: root.contentItem ? root.contentItem.parent : null
-                            implicitWidth: 160
-                            onClosed: {
-                                if (root.suppressDialog && !root.exportDialogPending) {
-                                    propertiesController.visible = false
-                                    root.suppressDialog = false
-                                }
+                    FmMenu {
+                        id: exportMenu
+                        backdropSource: root.contentItem ? root.contentItem.parent : null
+                        implicitWidth: 160
+                        onClosed: {
+                            if (root.suppressDialog && !root.exportDialogPending) {
+                                propertiesController.visible = false
+                                root.suppressDialog = false
                             }
+                        }
 
-                            FmMenuItem {
-                                text: "Copy Text"
-                                onClicked: root.copyAll()
+                        FmMenuItem {
+                            text: "Copy Text"
+                            onClicked: root.copyAll()
+                        }
+
+                        FmMenuSeparator {}
+
+                        FmMenuItem {
+                            text: "Export as TXT..."
+                            onClicked: {
+                                root.exportDialogPending = true
+                                root.exportType = "txt"
+                                fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties.txt"
+                                fileDialog.open()
                             }
-
-                            FmMenuSeparator {}
-
-                            FmMenuItem {
-                                text: "Export as TXT..."
-                                onClicked: {
-                                    root.exportDialogPending = true
-                                    root.exportType = "txt"
-                                    fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties.txt"
-                                    fileDialog.open()
-                                }
-                            }
-                            FmMenuItem {
-                                text: "Export as JSON..."
-                                onClicked: {
-                                    root.exportDialogPending = true
-                                    root.exportType = "json"
-                                    fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties.json"
-                                    fileDialog.open()
-                                }
+                        }
+                        FmMenuItem {
+                            text: "Export as JSON..."
+                            onClicked: {
+                                root.exportDialogPending = true
+                                root.exportType = "json"
+                                fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties.json"
+                                fileDialog.open()
                             }
                         }
                     }
                 }
             }
-        }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 1
-            color: Theme.panelBorder
-            opacity: 0.4
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: Theme.withAlpha(Theme.panelBorder, 0.5)
+            }
         }
 
         ScrollView {
@@ -780,10 +805,19 @@ Popup {
 
                 PropertiesGeneralPage {
                     id: generalPage
+                    identityIconName: root.driveMode ? "hard-drive"
+                                      : (root.multiMode ? "folder-compare"
+                                         : (propertiesController.isDirectory ? "folder" : "document"))
                     menuBackdropSource: root.contentItem ? root.contentItem.parent : null
                     currentIndex: root.currentStackIndex
                     rows: root.propertyGroupRows(root.multiMode ? "selection.summary" : "general")
                     sectionTitle: root.propertyGroupTitle(root.multiMode ? "selection.summary" : "general", "OVERVIEW")
+                }
+
+                PropertiesPreviewPage {
+                    id: previewPage
+                    controller: propertiesPreview
+                    active: root.visible && root.currentStackIndex === 5 && root.hasPreviewTab
                 }
 
                 PropertiesDetailsPage {
@@ -884,18 +918,6 @@ Popup {
         ToolTip {
             id: copyAllTooltip
             text: "All properties copied to clipboard"
-            timeout: 2000
-        }
-
-        ToolTip {
-            id: actionTooltip
-            text: ""
-            timeout: 1600
-        }
-
-        ToolTip {
-            id: copyJsonTooltip
-            text: "Properties JSON copied"
             timeout: 2000
         }
     }

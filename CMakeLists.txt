@@ -372,6 +372,8 @@ qt_add_executable(fm
     src/controllers/QuickLookNavigationController.h
     src/controllers/BatchRenameSession.cpp
     src/controllers/BatchRenameSession.h
+    src/preview/PropertiesImageProvider.cpp
+    src/preview/PropertiesImageProvider.h
     src/preview/AudioCoverExtractor.cpp
     src/preview/AudioCoverExtractor.h
     src/preview/ImagePreviewInspector.cpp
@@ -392,6 +394,8 @@ qt_add_executable(fm
     src/preview/text/TextPreviewTypes.h
     src/preview/text/TextPreviewController.cpp
     src/preview/text/TextPreviewController.h
+    src/controllers/PropertiesPreviewController.cpp
+    src/controllers/PropertiesPreviewController.h
     src/controllers/PropertiesController.cpp
     src/controllers/PropertiesController.h
     src/controllers/ProviderPropertiesController.cpp
@@ -424,6 +428,8 @@ qt_add_executable(fm
     src/ui/framework/FmCheckBoxVisual.h
     src/ui/framework/FmComboBoxVisual.cpp
     src/ui/framework/FmComboBoxVisual.h
+    src/ui/PropertiesLayout.cpp
+    src/ui/PropertiesLayout.h
     src/ui/framework/FmMenuVisual.cpp
     src/ui/framework/FmMenuVisual.h
     src/ui/framework/FmMenuItemVisual.cpp
@@ -587,6 +593,9 @@ set(MY_QML_FILES
     qml/components/properties/DriveMetricCard.qml
     qml/components/properties/PropertiesDetailsPage.qml
     qml/components/properties/PropertiesAccessPage.qml
+    qml/components/properties/PropertiesPreviewProbe.qml
+    qml/components/properties/PropertiesPreviewPage.qml
+    qml/components/properties/PropertiesOverviewSection.qml
     qml/components/properties/PropertiesGeneralPage.qml
     qml/components/properties/PropertiesHashesPage.qml
     qml/components/properties/PropertiesOwnershipPage.qml
@@ -798,9 +807,11 @@ qt_add_qml_module(fm
         src/controllers/WorkspaceController.h
         src/controllers/ThemeController.h
         src/controllers/QuickLookController.h
+        src/controllers/PropertiesPreviewController.h
         src/controllers/PropertiesController.h
         src/controllers/ProviderPropertiesController.h
         src/core/ChecksumCalculator.h
+        src/ui/PropertiesLayout.h
         src/ui/PanelResizeController.h
         src/ui/framework/FmScrollBarVisual.h
         src/ui/framework/FmDocumentViewVisual.h
@@ -2328,6 +2339,37 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME framework_wheel_test COMMAND framework_wheel_test)
     set_tests_properties(framework_wheel_test PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+
+    add_executable(properties_preview_test
+        tests/core/PropertiesPreviewTest.cpp
+        src/controllers/PropertiesPreviewController.cpp
+        src/preview/PropertiesImageProvider.cpp
+    )
+    target_include_directories(properties_preview_test PRIVATE src)
+    target_link_libraries(properties_preview_test PRIVATE Qt6::Quick Qt6::Test)
+    target_compile_definitions(properties_preview_test PRIVATE FM_PROPERTIES_PREVIEW_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME properties_preview_test COMMAND properties_preview_test)
+    set_tests_properties(properties_preview_test PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 20)
+
+    add_executable(fm_tab_bar_test
+        tests/core/FmTabBarTest.cpp
+        src/ui/framework/FmTabBarVisual.cpp
+    )
+    target_include_directories(fm_tab_bar_test PRIVATE src)
+    target_link_libraries(fm_tab_bar_test PRIVATE Qt6::Quick Qt6::Test)
+    target_compile_definitions(fm_tab_bar_test PRIVATE FM_TAB_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME fm_tab_bar_test COMMAND fm_tab_bar_test)
+    set_tests_properties(fm_tab_bar_test PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 20)
+
+    add_executable(properties_layout_test
+        tests/core/PropertiesLayoutTest.cpp
+        src/ui/PropertiesLayout.cpp
+    )
+    target_include_directories(properties_layout_test PRIVATE src)
+    target_link_libraries(properties_layout_test PRIVATE Qt6::Core Qt6::Qml)
+    add_test(NAME properties_layout_test COMMAND properties_layout_test)
 
     add_executable(fm_menu_surface_test
         tests/core/FmMenuSurfaceTest.cpp

@@ -4,6 +4,7 @@
 #include "../core/IconProvider.h"
 #include "../core/SvgRecolorProvider.h"
 #include "../core/ThumbnailProvider.h"
+#include "../preview/PropertiesImageProvider.h"
 
 #include <QCoreApplication>
 #include <QQmlContext>
@@ -29,6 +30,11 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
     m_engine->addImageProvider(QStringLiteral("icon"), new IconProvider(services->fileTypeIcons()));
     m_engine->addImageProvider(QStringLiteral("svgrecolor"), new SvgRecolorProvider);
     m_engine->addImageProvider(QStringLiteral("thumbnail"), new ThumbnailProvider(services->thumbnails()));
+    auto propertiesThumbnails = std::make_shared<ThumbnailProvider>();
+    m_engine->addImageProvider(QStringLiteral("propertiespreview"), new PropertiesImageProvider(
+        [propertiesThumbnails](const VisualThumbnailRequest &request) {
+            return propertiesThumbnails->requestVisualImage(request);
+        }));
     m_engine->rootContext()->setContextProperty(QStringLiteral("workspaceController"), services->workspace());
     m_engine->rootContext()->setContextProperty(QStringLiteral("themeController"), services->theme());
     m_engine->rootContext()->setContextProperty(QStringLiteral("quickLookController"), services->quickLook());

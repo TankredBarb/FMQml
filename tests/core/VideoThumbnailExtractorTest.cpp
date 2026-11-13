@@ -95,6 +95,17 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    const VideoThumbnailResult cancelled = VideoThumbnailExtractor::extract(
+        { fixturePath, QSize(96, 96), -1, [] { return true; } });
+    if (!expect(cancelled.image.isNull() && cancelled.error == QStringLiteral("cancelled"),
+                "Cancelled video request should stop before decoding")) return 1;
+
+    int cancellationChecks = 0;
+    const VideoThumbnailResult interrupted = VideoThumbnailExtractor::extract(
+        { fixturePath, QSize(96, 96), -1, [&] { return ++cancellationChecks > 1; } });
+    if (!expect(interrupted.image.isNull() && !interrupted.error.isEmpty() && cancellationChecks > 1,
+                "Cancellation during video I/O must stop decoding")) return 1;
+
     const VideoThumbnailResult decoded = VideoThumbnailExtractor::extract({ fixturePath, QSize(96, 96), -1 });
     if (!expect(decoded.error.isEmpty(), qPrintable(QStringLiteral("Decode failed: %1").arg(decoded.error)))
         || !expect(!decoded.image.isNull(), "Generated fixture should produce an image")

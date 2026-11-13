@@ -283,6 +283,23 @@ ThumbnailProvider::~ThumbnailProvider() = default;
 
 QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
+    return requestImageImpl(id, size, requestedSize, {});
+}
+
+QImage ThumbnailProvider::requestVisualImage(const VisualThumbnailRequest &request)
+{
+    const QString path = request.path
+                         + (request.mimeName.startsWith(QStringLiteral("audio/")) ? QStringLiteral("::cover") : QString())
+                         + QStringLiteral("::visual");
+    return requestImageImpl(QString::fromLatin1(QUrl::toPercentEncoding(path)), nullptr,
+                            request.size, request.cancelled, request.mimeName, request.suffix);
+}
+
+QImage ThumbnailProvider::requestImageImpl(const QString &id, QSize *size, const QSize &requestedSize,
+                                          const std::function<bool()> &cancelled,
+                                          const QString &mimeName, const QString &detectedSuffix)
+{
+    if (cancelled && cancelled()) return {};
     QElapsedTimer totalTimer;
     if (thumbnailTimingEnabled()) {
         totalTimer.start();
@@ -300,6 +317,11 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     const QString cachePath = ArchiveSupport::isArchivePath(decodedPath)
         ? QDir::fromNativeSeparators(decodedPath)
         : (decodedProviderPath ? decodedPath.trimmed() : QDir::toNativeSeparators(decodedPath));
+    // Properties must only expose actual media, never a platform icon fallback.
+    const bool visualOnly = originalPath.endsWith(QStringLiteral("::visual"));
+    if (visualOnly) {
+        originalPath.chop(8);
+    }
     const bool coverOnly = originalPath.endsWith(QStringLiteral("::cover"));
     if (coverOnly) {
         originalPath.chop(7);
@@ -435,7 +457,8 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                 const bool copied = localProvider.copyToLocalFileForPreview(
                     path,
                     stagedPath,
-                    [&tooLarge](qint64 processed, qint64) {
+                    [&tooLarge, &cancelled](qint64 processed, qint64) {
+                        if (cancelled && cancelled()) return false;
                         if (processed > kAdminThumbnailMaterializationLimit) {
                             tooLarge = true;
                             return false;
@@ -452,8 +475,10 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                                       << "error=" << error;
                 }
                 if (copied && !tooLarge) {
-                    const QString stagedId = QString::fromUtf8(QUrl::toPercentEncoding(stagedPath));
-                    const QImage adminThumb = requestImage(stagedId, size, requestedSize);
+                    const QString stagedId = QString::fromUtf8(QUrl::toPercentEncoding(
+                        stagedPath + (coverOnly ? QStringLiteral("::cover") : QString())
+                        + (visualOnly ? QStringLiteral("::visual") : QString())));
+                    const QImage adminThumb = requestImageImpl(stagedId, size, requestedSize, cancelled, mimeName, detectedSuffix);
                     if (!adminThumb.isNull()) {
                         const int costKb = qMax(1, int((adminThumb.sizeInBytes() + 1023) / 1024));
                         QMutexLocker locker(&m_cacheMutex);
@@ -476,9 +501,9 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         }
 #endif
         if (size) {
-            *size = cacheSize;
+            *size = visualOnly ? QSize() : cacheSize;
         }
-        return transparentImage(cacheSize);
+        return visualOnly ? QImage() : transparentImage(cacheSize);
     }
 
     {
@@ -528,11 +553,12 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         return cached;
     }
 
+    if (cancelled && cancelled()) return {};
     QImage thumb;
     QString stage = QStringLiteral("none");
     qint64 stageMs = 0;
     QFileInfo fi(path);
-    QString suffix = fi.suffix().toLower();
+    QString suffix = detectedSuffix.isEmpty() ? fi.suffix().toLower() : detectedSuffix;
     if (ArchiveSupport::isArchivePath(path)) {
         if (coverOnly && FileProviderPluginRegistry::instance().supportsBookPreview(path)) {
             QImage cover = FileProviderPluginRegistry::instance().extractBookCover(path);
@@ -695,13 +721,15 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         stageMs = thumbnailTimingEnabled() ? stageTimer.elapsed() : 0;
 #endif
     }
-    if (!coverOnly && thumb.isNull() && shouldAttemptVideoThumbnail(suffix)) {
+    if (cancelled && cancelled()) return {};
+    if (!coverOnly && thumb.isNull() && (shouldAttemptVideoThumbnail(suffix)
+                                       || mimeName.startsWith(QStringLiteral("video/")))) {
 #ifdef HAS_FFMPEG_THUMBNAILS
         QElapsedTimer stageTimer;
         if (thumbnailTimingEnabled()) {
             stageTimer.start();
         }
-        const VideoThumbnailResult videoResult = VideoThumbnailExtractor::extract({ path, cacheSize, -1 });
+        const VideoThumbnailResult videoResult = VideoThumbnailExtractor::extract({ path, cacheSize, -1, cancelled });
         if (!videoResult.image.isNull()) {
             thumb = videoResult.image;
         }
@@ -732,6 +760,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         }
 #endif
     }
+    if (cancelled && cancelled()) return {};
     // 3. Image (via QImageReader)
     if (thumb.isNull()) {
         QElapsedTimer stageTimer;
@@ -754,6 +783,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         stageMs = thumbnailTimingEnabled() ? stageTimer.elapsed() : 0;
     }
     
+    if (cancelled && cancelled()) return {};
     // 4. Fallback to Windows Shell (for video, PDF, Office, etc.)
 #ifdef Q_OS_WIN
     if (!coverOnly && thumb.isNull() && !fi.isDir()) {
@@ -761,12 +791,13 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         if (thumbnailTimingEnabled()) {
             stageTimer.start();
         }
-        thumb = WinThumbnailExtractor::extract(path, cacheSize);
+        thumb = WinThumbnailExtractor::extract(path, cacheSize, !visualOnly);
         stage = QStringLiteral("win-shell");
         stageMs = thumbnailTimingEnabled() ? stageTimer.elapsed() : 0;
     }
 #endif
     
+    if (cancelled && cancelled()) return {};
     if (!thumb.isNull()) {
         m_diskCache.store(cacheKey, thumb);
         const int costKb = qMax(1, int((thumb.sizeInBytes() + 1023) / 1024));
@@ -790,7 +821,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         return thumb;
     }
 
-    if (isAudioSuffix(suffix)) {
+    if (!visualOnly && isAudioSuffix(suffix)) {
         thumb = transparentImage(QSize(1, 1));
         QMutexLocker locker(&m_cacheMutex);
         m_cache.insert(cacheKey, new QImage(thumb), 1);

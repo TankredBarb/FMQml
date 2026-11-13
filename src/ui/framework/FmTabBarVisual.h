@@ -9,6 +9,7 @@ class FmTabBarVisual : public QQuickPaintedItem
     Q_OBJECT
     QML_ELEMENT
 
+    Q_PROPERTY(int currentIndex READ currentIndex WRITE setCurrentIndex NOTIFY currentIndexChanged)
     Q_PROPERTY(qreal highlightX READ highlightX WRITE setHighlightX NOTIFY geometryChanged)
     Q_PROPERTY(qreal highlightWidth READ highlightWidth WRITE setHighlightWidth NOTIFY geometryChanged)
     Q_PROPERTY(qreal hoverX READ hoverX WRITE setHoverX NOTIFY geometryChanged)
@@ -21,6 +22,9 @@ class FmTabBarVisual : public QQuickPaintedItem
 public:
     explicit FmTabBarVisual(QQuickItem *parent = nullptr);
     void paint(QPainter *painter) override;
+
+    int currentIndex() const { return m_currentIndex; }
+    Q_INVOKABLE void setCurrentIndex(int value);
 
     qreal highlightX() const { return m_highlightX; }
     qreal highlightWidth() const { return m_highlightWidth; }
@@ -41,10 +45,12 @@ public:
     void setAccentColor(const QColor &value);
 
 signals:
+    void currentIndexChanged();
     void geometryChanged();
     void colorsChanged();
 
 private:
+    int m_currentIndex = 0;
     qreal m_highlightX = 4.0;
     qreal m_highlightWidth = 0.0;
     qreal m_hoverX = 4.0;

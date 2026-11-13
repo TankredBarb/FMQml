@@ -191,7 +191,21 @@ VideoThumbnailResult VideoThumbnailExtractor::extract(const VideoThumbnailReques
         return result;
     }
 
-    AVFormatContext *rawFormatContext = nullptr;
+    auto cancelled = request.cancelled;
+    if (cancelled && cancelled()) {
+        result.error = QStringLiteral("cancelled");
+        return result;
+    }
+    AVFormatContext *rawFormatContext = avformat_alloc_context();
+    if (!rawFormatContext) {
+        result.error = QStringLiteral("allocation failed");
+        return result;
+    }
+    rawFormatContext->interrupt_callback.callback = [](void *opaque) {
+        auto *check = static_cast<std::function<bool()> *>(opaque);
+        return *check && (*check)() ? 1 : 0;
+    };
+    rawFormatContext->interrupt_callback.opaque = &cancelled;
     const QByteArray pathBytes = QFile::encodeName(request.path);
     int status = avformat_open_input(&rawFormatContext, pathBytes.constData(), nullptr, nullptr);
     FormatContextPtr formatContext(rawFormatContext);
@@ -265,6 +279,10 @@ VideoThumbnailResult VideoThumbnailExtractor::extract(const VideoThumbnailReques
         }
 
         ++packetsRead;
+        if (cancelled && cancelled()) {
+            result.error = QStringLiteral("cancelled");
+            return result;
+        }
         if (packet->stream_index != streamIndex) {
             av_packet_unref(packet.get());
             continue;

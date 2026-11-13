@@ -25,12 +25,17 @@ Rectangle {
     property bool animateValueChanges: true
     property bool componentReady: false
     property int valueMaximumLineCount: 2
+    property bool grouped: false
+    property bool stacked: false
+    property bool showLabel: true
+    property int valuePixelSize: Theme.fontSizeLabel
+    property int iconPixelSize: 14
 
     Layout.fillWidth: true
     radius: Theme.radiusSm
-    color: rowMouse.containsMouse ? Theme.panelSurfaceSoft : Theme.panelSurface
+    color: rowMouse.containsMouse ? Theme.panelSurfaceSoft : (root.grouped ? "transparent" : Theme.panelSurface)
     border.color: Theme.panelBorder
-    border.width: 1
+    border.width: root.grouped ? 0 : 1
     implicitHeight: rowLayout.implicitHeight + 12
 
     Component.onCompleted: {
@@ -149,11 +154,13 @@ Rectangle {
         }
     }
 
-    RowLayout {
+    GridLayout {
         id: rowLayout
+        columns: root.stacked ? 1 : 1 + (root.showLabel && root.label.length > 0 ? 1 : 0) + (root.iconSource.length > 0 ? 1 : 0)
         anchors.fill: parent
         anchors.margins: 6
-        spacing: 8
+        columnSpacing: 8
+        rowSpacing: 4
 
         RecolorSvgIcon {
             visible: root.iconSource.length > 0
@@ -162,14 +169,15 @@ Rectangle {
             recolorColor: root.accentColor
             sourceSize: Qt.size(28, 28)
             smooth: true
-            Layout.preferredWidth: 14
-            Layout.preferredHeight: 14
+            Layout.preferredWidth: root.iconPixelSize
+            Layout.preferredHeight: root.iconPixelSize
         }
 
         Label {
-            visible: root.label.length > 0
+            visible: root.showLabel && root.label.length > 0
             text: root.label
-            Layout.preferredWidth: 100
+            Layout.preferredWidth: root.stacked ? -1 : 100
+            Layout.fillWidth: root.stacked
             Layout.alignment: Qt.AlignTop
             color: TextColors.dialogSecondaryText
             font.pixelSize: Theme.fontSizeCaption
@@ -189,9 +197,9 @@ Rectangle {
                 Layout.fillWidth: !root.showBusy
                 Layout.alignment: Qt.AlignVCenter
                 color: root.isLink ? Theme.accent : root.valueColor
-                font.pixelSize: Theme.fontSizeLabel
+                font.pixelSize: root.valuePixelSize
                 font.weight: root.emphasizeValue ? Font.DemiBold : Font.Normal
-                elide: Text.ElideMiddle
+                elide: root.grouped ? Text.ElideRight : Text.ElideMiddle
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                 maximumLineCount: root.valueMaximumLineCount
                 transformOrigin: Item.Left

@@ -20,6 +20,14 @@ FmTabBarVisual::FmTabBarVisual(QQuickItem *parent)
     setAntialiasing(true);
 }
 
+void FmTabBarVisual::setCurrentIndex(int value)
+{
+    if (m_currentIndex == value)
+        return;
+    m_currentIndex = value;
+    emit currentIndexChanged();
+}
+
 void FmTabBarVisual::paint(QPainter *painter)
 {
     painter->setRenderHint(QPainter::Antialiasing, true);

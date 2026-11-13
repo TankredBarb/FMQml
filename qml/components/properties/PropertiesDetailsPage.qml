@@ -1,10 +1,10 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import FM
 import "../../style"
 import "../common"
 import "../framework"
-import "../dialogs"
 
 ScrollView {
     id: page
@@ -42,18 +42,12 @@ ScrollView {
                : page.availableWidth - 32
         spacing: 12
         Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
-        DialogSection {
-            title: page.sectionTitle
-            visible: page.rows.length > 0
-            Repeater {
-                model: page.rows
-                DialogListRow {
-                    menuBackdropSource: page.menuBackdropSource
-                    required property var modelData
-                    label: modelData && modelData.label ? modelData.label : ""
-                    value: modelData && modelData.value ? modelData.value : ""
-                    emphasizeValue: modelData && modelData.emphasize ? true : false
-                }
+        Repeater {
+            model: PropertiesLayout.detailsSections(page.rows)
+            PropertiesOverviewSection {
+                required property var modelData
+                section: modelData
+                menuBackdropSource: page.menuBackdropSource
             }
         }
         Item { Layout.preferredHeight: 4; Layout.fillWidth: true }

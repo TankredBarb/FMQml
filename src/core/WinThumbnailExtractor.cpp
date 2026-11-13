@@ -23,7 +23,7 @@ DEFINE_GUID(BHID_ThumbnailHandler, 0x7b2e650a, 0x8e20, 0x4f4a, 0xb0, 0x9e, 0x65,
 
 #include <shobjidl_core.h>
 
-QImage WinThumbnailExtractor::extract(const QString &path, const QSize &requestedSize)
+QImage WinThumbnailExtractor::extract(const QString &path, const QSize &requestedSize, bool allowIconFallback)
 {
     QImage result;
     HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
@@ -42,7 +42,7 @@ QImage WinThumbnailExtractor::extract(const QString &path, const QSize &requeste
             
             // Try thumbnail-only first
             hr = pFactory->GetImage(sz, SIIGBF_THUMBNAILONLY, &hBmp);
-            if (FAILED(hr)) {
+            if (FAILED(hr) && allowIconFallback) {
                 hr = pFactory->GetImage(sz, SIIGBF_RESIZETOFIT, &hBmp);
             }
             
