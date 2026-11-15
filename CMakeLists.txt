@@ -360,6 +360,8 @@ qt_add_executable(fm
     src/core/ThumbnailDiskCache.h
     src/core/FolderSizeCalculator.cpp
     src/core/FolderSizeCalculator.h
+    src/core/FileSpaceUsage.cpp
+    src/core/FileSpaceUsage.h
     src/core/ProviderFolderSizeCalculator.cpp
     src/core/ProviderFolderSizeCalculator.h
     src/controllers/ThemeController.cpp
@@ -1279,6 +1281,18 @@ if(UNIX AND NOT APPLE)
     )
     target_include_directories(fm-admin-helper PRIVATE src/core)
     target_link_libraries(fm-admin-helper PRIVATE Qt6::Core)
+
+    add_executable(fm-space-helper src/admin/fm-space-helper.cpp src/core/BtrfsSpaceProtocol.h)
+    target_include_directories(fm-space-helper PRIVATE src/core)
+    target_link_libraries(fm-space-helper PRIVATE Qt6::Core Qt6::DBus)
+    set(FM_DBUS_SYSTEM_CONFIG_DIR "/etc/dbus-1/system.d" CACHE PATH "System D-Bus policy directory")
+    configure_file(packaging/linux/io.fmqml.fm.Space.service.in
+        "${CMAKE_CURRENT_BINARY_DIR}/io.fmqml.fm.Space.service" @ONLY)
+    install(TARGETS fm-space-helper RUNTIME DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}/fm" COMPONENT SpaceHelper)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/io.fmqml.fm.Space.service"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/dbus-1/system-services" COMPONENT SpaceHelper)
+    install(FILES packaging/linux/io.fmqml.fm.Space.conf
+        DESTINATION "${FM_DBUS_SYSTEM_CONFIG_DIR}" COMPONENT SpaceHelper)
 
     set(FM_ADMIN_HELPER_INSTALL_DIR "${CMAKE_INSTALL_LIBEXECDIR}/fm")
     configure_file(
@@ -2370,6 +2384,29 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(properties_layout_test PRIVATE src)
     target_link_libraries(properties_layout_test PRIVATE Qt6::Core Qt6::Qml)
     add_test(NAME properties_layout_test COMMAND properties_layout_test)
+
+    add_executable(file_space_usage_test
+        tests/core/FileSpaceUsageTest.cpp
+        src/core/FileSpaceUsage.cpp
+    )
+    target_include_directories(file_space_usage_test PRIVATE src/core)
+    target_link_libraries(file_space_usage_test PRIVATE Qt6::Core)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_link_libraries(file_space_usage_test PRIVATE Qt6::DBus)
+    endif()
+    add_test(NAME file_space_usage_test COMMAND file_space_usage_test)
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        add_test(NAME space_presentation_smoke
+            COMMAND ${CMAKE_COMMAND} -E env
+                QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software
+                XDG_CONFIG_HOME=/tmp/fm-space-smoke/config
+                XDG_DATA_HOME=/tmp/fm-space-smoke/data
+                XDG_CACHE_HOME=/tmp/fm-space-smoke/cache
+                XDG_STATE_HOME=/tmp/fm-space-smoke/state
+                $<TARGET_FILE:fm> --navigation-gui-benchmark --check-space-presentation)
+        set_tests_properties(space_presentation_smoke PROPERTIES TIMEOUT 40)
+    endif()
 
     add_executable(fm_menu_surface_test
         tests/core/FmMenuSurfaceTest.cpp

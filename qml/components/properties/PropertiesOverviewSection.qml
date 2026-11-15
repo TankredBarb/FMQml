@@ -17,7 +17,7 @@ Rectangle {
     Layout.fillWidth: true
     implicitHeight: content.implicitHeight + 20
     radius: Theme.radiusMd
-    color: root.statistics ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.055 : 0.035)
+    color: root.statistics ? Qt.tint(Theme.panelSurface, Theme.withAlpha(Theme.accent, themeController.isDark ? 0.055 : 0.035))
                            : Theme.panelSurface
     border.width: 1
     border.color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.22 : 0.18)
@@ -71,8 +71,10 @@ Rectangle {
                     readonly property bool hero: identityName || rowKey === "details.title"
                     readonly property bool typeRow: rowKey === "general.type" || rowKey === "selection.contains"
                     readonly property bool contentsRow: rowKey === "general.contents" || rowKey === "selection.contents"
+                    readonly property bool noteRow: modelData.note === true
+                    readonly property bool compactRow: modelData.compact === true || noteRow
 
-                    Layout.columnSpan: (root.identity && !identityName && !typeRow)
+                    Layout.columnSpan: noteRow || (root.identity && !identityName && !typeRow)
                                        || (root.statistics && index === root.section.rows.length - 1
                                            && root.section.rows.length % 2 === 1) ? fields.columns : 1
                     Layout.fillWidth: !typeRow || fields.columns === 1
@@ -88,11 +90,12 @@ Rectangle {
                     showLabel: !identityName && !typeRow
                     isLink: rowKey === "general.location" || rowKey === "general.fullPath"
                             || rowKey === "general.root" || rowKey === "selection.location"
-                    valueMaximumLineCount: isLink ? 4 : 3
+                    valueMaximumLineCount: noteRow ? 12 : (isLink ? 4 : 3)
                     showBusy: modelData.busy === true
-                    emphasizeValue: modelData.emphasize === true || hero || (root.statistics && !contentsRow)
-                    valuePixelSize: hero || (root.statistics && !contentsRow) ? Theme.fontSizeTitle : Theme.fontSizeLabel
-                    valueColor: typeRow ? TextColors.dialogSecondaryText : Theme.textPrimary
+                    emphasizeValue: modelData.emphasize === true || hero || (root.statistics && !contentsRow && !compactRow)
+                    valuePixelSize: noteRow ? Theme.fontSizeCaption
+                                    : hero || (root.statistics && !contentsRow && !compactRow) ? Theme.fontSizeTitle : Theme.fontSizeLabel
+                    valueColor: typeRow || noteRow ? TextColors.dialogSecondaryText : Theme.textPrimary
                     iconSource: identityName
                                 ? "qrc:/qt/qml/FM/qml/assets/icons-classic/" + root.identityIconName + ".svg" : ""
                     iconPixelSize: identityName ? 28 : 14

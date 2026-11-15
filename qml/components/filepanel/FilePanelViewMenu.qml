@@ -261,6 +261,7 @@ Item {
 
             FmMenuItem {
                 text: "Details"
+                shortcut: "Ctrl+1"
                 active: root.controller && root.controller.viewMode === 0
                 icon.source: "../assets/icons-classic/list.svg"
                 iconColor: Theme.actionIconColor("view-details")
@@ -268,6 +269,7 @@ Item {
             }
             FmMenuItem {
                 text: "Grid"
+                shortcut: "Ctrl+2"
                 active: root.controller && root.controller.viewMode === 1
                 icon.source: "../assets/icons-classic/layout-grid.svg"
                 iconColor: Theme.actionIconColor("view-grid")
@@ -275,6 +277,7 @@ Item {
             }
             FmMenuItem {
                 text: "Brief"
+                shortcut: "Ctrl+3"
                 active: root.controller && root.controller.viewMode === 2
                 icon.source: "../assets/icons-classic/layout-list.svg"
                 iconColor: Theme.actionIconColor("view-brief")

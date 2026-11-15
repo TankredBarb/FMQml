@@ -8,6 +8,8 @@
 #include <QThreadPool>
 #include <QVariantList>
 #include <QElapsedTimer>
+#include <atomic>
+#include <memory>
 #include "../core/FileAccessResolver.h"
 #include "../core/ChecksumCalculator.h"
 
@@ -57,6 +59,7 @@ class PropertiesController final : public QObject {
 
 public:
     explicit PropertiesController(QObject *parent = nullptr);
+    ~PropertiesController() override;
 
     QString name() const;
     QString path() const;
@@ -129,6 +132,7 @@ private slots:
 
 private:
     void cancelAllCalculators();
+    void measureDiskUsage(const QStringList &paths, bool retry = false);
     void emitProgressUpdate();
     bool shouldEmitProgressUpdate();
     void resetDriveProperties();
@@ -140,6 +144,11 @@ private:
     QString m_name;
     QString m_path;
     QString m_sizeText;
+    QString m_fileSystem;
+    QString m_diskSizeText;
+    QString m_diskUsageNote;
+    bool m_diskSizeCalculating = false;
+    std::shared_ptr<std::atomic_bool> m_diskSizeCancelled;
     QString m_typeText;
     QString m_created;
     QString m_modified;

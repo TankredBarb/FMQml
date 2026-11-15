@@ -27,7 +27,10 @@ QVariantList PropertiesLayout::generalSections(const QVariantList &rows) const
         } else if (key == QLatin1String("general.size") || key == QLatin1String("general.contents")
                    || key == QLatin1String("selection.totalSize") || key == QLatin1String("selection.contents")
                    || key == QLatin1String("general.usedSpace") || key == QLatin1String("general.freeSpace")
-                   || key == QLatin1String("general.totalSpace")) {
+                   || key == QLatin1String("general.totalSpace")
+                   || key == QLatin1String("general.fileSystem") || key == QLatin1String("selection.fileSystem")
+                   || key == QLatin1String("general.onDisk") || key == QLatin1String("selection.onDisk")
+                   || key == QLatin1String("general.spaceNote") || key == QLatin1String("selection.spaceNote")) {
             statistics.append(value);
         } else if (key.startsWith(QLatin1String("general.created")) || key.startsWith(QLatin1String("general.modified"))
                    || key.startsWith(QLatin1String("general.accessed")) || key.startsWith(QLatin1String("selection.created"))

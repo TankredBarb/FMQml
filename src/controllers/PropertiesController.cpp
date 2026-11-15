@@ -1,5 +1,6 @@
 #include "PropertiesController.h"
 #include "../core/FolderSizeCalculator.h"
+#include "../core/FileSpaceUsage.h"
 #include "../core/DriveUtils.h"
 #include "../core/FileAccessResolver.h"
 #include "../core/LinuxAdminBroker.h"
@@ -15,6 +16,7 @@
 #include "../core/MetadataExtractor.h"
 #include "../core/TerminalLauncher.h"
 #include <QPointer>
+#include <QTimer>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QMetaObject>
 #include <QJsonDocument>
@@ -41,6 +43,7 @@ struct SinglePropertiesData {
     bool isDirectory = false;
     QString name;
     QString sizeText;
+    QString fileSystem;
     QString typeText;
     QString created;
     QString modified;
@@ -248,6 +251,7 @@ SinglePropertiesData loadSinglePropertiesData(const QString &path)
         data.name = cheapPropertiesFileName(path);
     }
     data.isDirectory = info.isDir();
+    data.fileSystem = QString::fromLatin1(QStorageInfo(path).fileSystemType());
     data.sizeText = data.isDirectory ? DriveUtils::formatSize(0) : DriveUtils::formatSize(info.size());
     data.created = locale.toString(info.birthTime(), QLocale::ShortFormat);
     data.modified = locale.toString(info.lastModified(), QLocale::ShortFormat);
@@ -311,6 +315,7 @@ SinglePropertiesData loadAdminSinglePropertiesData(const QString &path)
         data.exists = true;
         data.name = entry.value(QStringLiteral("name")).toString();
         data.isDirectory = isDirectory;
+        data.fileSystem = QString::fromLatin1(QStorageInfo(path).fileSystemType());
         data.sizeText = isDirectory ? DriveUtils::formatSize(0)
                                     : DriveUtils::formatSize(entry.value(QStringLiteral("size")).toVariant().toLongLong());
         const QLocale locale;
@@ -430,13 +435,21 @@ void PropertiesController::rebuildPropertyGroups()
             generalRows.append(makePropertyRow(QStringLiteral("general.location"), QStringLiteral("Location"), QDir::toNativeSeparators(QFileInfo(m_path).absolutePath()), QStringLiteral("general")));
             generalRows.append(makePropertyRow(QStringLiteral("general.fullPath"), QStringLiteral("Full Path"), QDir::toNativeSeparators(m_path), QStringLiteral("general")));
             generalRows.append(makePropertyRow(QStringLiteral("general.type"), QStringLiteral("Type"), m_typeText, QStringLiteral("general"), false));
-            generalRows.append(makePropertyRow(QStringLiteral("general.size"), QStringLiteral("Size"), m_sizeText, QStringLiteral("general"), false, false,
+            generalRows.append(makePropertyRow(QStringLiteral("general.size"), QStringLiteral("Size (contents)"), m_sizeText, QStringLiteral("general"), false, false,
                                                QVariantMap{{QStringLiteral("busy"), m_isCalculating}}));
+            generalRows.append(makePropertyRow(QStringLiteral("general.onDisk"), QStringLiteral("On disk (file data)"), m_diskSizeText, QStringLiteral("general"), false, false,
+                                               QVariantMap{{QStringLiteral("busy"), m_diskSizeCalculating}}));
+            if (!m_fileSystem.isEmpty()) {
+                generalRows.append(makePropertyRow(QStringLiteral("general.fileSystem"), QStringLiteral("FS type"), m_fileSystem, QStringLiteral("general"), false, false,
+                                                   QVariantMap{{QStringLiteral("compact"), true}}));
+            }
             if (m_isDirectory) {
                 generalRows.append(makePropertyRow(QStringLiteral("general.contents"), QStringLiteral("Contents"),
                                                    QStringLiteral("%1 files, %2 folders").arg(m_fileCount).arg(m_folderCount),
                                                    QStringLiteral("general"), false));
             }
+            generalRows.append(makePropertyRow(QStringLiteral("general.spaceNote"), QStringLiteral("Space accounting"), m_diskUsageNote, QStringLiteral("general"), false, false,
+                                               QVariantMap{{QStringLiteral("note"), true}}));
             if (!m_created.isEmpty()) {
                 generalRows.append(makePropertyRow(QStringLiteral("general.created"), QStringLiteral("Created"), m_created, QStringLiteral("general"), false));
             }
@@ -519,11 +532,19 @@ void PropertiesController::rebuildPropertyGroups()
         generalRows.append(makePropertyRow(QStringLiteral("selection.count"), QStringLiteral("Selection"), m_name, QStringLiteral("general"), false, true));
         generalRows.append(makePropertyRow(QStringLiteral("selection.location"), QStringLiteral("Location"), m_path, QStringLiteral("general")));
         generalRows.append(makePropertyRow(QStringLiteral("selection.contains"), QStringLiteral("Contains"), m_typeText, QStringLiteral("general"), false));
+        generalRows.append(makePropertyRow(QStringLiteral("selection.totalSize"), QStringLiteral("Size (contents)"), m_sizeText, QStringLiteral("general"), false, false,
+                                           QVariantMap{{QStringLiteral("busy"), m_isCalculating}}));
+        generalRows.append(makePropertyRow(QStringLiteral("selection.onDisk"), QStringLiteral("On disk (file data)"), m_diskSizeText, QStringLiteral("general"), false, false,
+                                           QVariantMap{{QStringLiteral("busy"), m_diskSizeCalculating}}));
+        if (!m_fileSystem.isEmpty()) {
+            generalRows.append(makePropertyRow(QStringLiteral("selection.fileSystem"), QStringLiteral("FS type"), m_fileSystem, QStringLiteral("general"), false, false,
+                                               QVariantMap{{QStringLiteral("compact"), true}}));
+        }
         generalRows.append(makePropertyRow(QStringLiteral("selection.contents"), QStringLiteral("Files & Folders"),
                                            QStringLiteral("%1 files, %2 folders").arg(m_fileCount).arg(m_folderCount),
                                            QStringLiteral("general"), false));
-        generalRows.append(makePropertyRow(QStringLiteral("selection.totalSize"), QStringLiteral("Total Size"), m_sizeText, QStringLiteral("general"), false, false,
-                                           QVariantMap{{QStringLiteral("busy"), m_isCalculating}}));
+        generalRows.append(makePropertyRow(QStringLiteral("selection.spaceNote"), QStringLiteral("Space accounting"), m_diskUsageNote, QStringLiteral("general"), false, false,
+                                           QVariantMap{{QStringLiteral("note"), true}}));
 
         if (!m_created.isEmpty()) {
             generalRows.append(makePropertyRow(QStringLiteral("selection.createdRange"), QStringLiteral("Created Range"), m_created, QStringLiteral("general"), false));
@@ -554,7 +575,7 @@ void PropertiesController::setVisible(bool visible)
 {
     if (m_visible == visible) return;
 
-    if (!visible && m_isCalculating) {
+    if (!visible && (m_isCalculating || m_diskSizeCalculating)) {
         cancelAllCalculators();
     }
 
@@ -596,6 +617,7 @@ void PropertiesController::load(const QString &path)
         m_path = path;
         m_name = cheapPropertiesFileName(path);
         m_sizeText.clear();
+        m_fileSystem.clear();
         m_typeText.clear();
         m_created.clear();
         m_modified.clear();
@@ -626,6 +648,7 @@ void PropertiesController::load(const QString &path)
     emit isCalculatingChanged();
     setVisible(true);
     ensureUnixAccountChoices();
+    measureDiskUsage({path});
 
     QPointer<PropertiesController> self(this);
     const int gen = m_calcGeneration;
@@ -649,6 +672,7 @@ void PropertiesController::load(const QString &path)
                 self->m_name.clear();
                 self->m_path.clear();
                 self->m_sizeText.clear();
+                self->m_fileSystem.clear();
                 self->m_typeText.clear();
                 self->m_created.clear();
                 self->m_modified.clear();
@@ -682,6 +706,7 @@ void PropertiesController::load(const QString &path)
             self->m_name = std::move(data.name);
             self->m_isDirectory = data.isDirectory;
             self->m_sizeText = std::move(data.sizeText);
+            self->m_fileSystem = std::move(data.fileSystem);
             self->m_typeText = std::move(data.typeText);
             self->m_created = std::move(data.created);
             self->m_modified = std::move(data.modified);
@@ -749,6 +774,7 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     int  folderItems = 0;
     qint64 knownSize = 0;
     QSet<QString> parentDirs;
+    QSet<QString> fileSystems;
     QDateTime earliestCreated, latestModified, latestAccessed;
     QStringList typeSet;
 
@@ -757,6 +783,9 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     for (const QString &p : paths) {
         QFileInfo info(p);
         if (!info.exists()) continue;
+
+        const QString fileSystem = QString::fromLatin1(QStorageInfo(p).fileSystemType());
+        if (!fileSystem.isEmpty()) fileSystems.insert(fileSystem);
 
         parentDirs.insert(QDir::toNativeSeparators(info.absolutePath()));
 
@@ -782,6 +811,9 @@ void PropertiesController::loadMultiple(const QStringList &paths)
 
     // === Heading fields ========================================================
     m_name = QString("%1 items").arg(paths.size());
+    QStringList sortedFileSystems = fileSystems.values();
+    sortedFileSystems.sort();
+    m_fileSystem = sortedFileSystems.join(QStringLiteral(", "));
 
     // Common parent or "Multiple locations"
     if (parentDirs.size() == 1)
@@ -843,6 +875,7 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     emit propertiesChanged();
     emit isCalculatingChanged();
     setVisible(true);
+    measureDiskUsage(paths);
 }
 
 void PropertiesController::resetDriveProperties()
@@ -942,8 +975,69 @@ bool PropertiesController::tryLoadDrive(const QString &path)
 
 // === Cancel helpers ==========================================================
 
+PropertiesController::~PropertiesController()
+{
+    if (m_diskSizeCancelled) m_diskSizeCancelled->store(true);
+}
+
+void PropertiesController::measureDiskUsage(const QStringList &paths, bool retry)
+{
+    m_diskSizeCancelled = std::make_shared<std::atomic_bool>(false);
+    const auto cancelled = m_diskSizeCancelled;
+    m_diskSizeCalculating = true;
+    if (!retry) {
+        m_diskSizeText = QStringLiteral("Calculating…");
+        m_diskUsageNote = QStringLiteral("File sizes do not predict space freed by deletion. Compression, shared data and snapshots can change the result.");
+    }
+    rebuildPropertyGroups();
+    emit propertiesChanged();
+    const int generation = m_calcGeneration;
+    const QPointer<PropertiesController> self(this);
+    (void)QtConcurrent::run([self, paths, generation, cancelled] {
+        const bool singleFile = paths.size() == 1 && QFileInfo(paths.first()).isFile();
+        const auto usage = FileSpaceUsage::measure(paths, *cancelled, [self, generation, cancelled, singleFile](const FileSpaceUsage::Progress &progress) {
+            if (!self || cancelled->load()) return;
+            if (singleFile && progress.files == 0) return;
+            QMetaObject::invokeMethod(self.data(), [self, generation, cancelled, progress] {
+                if (!self || cancelled->load() || generation != self->m_calcGeneration) return;
+                self->m_diskSizeText = QStringLiteral("At least ") + DriveUtils::formatSize(progress.bytes);
+                self->m_diskUsageNote = QStringLiteral("Calculating on-disk size: %1 files measured, %2 paths skipped. Current: %3. The displayed amount is a lower bound until the scan finishes.")
+                    .arg(QLocale().toString(progress.files)).arg(progress.skippedPaths).arg(QDir::toNativeSeparators(progress.currentPath));
+                self->rebuildPropertyGroups();
+                emit self->propertiesChanged();
+            }, Qt::QueuedConnection);
+        });
+        if (!self || cancelled->load()) return;
+        QMetaObject::invokeMethod(self.data(), [self, paths, generation, usage, cancelled, singleFile] {
+            if (!self || cancelled->load() || generation != self->m_calcGeneration) return;
+            const bool waiting = singleFile && usage.pendingPaths > 0;
+            self->m_diskSizeCalculating = waiting;
+            self->m_diskSizeText = waiting ? QStringLiteral("Pending allocation…")
+                : usage.bytes < 0 ? QStringLiteral("Unavailable")
+                : (usage.partial() ? QStringLiteral("At least ") : QString()) + DriveUtils::formatSize(usage.bytes);
+            self->m_diskUsageNote = waiting
+                ? QStringLiteral("The filesystem is still allocating file data. This value will update automatically.") : usage.explanation;
+            if (usage.bytes < 0 && !waiting)
+                self->m_diskUsageNote += QStringLiteral(" File sizes do not predict space freed by deletion.");
+            self->rebuildPropertyGroups();
+            emit self->propertiesChanged();
+            if (waiting) QTimer::singleShot(2000, self.data(), [self, paths, generation, cancelled] {
+                if (!self || cancelled->load() || generation != self->m_calcGeneration || !self->m_visible) return;
+                self->measureDiskUsage(paths, true);
+            });
+        }, Qt::QueuedConnection);
+    });
+}
+
 void PropertiesController::cancelAllCalculators()
 {
+    const bool diskWasCalculating = m_diskSizeCalculating;
+    if (m_diskSizeCancelled) m_diskSizeCancelled->store(true);
+    if (m_diskSizeCalculating) {
+        m_diskSizeCalculating = false;
+        m_diskSizeText = QStringLiteral("Unavailable");
+        m_diskUsageNote = QStringLiteral("Measurement stopped. File sizes do not predict space freed by deletion.");
+    }
     // Single
     if (m_currentCalculator) {
         m_currentCalculator->cancel();
@@ -961,11 +1055,12 @@ void PropertiesController::cancelAllCalculators()
 
     ++m_calcGeneration;
     m_progressUpdateTimer.invalidate();
-    if (m_isCalculating) {
+    if (m_isCalculating || diskWasCalculating) {
+        const bool sizeWasCalculating = m_isCalculating;
         m_isCalculating = false;
         rebuildPropertyGroups();
         emit propertiesChanged();
-        emit isCalculatingChanged();
+        if (sizeWasCalculating) emit isCalculatingChanged();
     }
 }
 

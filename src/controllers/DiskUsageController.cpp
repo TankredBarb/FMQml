@@ -1,4 +1,6 @@
 #include "DiskUsageController.h"
+#include "../core/FileSpaceUsage.h"
+#include <QtConcurrent/QtConcurrentRun>
 
 #include "../core/ArchiveSupport.h"
 #include "../core/DriveUtils.h"
@@ -91,8 +93,13 @@ DiskUsageController::State DiskUsageController::state() const
 
 bool DiskUsageController::busy() const
 {
-    return m_state == State::Scanning || m_state == State::Canceling;
+    return contentsBusy() || m_spaceBusy;
 }
+
+bool DiskUsageController::contentsBusy() const { return m_state == State::Scanning || m_state == State::Canceling; }
+bool DiskUsageController::onDiskBusy() const { return m_spaceBusy; }
+bool DiskUsageController::onDiskStopped() const { return m_spaceStopped; }
+QString DiskUsageController::onDiskProgressText() const { return m_onDiskProgress; }
 
 QString DiskUsageController::rootPath() const
 {
@@ -193,6 +200,70 @@ qint64 DiskUsageController::totalBytes() const
 QString DiskUsageController::totalBytesText() const
 {
     return DriveUtils::formatSize(m_totalBytes);
+}
+
+QString DiskUsageController::fileSystemType() const
+{
+    return m_rootPath.isEmpty() ? QString() : QString::fromLatin1(QStorageInfo(m_rootPath).fileSystemType());
+}
+
+QString DiskUsageController::onDiskText() const { return m_onDiskText; }
+QString DiskUsageController::onDiskNote() const { return m_onDiskNote; }
+int DiskUsageController::onDiskSkippedPaths() const { return m_onDiskSkippedPaths; }
+
+void DiskUsageController::measureDiskUsage()
+{
+    m_spaceCancelled = std::make_shared<std::atomic_bool>(false);
+    const auto cancelled = m_spaceCancelled;
+    m_spaceBusy = true;
+    m_spaceStopped = false;
+    m_spaceFiles = 0;
+    m_onDiskSkippedPaths = 0;
+    m_onDiskProgress.clear();
+    m_onDiskText = QStringLiteral("Calculating…");
+    m_onDiskNote = QStringLiteral("Measuring regular-file allocation. File sizes do not predict space freed by deletion.");
+    emit spaceInfoChanged();
+    emit stateChanged();
+    const int generation = m_generation;
+    const QString path = m_rootPath;
+    const QPointer<DiskUsageController> self(this);
+    (void)QtConcurrent::run([self, path, generation, cancelled] {
+        const auto usage = FileSpaceUsage::measure({path}, *cancelled, [self, generation, cancelled](const FileSpaceUsage::Progress &progress) {
+            if (!self || cancelled->load()) return;
+            QMetaObject::invokeMethod(self.data(), [self, generation, cancelled, progress] {
+                if (!self || cancelled->load() || generation != self->m_generation) return;
+                self->m_spaceFiles = progress.files;
+                self->m_onDiskSkippedPaths = progress.skippedPaths;
+                self->m_onDiskText = QStringLiteral("At least ") + DriveUtils::formatSize(progress.bytes);
+                self->m_onDiskProgress = QStringLiteral("%1 files measured, %2 skipped · %3")
+                    .arg(QLocale().toString(progress.files)).arg(progress.skippedPaths).arg(QDir::toNativeSeparators(progress.currentPath));
+                self->m_onDiskNote = QStringLiteral("On-disk scan is running. The displayed amount is a lower bound until it finishes.");
+                emit self->spaceInfoChanged();
+            }, Qt::QueuedConnection);
+        });
+        if (!self || cancelled->load()) return;
+        QMetaObject::invokeMethod(self.data(), [self, generation, usage, cancelled] {
+            if (!self || cancelled->load() || generation != self->m_generation) return;
+            self->m_spaceBusy = false;
+            self->m_onDiskText = usage.bytes < 0 ? QStringLiteral("Unavailable")
+                : (usage.partial() ? QStringLiteral("At least ") : QString()) + DriveUtils::formatSize(usage.bytes);
+            self->m_onDiskNote = usage.explanation;
+            self->m_onDiskSkippedPaths = usage.skippedPaths;
+            self->cacheSpaceInfo();
+            emit self->spaceInfoChanged();
+            emit self->stateChanged();
+        }, Qt::QueuedConnection);
+    });
+}
+
+void DiskUsageController::cacheSpaceInfo()
+{
+    auto entry = m_cache.find(cacheKeyForPath(m_rootPath));
+    if (entry == m_cache.end() || entry->generation != m_generation) return;
+    entry->onDiskText = m_onDiskText;
+    entry->onDiskNote = m_onDiskNote;
+    entry->onDiskSkippedPaths = m_onDiskSkippedPaths;
+    entry->onDiskStopped = m_spaceStopped;
 }
 
 QString DiskUsageController::storageUsedText() const
@@ -349,6 +420,7 @@ void DiskUsageController::startScan(const QString &path, bool forceRescan)
             << "root=" << QDir::toNativeSeparators(m_rootPath);
     }
     setState(State::Scanning);
+    measureDiskUsage();
 
     auto *scanner = new DiskUsageScanner(m_rootPath, m_generation, 200);
     m_scanner = scanner;
@@ -499,6 +571,16 @@ bool DiskUsageController::revealPath(const QString &path) const
 
 void DiskUsageController::cancel()
 {
+    if (m_spaceCancelled) m_spaceCancelled->store(true);
+    if (m_spaceBusy) {
+        m_spaceBusy = false;
+        m_spaceStopped = true;
+        if (!m_spaceFiles) m_onDiskText = QStringLiteral("Unavailable");
+        m_onDiskNote = QStringLiteral("Stopped. The displayed on-disk amount covers only the measured files; use Rescan for a full scan.");
+        cacheSpaceInfo();
+        emit spaceInfoChanged();
+        emit stateChanged();
+    }
     if (m_scanner) {
         m_scanner->cancel();
         m_scanner = nullptr;
@@ -545,6 +627,13 @@ void DiskUsageController::setError(const QString &error)
 
 void DiskUsageController::resetProgress()
 {
+    m_onDiskText.clear();
+    m_onDiskNote.clear();
+    m_onDiskProgress.clear();
+    m_spaceFiles = 0;
+    m_onDiskSkippedPaths = 0;
+    m_spaceStopped = false;
+    emit spaceInfoChanged();
     m_currentPath.clear();
     m_lastError.clear();
     m_totalBytes = 0;
@@ -628,14 +717,14 @@ QString DiskUsageController::cacheKeyForPath(const QString &path) const
 bool DiskUsageController::tryLoadCache(const QString &path)
 {
     const QString key = cacheKeyForPath(path);
-    auto it = m_cache.constFind(key);
-    if (it == m_cache.constEnd()) {
+    if (!m_cache.contains(key)) {
         return false;
     }
 
     cancel();
     ++m_generation;
-    const CachedScan cachedScan = it.value();
+    const CachedScan cachedScan = m_cache.value(key);
+    m_cache[key].generation = m_generation;
     m_rootPath = cachedScan.rootPath;
     emit rootPathChanged();
     resetProgress();
@@ -656,6 +745,15 @@ bool DiskUsageController::tryLoadCache(const QString &path)
                   cachedScan.lastError);
     setCached(true, cachedScan.timestamp);
     setState(State::Finished);
+    if (cachedScan.onDiskText.isEmpty()) {
+        measureDiskUsage();
+    } else {
+        m_onDiskText = cachedScan.onDiskText;
+        m_onDiskNote = cachedScan.onDiskNote;
+        m_onDiskSkippedPaths = cachedScan.onDiskSkippedPaths;
+        m_spaceStopped = cachedScan.onDiskStopped;
+        emit spaceInfoChanged();
+    }
     if (diskUsageLoggingEnabled()) {
         qInfo().noquote()
             << "[DiskUsage] cache loaded"
@@ -688,6 +786,7 @@ void DiskUsageController::storeCache(const QList<DiskUsageEntry> &folders,
     }
 
     CachedScan cachedScan;
+    cachedScan.generation = m_generation;
     cachedScan.rootPath = m_rootPath;
     cachedScan.folders = folders;
     cachedScan.files = files;
@@ -703,6 +802,12 @@ void DiskUsageController::storeCache(const QList<DiskUsageEntry> &folders,
     cachedScan.reparsePathDetails = reparsePathDetails;
     cachedScan.lastError = m_lastError;
     cachedScan.timestamp = QDateTime::currentDateTime();
+    if (!m_spaceBusy) {
+        cachedScan.onDiskText = m_onDiskText;
+        cachedScan.onDiskNote = m_onDiskNote;
+        cachedScan.onDiskSkippedPaths = m_onDiskSkippedPaths;
+        cachedScan.onDiskStopped = m_spaceStopped;
+    }
     m_cache.insert(cacheKeyForPath(m_rootPath), cachedScan);
     setCached(false);
 }

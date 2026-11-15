@@ -28,16 +28,33 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     PropertiesLayout layout;
     const QVariantList general = {row("general.name"), row("general.location"), row("general.fullPath"),
-        row("general.type"), row("general.size"), row("general.contents"), row("general.created"),
+        row("general.type"), row("general.size"), row("general.onDisk", "Unavailable"),
+        row("general.fileSystem", "btrfs"), row("general.spaceNote"), row("general.contents"), row("general.created"),
         row("general.modified"), row("general.accessed"), row("general.unknown", "")};
     const QVariantList drive = {row("general.name"), row("general.root"), row("general.type"),
         row("general.fileSystem"), row("general.usedSpace"), row("general.freeSpace"), row("general.totalSpace"),
         row("general.ready"), row("general.spaceStatus")};
     const QVariantList multiple = {row("selection.count"), row("selection.location"), row("selection.contains"),
-        row("selection.contents"), row("selection.totalSize"), row("selection.createdRange"),
+        row("selection.contents"), row("selection.totalSize"), row("selection.onDisk", "Unavailable"),
+        row("selection.fileSystem", "btrfs"), row("selection.spaceNote"), row("selection.createdRange"),
         row("selection.modifiedRange"), row("selection.accessedRange")};
     for (const auto &input : {general, drive, multiple}) {
         if (!preservesRows(input, layout.generalSections(input))) return 1;
+    }
+    for (const auto &input : {general, multiple}) {
+        bool found = false;
+        for (const auto &section : layout.generalSections(input)) {
+            const auto map = section.toMap();
+            if (map.value("layout") != "statistics") continue;
+            QStringList keys;
+            for (const auto &value : map.value("rows").toList())
+                keys.append(value.toMap().value("key").toString());
+            const QString prefix = input == general ? "general." : "selection.";
+            if (!keys.contains(prefix + "fileSystem") || !keys.contains(prefix + "onDisk")
+                || !keys.contains(prefix + "spaceNote")) return 5;
+            found = true;
+        }
+        if (!found) return 6;
     }
     const QVariantList details = {row("details.title"), row("details.artist"), row("details.album"),
         row("details.comment"), row("details.duration"), row("details.bitrate"), row("details.sample_rate"),

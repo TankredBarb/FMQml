@@ -56,4 +56,21 @@ else
     log "no install manifest found; skipping uninstall for a clean installation"
 fi
 run_privileged_make install
+if command -v dbus-send >/dev/null 2>&1 && [[ -S /run/dbus/system_bus_socket ]]; then
+    space_helper_executable="$(sed -n 's/^Exec=//p' "$BUILD_DIR/io.fmqml.fm.Space.service")"
+    if [[ -x "$space_helper_executable" ]]; then
+        log "stopping the previous read-only space helper after update"
+        if [[ "${EUID}" -eq 0 ]]; then
+            "$space_helper_executable" --stop-running
+        else
+            sudo "$space_helper_executable" --stop-running
+        fi
+    fi
+    log "refreshing system D-Bus policy for the read-only space helper"
+    if [[ "${EUID}" -eq 0 ]]; then
+        dbus-send --system --type=method_call --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ReloadConfig
+    else
+        sudo dbus-send --system --type=method_call --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ReloadConfig
+    fi
+fi
 log "install complete"

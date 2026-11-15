@@ -14,7 +14,7 @@ Dialog {
     modal: true
     focus: true
     width: Math.min(parent ? parent.width - 48 : 860, 860)
-    height: Math.min(parent ? parent.height - 48 : 620, 620)
+    height: Math.min(parent ? parent.height - 48 : 900, 900)
     padding: 0
 
     property var appRoot: null
@@ -26,7 +26,13 @@ Dialog {
     property int mapContentMode: 0
     property bool returnedFromPanel: false
     readonly property bool scanning: diskUsageController && diskUsageController.busy
+    readonly property bool contentsScanning: diskUsageController && diskUsageController.contentsBusy
     readonly property bool hasError: diskUsageController && diskUsageController.error.length > 0
+    readonly property string onDiskStatus: diskUsageController.onDiskBusy ? "Measuring…"
+        : (diskUsageController.onDiskStopped ? "Stopped"
+           : (diskUsageController.onDiskText === "Unavailable" ? "Unavailable"
+              : (diskUsageController.onDiskSkippedPaths > 0
+                 ? "Partial · " + diskUsageController.onDiskSkippedPaths + " skipped" : "Measured")))
     readonly property var activeModel: activeTab === 0
                                        ? diskUsageController.summaryModel
                                        : (activeTab === 1
@@ -41,16 +47,16 @@ Dialog {
                                              ? diskUsageController.skippedDetailEntries.length
                                              : 0
     readonly property string activeTabDescription: activeTab === 0
-        ? "Top-level items plus largest individual files. Folder sizes include their contents; file rows point to concrete space consumers."
+        ? "Content sizes: top-level items plus largest files. Files can also appear inside folder totals; do not add the rows."
         : (activeTab === 1
-           ? "Top-level items only. Folder sizes include their contents and add up cleanly within the scanned root."
+           ? "Content sizes of top-level items. Shared file data is not a prediction of space freed by deletion."
            : (activeTab === 2
-              ? "Largest folders anywhere under this scan. Parent and child folders can overlap."
-              : "Largest individual files anywhere under this scan."))
+              ? "Largest folders by content size. Parent and child folders can overlap; do not add the rows."
+              : "Largest files by content size, before filesystem compression. Deleting them may free less space."))
     readonly property int rowActionButtonSize: 24
     readonly property int rowActionButtonSpacing: 6
     readonly property int rowActionColumnWidth: rowActionButtonSize * 5 + rowActionButtonSpacing * 4
-    readonly property int rowSizeColumnWidth: 98
+    readonly property int rowSizeColumnWidth: 112
     readonly property int rowItemsColumnWidth: 92
     readonly property int breadcrumbButtonHeight: Math.max(28, Theme.fontSizeCaption + 16)
     readonly property int breadcrumbBarHeight: root.breadcrumbButtonHeight + 12
@@ -260,6 +266,7 @@ Dialog {
         Item { Layout.fillWidth: true }
 
         FmButton {
+            objectName: "diskUsageCancel"
             visible: root.scanning
             text: "Cancel"
             highlighted: false
@@ -293,12 +300,13 @@ Dialog {
 
     Popup {
         id: skippedDetailsPopup
+        objectName: "diskUsageMeasurementDetails"
 
         modal: false
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         width: Math.min(root.width - 48, 640)
-        height: Math.min(root.height - 96, 360)
+        height: Math.min(root.height - 96, 480)
         x: (root.width - width) / 2
         y: 92
         padding: 0
@@ -322,7 +330,7 @@ Dialog {
 
                 Label {
                     Layout.fillWidth: true
-                    text: "Skipped paths"
+                    text: "Measurement details"
                     color: Theme.textPrimary
                     font.pixelSize: Theme.fontSizeBody
                     font.weight: Font.DemiBold
@@ -365,6 +373,71 @@ Dialog {
                     id: skippedDetailsList
                     model: diskUsageController.skippedDetailEntries
                     boundsBehavior: Flickable.StopAtBounds
+
+                    header: Item {
+                        width: skippedDetailsScrollBar.scrollNeeded
+                               ? Math.max(0, skippedDetailsScrollBar.x - 6)
+                               : skippedDetailsList.width
+                        height: measurementDetails.implicitHeight + 24
+
+                        Column {
+                            id: measurementDetails
+                            x: 12
+                            y: 12
+                            width: parent.width - 24
+                            spacing: 8
+
+                            Label {
+                                width: parent.width
+                                text: "Contents · " + diskUsageController.coverageStatusText
+                                color: Theme.textPrimary
+                                font.pixelSize: Theme.fontSizeLabel
+                                wrapMode: Text.Wrap
+                            }
+
+                            Label {
+                                width: parent.width
+                                visible: text.length > 0
+                                text: diskUsageController.lastError
+                                color: Theme.warning
+                                font.pixelSize: Theme.fontSizeCaption
+                                wrapMode: Text.Wrap
+                            }
+
+                            Label {
+                                width: parent.width
+                                text: "On disk · " + root.onDiskStatus
+                                color: Theme.textPrimary
+                                font.pixelSize: Theme.fontSizeLabel
+                            }
+
+                            Label {
+                                objectName: "diskUsageAllocationDetails"
+                                width: parent.width
+                                text: diskUsageController.onDiskNote
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontSizeCaption
+                                wrapMode: Text.Wrap
+                            }
+
+                            Label {
+                                width: parent.width
+                                visible: diskUsageController.cached
+                                text: "Results are cached; use Rescan to refresh."
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontSizeCaption
+                                wrapMode: Text.Wrap
+                            }
+
+                            Label {
+                                width: parent.width
+                                visible: root.skippedDetailCount > 0
+                                text: "Skipped content paths"
+                                color: Theme.textPrimary
+                                font.pixelSize: Theme.fontSizeLabel
+                            }
+                        }
+                    }
 
                     delegate: ItemDelegate {
                         width: skippedDetailsScrollBar.scrollNeeded
@@ -436,7 +509,8 @@ Dialog {
                     spacing: 10
 
                     InlineBadge {
-                        text: root.scanning ? "SCANNING" : (root.hasError ? "FAILED" : (diskUsageController.cached ? "CACHED" : "READY"))
+                        text: root.scanning ? "SCANNING" : (root.hasError ? "FAILED"
+                              : (diskUsageController.onDiskStopped ? "STOPPED" : (diskUsageController.cached ? "CACHED" : "READY")))
                         textColor: root.hasError ? Theme.danger : Theme.accent
                         fillColor: Theme.withAlpha(root.hasError ? Theme.danger : Theme.accent, 0.10)
                         strokeColor: Theme.withAlpha(root.hasError ? Theme.danger : Theme.accent, 0.24)
@@ -446,13 +520,15 @@ Dialog {
 
                     Label {
                         Layout.fillWidth: true
-                        text: root.scanning
+                        text: diskUsageController.contentsBusy
                               ? ("Reading " + diskUsageController.currentDisplayPath)
+                              : (diskUsageController.onDiskBusy
+                                 ? ("Measuring on disk · " + diskUsageController.onDiskProgressText)
                               : (root.hasError
                                  ? diskUsageController.error
                                  : (diskUsageController.cached && diskUsageController.cacheStatusText.length > 0
                                     ? diskUsageController.cacheStatusText
-                                    : "Largest folders and files"))
+                                    : "Largest folders and files")))
                         color: root.hasError ? Theme.danger : Theme.textSecondary
                         font.pixelSize: Theme.fontSizeLabel
                         elide: Text.ElideMiddle
@@ -464,22 +540,35 @@ Dialog {
                     spacing: 18
 
                     Label {
-                        text: "Seen " + diskUsageController.totalBytesText
+                        text: "Contents " + diskUsageController.totalBytesText
                         color: Theme.textPrimary
                         font.pixelSize: Theme.fontSizeBody
                         font.weight: Font.DemiBold
                     }
 
                     Label {
+                        text: "On disk (file data) " + diskUsageController.onDiskText
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontSizeLabel
+                    }
+
+                    Label {
+                        visible: diskUsageController.fileSystemType.length > 0
+                        text: "FS type " + diskUsageController.fileSystemType
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontSizeLabel
+                    }
+
+                    Label {
                         visible: diskUsageController.storageUsedText.length > 0
-                        text: "Used " + diskUsageController.storageUsedText
+                        text: "Filesystem used " + diskUsageController.storageUsedText
                         color: Theme.textSecondary
                         font.pixelSize: Theme.fontSizeLabel
                     }
 
                     Label {
                         visible: diskUsageController.storageTotalText.length > 0
-                        text: "Total " + diskUsageController.storageTotalText
+                        text: "Filesystem total " + diskUsageController.storageTotalText
                         color: Theme.textSecondary
                         font.pixelSize: Theme.fontSizeLabel
                     }
@@ -496,34 +585,44 @@ Dialog {
                         font.pixelSize: Theme.fontSizeLabel
                     }
 
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    Label {
+                        objectName: "diskUsageContentsStatus"
+                        Layout.fillWidth: true
+                        text: "Contents · " + (diskUsageController.contentsBusy ? "Scanning…" : diskUsageController.coverageStatusText)
+                        color: diskUsageController.inaccessiblePaths > 0 ? Theme.warning : Theme.textSecondary
+                        font.pixelSize: Theme.fontSizeLabel
+                        elide: Text.ElideRight
+                    }
+
+                    Label {
+                        objectName: "diskUsageAllocationStatus"
+                        Layout.fillWidth: true
+                        text: "On disk · " + root.onDiskStatus
+                        color: diskUsageController.onDiskSkippedPaths > 0 ? Theme.warning : Theme.textSecondary
+                        font.pixelSize: Theme.fontSizeLabel
+                        elide: Text.ElideRight
+                    }
+
                     FmButton {
-                        visible: diskUsageController.coverageStatusText.length > 0
-                        enabled: root.skippedDetailCount > 0
+                        objectName: "diskUsageDetails"
+                        text: "Details"
                         flat: true
-                        primaryColor: diskUsageController.inaccessiblePaths > 0 ? Theme.warning : Theme.accent
-                        width: Math.min(implicitWidth, Math.max(160, root.width * 0.34))
-                        padding: 0
-                        text: diskUsageController.coverageStatusText
-                        contentItem: Label {
-                            text: parent.text
-                            color: diskUsageController.inaccessiblePaths > 0 ? Theme.warning : Theme.textSecondary
-                            font.pixelSize: Theme.fontSizeLabel
-                            elide: Text.ElideRight
-                            verticalAlignment: Text.AlignVCenter
-                        }
                         onClicked: skippedDetailsPopup.open()
-                        ToolTip.visible: enabled && hovered
-                        ToolTip.text: "Show skipped paths"
                     }
                 }
 
                 Label {
                     Layout.fillWidth: true
-                    visible: diskUsageController.lastError.length > 0
-                    text: diskUsageController.lastError
-                    color: Theme.warning
+                    text: "Tables use content size. On-disk data is not the space freed by deletion."
+                    color: Theme.textSecondary
                     font.pixelSize: Theme.fontSizeCaption
-                    elide: Text.ElideMiddle
+                    wrapMode: Text.WordWrap
                 }
             }
 
@@ -642,7 +741,7 @@ Dialog {
                 FmIconButton {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: root.breadcrumbButtonHeight
-                    enabled: diskUsageController.canGoBack && !root.scanning
+                    enabled: diskUsageController.canGoBack && !root.contentsScanning
                     iconSource: "../assets/icons-classic/arrow-left.svg"
                     iconTone: "back"
                     iconSize: 14
@@ -654,7 +753,8 @@ Dialog {
                 FmIconButton {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: root.breadcrumbButtonHeight
-                    enabled: diskUsageController.canGoUp && !root.scanning
+                    objectName: "diskUsageUp"
+                    enabled: diskUsageController.canGoUp && !root.contentsScanning
                     iconSource: "../assets/icons-classic/arrow-up.svg"
                     iconTone: "up"
                     iconSize: 14
@@ -714,7 +814,7 @@ Dialog {
                                     readonly property bool isCurrent: index === diskUsageController.breadcrumbEntries.length - 1
 
                                     text: modelData.label
-                                    enabled: !root.scanning && modelData.path !== diskUsageController.rootPath
+                                    enabled: !root.contentsScanning && modelData.path !== diskUsageController.rootPath
                                     flat: true
                                     padding: 0
                                     topPadding: 0
@@ -817,7 +917,7 @@ Dialog {
                     interval: Application.styleHints.mouseDoubleClickInterval
                     repeat: false
                     onTriggered: {
-                        if (treemapMouse.pendingEntry.isDirectory && !root.scanning)
+                        if (treemapMouse.pendingEntry.isDirectory && !root.contentsScanning)
                             diskUsageController.navigateTo(treemapMouse.pendingEntry.path)
                         treemapMouse.pendingEntry = ({})
                     }
@@ -835,7 +935,7 @@ Dialog {
                 }
                 onClicked: (mouse) => {
                     updateEntry(mouse)
-                    if (entry.isDirectory && !root.scanning) {
+                    if (entry.isDirectory && !root.contentsScanning) {
                         pendingEntry = entry
                         treemapSingleClickTimer.restart()
                     }
@@ -844,7 +944,7 @@ Dialog {
                     treemapSingleClickTimer.stop()
                     pendingEntry = ({})
                     updateEntry(mouse)
-                    if (entry.path && !root.scanning)
+                    if (entry.path && !root.contentsScanning)
                         root.openInActivePanel(entry.path, entry.isDirectory)
                 }
 
@@ -905,7 +1005,7 @@ Dialog {
 
                 Label {
                     width: parent.width
-                    text: root.scanning ? "Building size map…"
+                    text: root.contentsScanning ? "Building size map…"
                          : (root.hasError ? diskUsageController.error : "Nothing to visualize here")
                     color: root.hasError ? Theme.danger : Theme.textPrimary
                     font.pixelSize: Theme.fontSizeBody
@@ -915,7 +1015,7 @@ Dialog {
                 }
 
                 Label {
-                    visible: root.scanning
+                    visible: root.contentsScanning
                     width: parent.width
                     text: diskUsageController.currentDisplayPath
                     color: Theme.textSecondary
@@ -979,7 +1079,7 @@ Dialog {
                     onTriggered: {
                         if (sunburstMouse.pendingEntry.isDirectory
                                 && !sunburstMouse.pendingEntry.aggregate
-                                && !root.scanning) {
+                                && !root.contentsScanning) {
                             diskUsageController.navigateTo(sunburstMouse.pendingEntry.path)
                         }
                         sunburstMouse.pendingEntry = ({})
@@ -998,7 +1098,7 @@ Dialog {
                 }
                 onClicked: (mouse) => {
                     updateEntry(mouse)
-                    if (entry.isDirectory && !entry.aggregate && entry.path && !root.scanning) {
+                    if (entry.isDirectory && !entry.aggregate && entry.path && !root.contentsScanning) {
                         pendingEntry = entry
                         sunburstSingleClickTimer.restart()
                     }
@@ -1007,7 +1107,7 @@ Dialog {
                     sunburstSingleClickTimer.stop()
                     pendingEntry = ({})
                     updateEntry(mouse)
-                    if (entry.isDirectory && !entry.aggregate && entry.path && !root.scanning)
+                    if (entry.isDirectory && !entry.aggregate && entry.path && !root.contentsScanning)
                         root.openInActivePanel(entry.path, true)
                 }
 
@@ -1057,7 +1157,7 @@ Dialog {
             }
 
             Rectangle {
-                visible: root.scanning && sunburst.visible
+                visible: root.contentsScanning && sunburst.visible
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.margins: 12
@@ -1085,7 +1185,7 @@ Dialog {
 
                 Label {
                     width: parent.width
-                    text: root.scanning ? "Building hierarchy…"
+                    text: root.contentsScanning ? "Building hierarchy…"
                          : (root.hasError ? diskUsageController.error : "Nothing to visualize here")
                     color: root.hasError ? Theme.danger : Theme.textPrimary
                     font.pixelSize: Theme.fontSizeBody
@@ -1095,7 +1195,7 @@ Dialog {
                 }
 
                 Label {
-                    visible: root.scanning
+                    visible: root.contentsScanning
                     width: parent.width
                     text: diskUsageController.currentDisplayPath
                     color: Theme.textSecondary
@@ -1134,9 +1234,11 @@ Dialog {
                     Layout.preferredWidth: root.rowSizeColumnWidth
                     Layout.minimumWidth: root.rowSizeColumnWidth
                     Layout.maximumWidth: root.rowSizeColumnWidth
-                    text: root.sortLabel("Size", 0)
+                    text: root.sortLabel("Contents", 0)
                     sortKeyValue: 0
                     align: Text.AlignRight
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Content size before filesystem compression; not space freed by deletion."
                 }
                 SortHeaderButton {
                     Layout.preferredWidth: root.rowItemsColumnWidth
@@ -1390,7 +1492,7 @@ Dialog {
 
             Label {
                 anchors.centerIn: parent
-                visible: resultsView.count === 0 && !root.scanning
+                visible: resultsView.count === 0 && !root.contentsScanning
                 text: root.hasError ? diskUsageController.error : "No results yet"
                 color: root.hasError ? Theme.danger : Theme.textSecondary
                 font.pixelSize: Theme.fontSizeBody

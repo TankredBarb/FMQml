@@ -16,6 +16,12 @@
 #include "../ui/foldermap/FolderMapItem.h"
 #include "../ui/foldermap/MapGpuProbe.h"
 #include "../core/ArchiveSupport.h"
+#include "../core/FileSpaceUsage.h"
+#include "../core/DriveUtils.h"
+#include <QStorageInfo>
+#ifdef Q_OS_LINUX
+#include <unistd.h>
+#endif
 
 #include <QApplication>
 #include <QDir>
@@ -42,11 +48,20 @@
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QThreadPool>
+#include <QSemaphore>
+#include <QtConcurrent>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <functional>
+
+// Let regression checks hold the content worker without a runtime delay option.
+class DiskUsageControllerTestAccess {
+public:
+    static QThreadPool *scanPool(DiskUsageController *controller) { return &controller->m_scanPool; }
+};
 
 namespace {
 constexpr int kTimeoutMs = 10000;
@@ -860,6 +875,314 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
     while (!window.property("workspaceStateRestored").toBool() && startupWait.elapsed() < 3000) {
         QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
         QThread::msleep(1);
+    }
+
+    if (app.arguments().contains(QStringLiteral("--check-space-presentation"))) {
+        QTemporaryDir spaceFixtures(QDir(qEnvironmentVariable("FM_SPACE_TEST_ROOT", QCoreApplication::applicationDirPath()))
+            .filePath(QStringLiteral("fm-space-ui-XXXXXX")));
+        if (!spaceFixtures.isValid()) return 2;
+        const QString path = spaceFixtures.filePath(QStringLiteral("compressed-data.bin"));
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly) || file.write(QByteArray(4 * 1024 * 1024, 'x')) != 4 * 1024 * 1024) return 2;
+        if (!file.flush()) return 2;
+#ifdef Q_OS_LINUX
+        if (::fsync(file.handle()) != 0) return 2;
+#endif
+        file.close();
+        const auto until = [](const auto &condition) {
+            QElapsedTimer timer;
+            timer.start();
+            while (!condition() && timer.elapsed() < 5000) {
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+                QThread::msleep(1);
+            }
+            return condition();
+        };
+        auto *properties = services.properties();
+        auto *usage = services.diskUsage();
+        const auto row = [&](const QString &key) {
+            for (const auto &group : properties->propertyGroups())
+                for (const auto &value : group.toMap().value(QStringLiteral("rows")).toList())
+                    if (value.toMap().value(QStringLiteral("key")).toString() == key) return value.toMap();
+            return QVariantMap{};
+        };
+        QObject *overlays = nullptr;
+        for (auto *candidate : window.findChildren<QObject *>())
+            if (candidate->metaObject()->indexOfProperty("propertiesDialog") >= 0
+                && candidate->metaObject()->indexOfProperty("diskUsageDialog") >= 0) overlays = candidate;
+        if (!overlays) return 2;
+        const QString filesystem = QString::fromLatin1(QStorageInfo(path).fileSystemType());
+        std::atomic_bool cancelled{false};
+        const auto measurement = FileSpaceUsage::measure({path}, cancelled);
+        bool passed = true;
+        QJsonObject checks;
+        const auto settled = [&] {
+            return !properties->isCalculating() && !row(QStringLiteral("general.onDisk")).value(QStringLiteral("busy")).toBool()
+                && !row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString().isEmpty();
+        };
+        for (const auto mode : {ThemeController::Dark, ThemeController::Light}) {
+            services.theme()->setMode(mode);
+            const QString suffix = mode == ThemeController::Dark ? QStringLiteral("dark") : QStringLiteral("light");
+            QMetaObject::invokeMethod(overlays, "openPropertiesForPaths", Q_ARG(QVariant, QVariant::fromValue(QStringList{path})));
+            const bool propertiesReady = until(settled);
+            const bool filesystemMatches = row(QStringLiteral("general.fileSystem")).value(QStringLiteral("value")).toString() == filesystem;
+            checks.insert(suffix + QStringLiteral("PropertiesReady"), propertiesReady);
+            checks.insert(suffix + QStringLiteral("FilesystemMatches"), filesystemMatches);
+            passed = propertiesReady && filesystemMatches && passed;
+            const QString diskText = row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString();
+            const QString expectedDiskText = measurement.bytes < 0 ? QStringLiteral("Unavailable") : DriveUtils::formatSize(measurement.bytes);
+            const bool physicalMatches = diskText == expectedDiskText;
+            checks.insert(suffix + QStringLiteral("PhysicalMatches"), physicalMatches);
+            passed = physicalMatches && passed;
+            QElapsedTimer settleFrames;
+            settleFrames.start();
+            until([&] { return settleFrames.elapsed() > 350; });
+            passed = window.grabWindow().save(QStringLiteral("/tmp/fm-space-properties-%1.png").arg(suffix)) && passed;
+            properties->setVisible(false);
+            QMetaObject::invokeMethod(overlays, "openDiskUsage", Q_ARG(QVariant, spaceFixtures.path()));
+            if (mode == ThemeController::Light) {
+                const bool physicalCache = usage->cached() && !usage->onDiskBusy();
+                checks.insert(QStringLiteral("physicalCacheReused"), physicalCache);
+                passed = physicalCache && passed;
+            }
+            const bool analyzeReady = until([&] { return !usage->busy() && usage->onDiskText() != QStringLiteral("Calculating…"); });
+            const bool analyzeMatches = usage->state() == DiskUsageController::State::Finished && usage->onDiskText() == diskText;
+            checks.insert(suffix + QStringLiteral("AnalyzeReady"), analyzeReady);
+            checks.insert(suffix + QStringLiteral("AnalyzeMatches"), analyzeMatches);
+            checks.insert(suffix + QStringLiteral("AnalyzeState"), static_cast<int>(usage->state()));
+            checks.insert(suffix + QStringLiteral("AnalyzeOnDisk"), usage->onDiskText());
+            checks.insert(suffix + QStringLiteral("PropertiesOnDisk"), diskText);
+            passed = analyzeReady && analyzeMatches && passed;
+            auto *dialog = overlays->property("diskUsageDialog").value<QObject *>();
+            if (!dialog) return 2;
+            for (const int view : {2, 0, 1}) {
+                dialog->setProperty("viewMode", view);
+                settleFrames.restart();
+                until([&] { return settleFrames.elapsed() > 200; });
+                passed = window.grabWindow().save(QStringLiteral("/tmp/fm-space-analyze-%1-%2.png").arg(suffix).arg(view)) && passed;
+            }
+            QMetaObject::invokeMethod(dialog, "close");
+        }
+        if (measurement.bytes >= 0) {
+            const QString cachedDisk = usage->onDiskText();
+            const qint64 cachedContents = usage->totalBytes();
+            QFile updatedFile(path);
+            if (!updatedFile.open(QIODevice::WriteOnly)
+                || updatedFile.write(QByteArray(8 * 1024 * 1024, 'x')) != 8 * 1024 * 1024
+                || !updatedFile.flush()) return 2;
+#ifdef Q_OS_LINUX
+            if (::fsync(updatedFile.handle()) != 0) return 2;
+#endif
+            updatedFile.close();
+            auto *pool = DiskUsageControllerTestAccess::scanPool(usage);
+            QSemaphore gate, started;
+            auto blocker = QtConcurrent::run(pool, [&] { started.release(); gate.acquire(); });
+            started.acquire();
+            const auto releaseWorker = qScopeGuard([&] {
+                gate.release();
+                blocker.waitForFinished();
+                pool->waitForDone();
+            });
+            usage->rescan();
+            const bool allocationFinishedFirst = until([&] { return !usage->onDiskBusy(); })
+                && usage->contentsBusy() && usage->onDiskText() != cachedDisk;
+            usage->cancel();
+            usage->scan(spaceFixtures.path());
+            const bool cacheUnmixed = allocationFinishedFirst && usage->cached()
+                && usage->totalBytes() == cachedContents && usage->onDiskText() == cachedDisk;
+            checks.insert(QStringLiteral("completedRescanAllocationDoesNotMixCache"), cacheUnmixed);
+            passed = cacheUnmixed && passed;
+            usage->rescan();
+            usage->cancel();
+            usage->scan(spaceFixtures.path());
+            const bool stoppedCacheUnmixed = usage->cached() && !usage->onDiskStopped()
+                && usage->totalBytes() == cachedContents && usage->onDiskText() == cachedDisk;
+            checks.insert(QStringLiteral("cancelledRescanDoesNotMixCache"), stoppedCacheUnmixed);
+            passed = stoppedCacheUnmixed && passed;
+            if (!updatedFile.open(QIODevice::WriteOnly)
+                || updatedFile.write(QByteArray(4 * 1024 * 1024, 'x')) != 4 * 1024 * 1024
+                || !updatedFile.flush()) return 2;
+#ifdef Q_OS_LINUX
+            if (::fsync(updatedFile.handle()) != 0) return 2;
+#endif
+        }
+        // Keep the allocation worker queued while the independent content scan
+        // completes, reproducing the former READY-with-Calculating state.
+        {
+            auto *pool = QThreadPool::globalInstance();
+            pool->waitForDone();
+            const int threads = pool->maxThreadCount();
+            pool->setMaxThreadCount(1);
+            QSemaphore gate, started;
+            auto blocker = QtConcurrent::run([&] { started.release(); gate.acquire(); });
+            started.acquire();
+            const auto releaseWorker = qScopeGuard([&] {
+                gate.release();
+                blocker.waitForFinished();
+                pool->waitForDone();
+                pool->setMaxThreadCount(threads);
+            });
+            QMetaObject::invokeMethod(overlays, "openDiskUsage", Q_ARG(QVariant, spaceFixtures.path()));
+            usage->rescan();
+            const bool contentFinished = until([&] { return !usage->contentsBusy(); });
+            auto *dialog = overlays->property("diskUsageDialog").value<QObject *>();
+            auto *cancelButton = dialog ? dialog->findChild<QQuickItem *>(QStringLiteral("diskUsageCancel")) : nullptr;
+            const bool stillBusy = contentFinished && usage->onDiskBusy() && usage->busy()
+                && dialog->property("scanning").toBool() && cancelButton && cancelButton->isVisible();
+            checks.insert(QStringLiteral("allocationKeepsCancelVisible"), stillBusy);
+            passed = stillBusy && passed;
+            if (cancelButton) QMetaObject::invokeMethod(cancelButton, "clicked");
+            const bool stopped = !usage->busy() && usage->onDiskStopped();
+            checks.insert(QStringLiteral("allocationCancelWorks"), stopped);
+            passed = stopped && passed;
+            auto *upButton = dialog ? dialog->findChild<QQuickItem *>(QStringLiteral("diskUsageUp")) : nullptr;
+            for (const int view : {0, 1}) {
+                const QString child = spaceFixtures.filePath(QStringLiteral("navigation-%1").arg(view));
+                if (!QDir().mkdir(child)) return 2;
+                usage->navigateTo(child);
+                const bool readyForNavigation = until([&] {
+                    return !usage->contentsBusy() && usage->onDiskBusy() && upButton && upButton->isEnabled();
+                });
+                if (dialog) dialog->setProperty("viewMode", view);
+                if (upButton) QMetaObject::invokeMethod(upButton, "clicked");
+                const bool navigated = readyForNavigation && usage->rootPath() == spaceFixtures.path();
+                checks.insert(QStringLiteral("navigationDuringAllocation%1").arg(view), navigated);
+                passed = navigated && passed;
+            }
+            if (dialog) QMetaObject::invokeMethod(dialog, "close");
+        }
+        // A late allocation result must not overwrite the next file's properties.
+        const QString empty = spaceFixtures.filePath(QStringLiteral("empty.bin"));
+        QFile emptyFile(empty);
+        if (!emptyFile.open(QIODevice::WriteOnly)) return 2;
+        emptyFile.close();
+        properties->load(path);
+        properties->load(empty);
+        passed = until([&] { return properties->path() == empty && settled(); }) && passed;
+        checks.insert(QStringLiteral("emptyOnDisk"), row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString());
+        passed = row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString() == QLatin1String("0 B") && passed;
+        if (measurement.bytes >= 0) {
+            const QString freshPath = spaceFixtures.filePath(QStringLiteral("fresh-copy.bin"));
+            QFile freshFile(freshPath);
+            if (!freshFile.open(QIODevice::WriteOnly)
+                || freshFile.write(QByteArray(4 * 1024 * 1024, 'x')) != 4 * 1024 * 1024
+                || !freshFile.flush()) return 2;
+            properties->load(freshPath);
+            const bool pendingOrReady = until([&] {
+                return row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString() == QStringLiteral("Pending allocation…")
+                    || settled();
+            });
+            const bool pendingShown = row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString() == QStringLiteral("Pending allocation…");
+            checks.insert(QStringLiteral("freshCopyPendingObserved"), pendingShown);
+            const bool freshCopyHonest = pendingOrReady
+                && row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString() != QStringLiteral("Unavailable");
+            checks.insert(QStringLiteral("freshCopyNotUnavailable"), freshCopyHonest);
+            passed = freshCopyHonest && passed;
+#ifdef Q_OS_LINUX
+            // Only the test forces writeback so the retry can be verified promptly.
+            if (::fsync(freshFile.handle()) != 0) return 2;
+#endif
+            const auto freshUsage = FileSpaceUsage::measure({freshPath}, cancelled);
+            const bool updatedWithoutReload = until(settled) && freshUsage.bytes >= 0
+                && row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString() == DriveUtils::formatSize(freshUsage.bytes);
+            checks.insert(QStringLiteral("freshCopyUpdatesWithoutReload"), updatedWithoutReload);
+            passed = updatedWithoutReload && passed;
+            freshFile.close();
+            if (!freshFile.open(QIODevice::WriteOnly)
+                || freshFile.write(QByteArray(8 * 1024 * 1024, 'x')) != 8 * 1024 * 1024
+                || !freshFile.flush()) return 2;
+            properties->load(freshPath);
+            passed = until([&] {
+                return row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString() == QStringLiteral("Pending allocation…")
+                    || settled();
+            }) && passed;
+            properties->load(empty);
+#ifdef Q_OS_LINUX
+            if (::fsync(freshFile.handle()) != 0) return 2;
+#endif
+            QElapsedTimer retryWait;
+            retryWait.start();
+            until([&] { return retryWait.elapsed() > 2300; });
+            const bool retryObsolete = properties->path() == empty && settled()
+                && row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString() == QLatin1String("0 B");
+            checks.insert(QStringLiteral("obsoleteAllocationRetryIgnored"), retryObsolete);
+            passed = retryObsolete && passed;
+        }
+        properties->loadMultiple({path, empty});
+        passed = until([&] { return !properties->isCalculating()
+            && !row(QStringLiteral("selection.onDisk")).value(QStringLiteral("busy")).toBool()
+            && !row(QStringLiteral("selection.onDisk")).value(QStringLiteral("value")).toString().isEmpty(); }) && passed;
+        passed = row(QStringLiteral("selection.fileSystem")).value(QStringLiteral("value")).toString() == filesystem && passed;
+        QElapsedTimer extraFrames;
+        extraFrames.start();
+        until([&] { return extraFrames.elapsed() > 250; });
+        passed = window.grabWindow().save(QStringLiteral("/tmp/fm-space-properties-multiple.png")) && passed;
+        properties->load(spaceFixtures.path());
+        passed = until(settled) && passed;
+        passed = row(QStringLiteral("general.fileSystem")).value(QStringLiteral("value")).toString() == filesystem && passed;
+        extraFrames.restart();
+        until([&] { return extraFrames.elapsed() > 250; });
+        passed = window.grabWindow().save(QStringLiteral("/tmp/fm-space-properties-folder.png")) && passed;
+#ifdef Q_OS_LINUX
+        if (measurement.bytes >= 0 && ::geteuid() != 0) {
+            const QString blocked = spaceFixtures.filePath(QStringLiteral("blocked"));
+            if (!QDir().mkdir(blocked) || !QFile::setPermissions(blocked, {})) return 2;
+            const auto restorePermissions = qScopeGuard([&] {
+                QFile::setPermissions(blocked, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+            });
+            properties->load(spaceFixtures.path());
+            passed = until(settled) && passed;
+            const bool propertiesPartial = row(QStringLiteral("general.onDisk")).value(QStringLiteral("value")).toString().startsWith(QStringLiteral("At least "))
+                && row(QStringLiteral("general.spaceNote")).value(QStringLiteral("value")).toString().contains(blocked);
+            checks.insert(QStringLiteral("propertiesPartial"), propertiesPartial);
+            passed = propertiesPartial && passed;
+            extraFrames.restart();
+            until([&] { return extraFrames.elapsed() > 250; });
+            passed = window.grabWindow().save(QStringLiteral("/tmp/fm-space-properties-partial.png")) && passed;
+            properties->setVisible(false);
+            QMetaObject::invokeMethod(overlays, "openDiskUsage", Q_ARG(QVariant, spaceFixtures.path()));
+            usage->rescan();
+            passed = until([&] { return !usage->busy() && usage->onDiskText().startsWith(QStringLiteral("At least ")); }) && passed;
+            const bool analyzePartial = usage->onDiskNote().contains(blocked);
+            checks.insert(QStringLiteral("analyzePartial"), analyzePartial);
+            passed = analyzePartial && passed;
+            auto *dialog = overlays->property("diskUsageDialog").value<QObject *>();
+            if (!dialog) return 2;
+            dialog->setProperty("viewMode", 2);
+            auto *contentsStatus = dialog->findChild<QObject *>(QStringLiteral("diskUsageContentsStatus"));
+            auto *allocationStatus = dialog->findChild<QObject *>(QStringLiteral("diskUsageAllocationStatus"));
+            const bool separateStatus = until([&] { return contentsStatus && allocationStatus && usage->onDiskSkippedPaths() == 1
+                && contentsStatus->property("text").toString().startsWith(QStringLiteral("Contents · "))
+                && allocationStatus->property("text").toString() == QStringLiteral("On disk · Partial · 1 skipped"); });
+            checks.insert(QStringLiteral("separateCoverageStatus"), separateStatus);
+            passed = separateStatus && passed;
+            extraFrames.restart();
+            until([&] { return extraFrames.elapsed() > 250; });
+            passed = window.grabWindow().save(QStringLiteral("/tmp/fm-space-analyze-partial.png")) && passed;
+            auto *detailsButton = dialog->findChild<QObject *>(QStringLiteral("diskUsageDetails"));
+            if (detailsButton) QMetaObject::invokeMethod(detailsButton, "clicked");
+            auto *detailsPopup = dialog->findChild<QObject *>(QStringLiteral("diskUsageMeasurementDetails"));
+            const bool detailsOpen = until([&] { return detailsPopup && detailsPopup->property("opened").toBool(); });
+            auto *detailsText = detailsPopup ? detailsPopup->findChild<QObject *>(QStringLiteral("diskUsageAllocationDetails")) : nullptr;
+            const bool detailsPreserved = detailsOpen && detailsText && detailsText->property("text").toString().contains(blocked);
+            checks.insert(QStringLiteral("measurementDetailsPreserved"), detailsPreserved);
+            passed = detailsPreserved && passed;
+            passed = window.grabWindow().save(QStringLiteral("/tmp/fm-space-analyze-details.png")) && passed;
+            if (detailsPopup) QMetaObject::invokeMethod(detailsPopup, "close");
+            QMetaObject::invokeMethod(dialog, "close");
+            QMetaObject::invokeMethod(overlays, "openDiskUsage", Q_ARG(QVariant, spaceFixtures.path()));
+            const bool cachedCoverage = usage->cached() && !usage->onDiskBusy() && usage->onDiskSkippedPaths() == 1;
+            checks.insert(QStringLiteral("cachedAllocationCoverage"), cachedCoverage);
+            passed = cachedCoverage && passed;
+            QMetaObject::invokeMethod(dialog, "close");
+        }
+#endif
+        properties->setVisible(false);
+        QJsonObject result{{QStringLiteral("success"), passed}, {QStringLiteral("fileSystem"), filesystem},
+                           {QStringLiteral("onDiskBytes"), measurement.bytes}, {QStringLiteral("note"), measurement.explanation},
+                           {QStringLiteral("checks"), checks}};
+        std::puts(QJsonDocument(result).toJson(QJsonDocument::Compact).constData());
+        return passed ? 0 : 1;
     }
 
     if (app.arguments().contains(QStringLiteral("--resize"))) {

@@ -12,11 +12,17 @@
 #include <QThreadPool>
 #include <QVariantList>
 #include <QVariantMap>
+#include <atomic>
+#include <memory>
 
 class DiskUsageController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(State state READ state NOTIFY stateChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY stateChanged)
+    Q_PROPERTY(bool contentsBusy READ contentsBusy NOTIFY stateChanged)
+    Q_PROPERTY(bool onDiskBusy READ onDiskBusy NOTIFY spaceInfoChanged)
+    Q_PROPERTY(bool onDiskStopped READ onDiskStopped NOTIFY spaceInfoChanged)
+    Q_PROPERTY(QString onDiskProgressText READ onDiskProgressText NOTIFY spaceInfoChanged)
     Q_PROPERTY(QString rootPath READ rootPath NOTIFY rootPathChanged)
     Q_PROPERTY(QString displayRootPath READ displayRootPath NOTIFY rootPathChanged)
     Q_PROPERTY(QVariantList breadcrumbEntries READ breadcrumbEntries NOTIFY rootPathChanged)
@@ -32,6 +38,10 @@ class DiskUsageController final : public QObject {
     Q_PROPERTY(QString totalBytesText READ totalBytesText NOTIFY progressChanged)
     Q_PROPERTY(QString storageUsedText READ storageUsedText NOTIFY rootPathChanged)
     Q_PROPERTY(QString storageTotalText READ storageTotalText NOTIFY rootPathChanged)
+    Q_PROPERTY(QString fileSystemType READ fileSystemType NOTIFY rootPathChanged)
+    Q_PROPERTY(QString onDiskText READ onDiskText NOTIFY spaceInfoChanged)
+    Q_PROPERTY(QString onDiskNote READ onDiskNote NOTIFY spaceInfoChanged)
+    Q_PROPERTY(int onDiskSkippedPaths READ onDiskSkippedPaths NOTIFY spaceInfoChanged)
     Q_PROPERTY(int scannedFiles READ scannedFiles NOTIFY progressChanged)
     Q_PROPERTY(int scannedFolders READ scannedFolders NOTIFY progressChanged)
     Q_PROPERTY(int inaccessiblePaths READ inaccessiblePaths NOTIFY progressChanged)
@@ -58,6 +68,10 @@ public:
 
     State state() const;
     bool busy() const;
+    bool contentsBusy() const;
+    bool onDiskBusy() const;
+    bool onDiskStopped() const;
+    QString onDiskProgressText() const;
     QString rootPath() const;
     QString displayRootPath() const;
     QVariantList breadcrumbEntries() const;
@@ -73,6 +87,10 @@ public:
     QString totalBytesText() const;
     QString storageUsedText() const;
     QString storageTotalText() const;
+    QString fileSystemType() const;
+    QString onDiskText() const;
+    QString onDiskNote() const;
+    int onDiskSkippedPaths() const;
     int scannedFiles() const;
     int scannedFolders() const;
     int inaccessiblePaths() const;
@@ -101,9 +119,12 @@ signals:
     void errorChanged();
     void cacheStateChanged();
     void navigationChanged();
+    void spaceInfoChanged();
 
 private:
+    friend class DiskUsageControllerTestAccess;
     struct CachedScan {
+        int generation = -1;
         QString rootPath;
         QList<DiskUsageEntry> folders;
         QList<DiskUsageEntry> files;
@@ -119,6 +140,10 @@ private:
         QStringList reparsePathDetails;
         QString lastError;
         QDateTime timestamp;
+        QString onDiskText = {};
+        QString onDiskNote = {};
+        int onDiskSkippedPaths = 0;
+        bool onDiskStopped = false;
     };
 
     QString cacheKeyForPath(const QString &path) const;
@@ -140,6 +165,8 @@ private:
     void setState(State state);
     void setError(const QString &error);
     void resetProgress();
+    void measureDiskUsage();
+    void cacheSpaceInfo();
     void applySnapshot(const QList<DiskUsageEntry> &folders,
                        const QList<DiskUsageEntry> &files,
                        const QList<DiskUsageEntry> &rootChildren,
@@ -159,6 +186,14 @@ private:
     QString m_currentPath;
     QString m_error;
     QString m_lastError;
+    QString m_onDiskText;
+    QString m_onDiskNote;
+    QString m_onDiskProgress;
+    int m_onDiskSkippedPaths = 0;
+    bool m_spaceBusy = false;
+    bool m_spaceStopped = false;
+    qint64 m_spaceFiles = 0;
+    std::shared_ptr<std::atomic_bool> m_spaceCancelled;
     qint64 m_totalBytes = 0;
     int m_scannedFiles = 0;
     int m_scannedFolders = 0;
