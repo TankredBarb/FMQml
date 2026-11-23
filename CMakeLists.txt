@@ -1217,7 +1217,7 @@ if(WIN32)
     )
     target_link_libraries(fm PRIVATE Shell32 Comctl32 VirtDisk Ole32 Uuid Advapi32 Authz Dwmapi Cfgmgr32 Setupapi)
 
-    # Automatically copy dependency DLLs (tag.dll, zd.dll/z.dll) from vcpkg to output dir on Windows.
+    # Resolve vcpkg installed dir and dependency DLLs (TagLib, ZLib) on Windows.
     set(FM_VCPKG_ROOT "")
     if(DEFINED VCPKG_ROOT)
         set(FM_VCPKG_ROOT "${VCPKG_ROOT}")
@@ -1232,14 +1232,59 @@ if(WIN32)
         set(FM_VCPKG_TRIPLET "x64-windows")
     endif()
     set(FM_VCPKG_INSTALLED_DIR "${FM_VCPKG_ROOT}/installed/${FM_VCPKG_TRIPLET}")
+
+    set(FM_VCPKG_ZLIB_RELEASE_PATH "")
+    set(FM_VCPKG_ZLIB_DEBUG_PATH "")
     if(FM_VCPKG_ROOT AND EXISTS "${FM_VCPKG_INSTALLED_DIR}")
-        add_custom_command(TARGET fm POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${FM_VCPKG_INSTALLED_DIR}/$<IF:$<CONFIG:Debug>,debug/bin/zd.dll,bin/z.dll>"
-                "${FM_VCPKG_INSTALLED_DIR}/$<IF:$<CONFIG:Debug>,debug/bin/tag.dll,bin/tag.dll>"
-                $<TARGET_FILE_DIR:fm>
-            COMMENT "Copying TagLib and ZLib DLLs from vcpkg to output folder..."
-        )
+        foreach(FM_ZLIB_CANDIDATE libz.dll z.dll zlib1.dll)
+            if(NOT FM_VCPKG_ZLIB_RELEASE_PATH AND EXISTS "${FM_VCPKG_INSTALLED_DIR}/bin/${FM_ZLIB_CANDIDATE}")
+                set(FM_VCPKG_ZLIB_RELEASE_PATH "${FM_VCPKG_INSTALLED_DIR}/bin/${FM_ZLIB_CANDIDATE}")
+            endif()
+        endforeach()
+        foreach(FM_ZLIB_CANDIDATE libzd.dll zd.dll zlibd1.dll libz.dll z.dll zlib1.dll)
+            if(NOT FM_VCPKG_ZLIB_DEBUG_PATH AND EXISTS "${FM_VCPKG_INSTALLED_DIR}/debug/bin/${FM_ZLIB_CANDIDATE}")
+                set(FM_VCPKG_ZLIB_DEBUG_PATH "${FM_VCPKG_INSTALLED_DIR}/debug/bin/${FM_ZLIB_CANDIDATE}")
+            endif()
+        endforeach()
+        if(NOT FM_VCPKG_ZLIB_RELEASE_PATH AND FM_VCPKG_ZLIB_DEBUG_PATH)
+            set(FM_VCPKG_ZLIB_RELEASE_PATH "${FM_VCPKG_ZLIB_DEBUG_PATH}")
+        elseif(NOT FM_VCPKG_ZLIB_DEBUG_PATH AND FM_VCPKG_ZLIB_RELEASE_PATH)
+            set(FM_VCPKG_ZLIB_DEBUG_PATH "${FM_VCPKG_ZLIB_RELEASE_PATH}")
+        endif()
+    endif()
+
+    if(FM_TAGLIB_AVAILABLE AND FM_VCPKG_ROOT AND EXISTS "${FM_VCPKG_INSTALLED_DIR}" AND NOT (VCPKG_TOOLCHAIN AND VCPKG_APPLOCAL_DEPS))
+        set(FM_VCPKG_TAG_RELEASE_PATH "")
+        set(FM_VCPKG_TAG_DEBUG_PATH "")
+        if(EXISTS "${FM_VCPKG_INSTALLED_DIR}/bin/tag.dll")
+            set(FM_VCPKG_TAG_RELEASE_PATH "${FM_VCPKG_INSTALLED_DIR}/bin/tag.dll")
+        endif()
+        foreach(FM_TAG_CANDIDATE tag.dll tagd.dll)
+            if(NOT FM_VCPKG_TAG_DEBUG_PATH AND EXISTS "${FM_VCPKG_INSTALLED_DIR}/debug/bin/${FM_TAG_CANDIDATE}")
+                set(FM_VCPKG_TAG_DEBUG_PATH "${FM_VCPKG_INSTALLED_DIR}/debug/bin/${FM_TAG_CANDIDATE}")
+            endif()
+        endforeach()
+        if(NOT FM_VCPKG_TAG_RELEASE_PATH AND FM_VCPKG_TAG_DEBUG_PATH)
+            set(FM_VCPKG_TAG_RELEASE_PATH "${FM_VCPKG_TAG_DEBUG_PATH}")
+        elseif(NOT FM_VCPKG_TAG_DEBUG_PATH AND FM_VCPKG_TAG_RELEASE_PATH)
+            set(FM_VCPKG_TAG_DEBUG_PATH "${FM_VCPKG_TAG_RELEASE_PATH}")
+        endif()
+
+        set(FM_VCPKG_FM_DLLS "")
+        if(FM_VCPKG_ZLIB_RELEASE_PATH OR FM_VCPKG_ZLIB_DEBUG_PATH)
+            list(APPEND FM_VCPKG_FM_DLLS "$<IF:$<CONFIG:Debug>,${FM_VCPKG_ZLIB_DEBUG_PATH},${FM_VCPKG_ZLIB_RELEASE_PATH}>")
+        endif()
+        if(FM_VCPKG_TAG_RELEASE_PATH OR FM_VCPKG_TAG_DEBUG_PATH)
+            list(APPEND FM_VCPKG_FM_DLLS "$<IF:$<CONFIG:Debug>,${FM_VCPKG_TAG_DEBUG_PATH},${FM_VCPKG_TAG_RELEASE_PATH}>")
+        endif()
+        if(FM_VCPKG_FM_DLLS)
+            add_custom_command(TARGET fm POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${FM_VCPKG_FM_DLLS}
+                    $<TARGET_FILE_DIR:fm>
+                COMMENT "Copying TagLib and ZLib DLLs from vcpkg to output folder..."
+            )
+        endif()
     endif()
 
     add_executable(access_audit EXCLUDE_FROM_ALL
@@ -1745,7 +1790,7 @@ if(HAS_MEGA_PLUGIN)
         target_link_libraries(fm_mega_provider PRIVATE Advapi32)
 
         if(DEFINED FM_VCPKG_INSTALLED_DIR)
-            foreach(FM_MEGA_DLL cares.dll icudt78.dll icuuc78.dll libcrypto-3-x64.dll libcurl.dll libsodium.dll libssl-3-x64.dll sqlite3.dll z.dll)
+            foreach(FM_MEGA_DLL cares.dll icudt78.dll icuuc78.dll libcrypto-3-x64.dll libcurl.dll libsodium.dll libssl-3-x64.dll sqlite3.dll)
                 add_custom_command(TARGET fm_mega_provider POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
                         "${FM_VCPKG_INSTALLED_DIR}/$<IF:$<CONFIG:Debug>,debug/bin,bin>/${FM_MEGA_DLL}"
@@ -1753,6 +1798,14 @@ if(HAS_MEGA_PLUGIN)
                     COMMENT "Copying ${FM_MEGA_DLL} to output folder..."
                 )
             endforeach()
+            if(FM_VCPKG_ZLIB_RELEASE_PATH OR FM_VCPKG_ZLIB_DEBUG_PATH)
+                add_custom_command(TARGET fm_mega_provider POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "$<IF:$<CONFIG:Debug>,${FM_VCPKG_ZLIB_DEBUG_PATH},${FM_VCPKG_ZLIB_RELEASE_PATH}>"
+                        $<TARGET_FILE_DIR:fm>
+                    COMMENT "Copying zlib DLL to output folder..."
+                )
+            endif()
             add_custom_command(TARGET fm_mega_provider POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E rm -f
                     "$<TARGET_FILE_DIR:fm_mega_provider>/cares.dll"
@@ -1763,7 +1816,12 @@ if(HAS_MEGA_PLUGIN)
                     "$<TARGET_FILE_DIR:fm_mega_provider>/libsodium.dll"
                     "$<TARGET_FILE_DIR:fm_mega_provider>/libssl-3-x64.dll"
                     "$<TARGET_FILE_DIR:fm_mega_provider>/sqlite3.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/libz.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/libzd.dll"
                     "$<TARGET_FILE_DIR:fm_mega_provider>/z.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/zd.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/zlib1.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/zlibd1.dll"
                 COMMENT "Cleaning up non-plugin DLLs from plugins directory..."
             )
         endif()
