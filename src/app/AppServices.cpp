@@ -422,6 +422,11 @@ ThumbnailController *AppServices::thumbnails()
     return &m_thumbnails;
 }
 
+WallpaperPreviewController *AppServices::wallpaperPreview()
+{
+    return &m_wallpaperPreview;
+}
+
 void AppServices::shutdown()
 {
     m_workspace.isoMountManager()->unmountAll();

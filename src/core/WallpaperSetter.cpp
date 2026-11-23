@@ -2,11 +2,17 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QGuiApplication>
+#include <QImageReader>
+#include <QLocale>
 #include <QProcess>
+#include <QScreen>
 #include <QStandardPaths>
 #include <QUrl>
+#include <QVariantList>
 
 #ifdef Q_OS_WIN
+#  include <QSettings>
 #  include <windows.h>
 #endif
 
@@ -31,6 +37,19 @@ QString normalizedExistingFilePath(const QString &path)
         return {};
     }
     return info.absoluteFilePath();
+}
+
+QString normalizedFillMode(const QString &mode)
+{
+    const QString lower = mode.trimmed().toLower();
+    if (lower == QLatin1String("fill")
+        || lower == QLatin1String("fit")
+        || lower == QLatin1String("stretch")
+        || lower == QLatin1String("tile")
+        || lower == QLatin1String("center")) {
+        return lower;
+    }
+    return QStringLiteral("fill");
 }
 
 #ifdef Q_OS_LINUX
@@ -64,7 +83,25 @@ bool runProcess(const QString &program, const QStringList &arguments)
         && process.exitCode() == 0;
 }
 
-bool setKdeWallpaper(const QString &path)
+int kdeFillModeValue(const QString &mode)
+{
+    const QString normalized = normalizedFillMode(mode);
+    if (normalized == QLatin1String("stretch")) {
+        return 0;
+    }
+    if (normalized == QLatin1String("fit")) {
+        return 1;
+    }
+    if (normalized == QLatin1String("tile")) {
+        return 3;
+    }
+    if (normalized == QLatin1String("center")) {
+        return 6;
+    }
+    return 2; // fill (Scaled and Cropped)
+}
+
+bool setKdeWallpaper(const QString &path, const WallpaperSetter::Options &options)
 {
     QString dbus;
     for (const QString &candidate : {QStringLiteral("qdbus6"), QStringLiteral("qdbus"), QStringLiteral("qdbus-qt5")}) {
@@ -78,15 +115,29 @@ bool setKdeWallpaper(const QString &path)
     }
 
     const QString fileUrl = QUrl::fromLocalFile(path).toString();
+    const int fillMode = kdeFillModeValue(options.fillMode);
+    const QColor bg = options.backgroundColor.isValid() ? options.backgroundColor : QColor(12, 18, 28);
+    const QString colorValue = QStringLiteral("%1,%2,%3").arg(bg.red()).arg(bg.green()).arg(bg.blue());
+    const QString blurLiteral = options.blurBackground ? QStringLiteral("true") : QStringLiteral("false");
+
     const QString script = QStringLiteral(
         "var allDesktops = desktops();"
+        "var targetScreen = %1;"
         "for (var i = 0; i < allDesktops.length; ++i) {"
         "  var desktop = allDesktops[i];"
+        "  if (targetScreen >= 0 && desktop.screen !== targetScreen) continue;"
         "  desktop.wallpaperPlugin = \"org.kde.image\";"
         "  desktop.currentConfigGroup = [\"Wallpaper\", \"org.kde.image\", \"General\"];"
-        "  desktop.writeConfig(\"Image\", %1);"
+        "  desktop.writeConfig(\"Image\", %2);"
+        "  desktop.writeConfig(\"FillMode\", %3);"
+        "  desktop.writeConfig(\"Color\", %4);"
+        "  desktop.writeConfig(\"Blur\", %5);"
         "}"
-    ).arg(jsStringLiteral(fileUrl));
+    ).arg(options.screenIndex)
+     .arg(jsStringLiteral(fileUrl))
+     .arg(fillMode)
+     .arg(jsStringLiteral(colorValue))
+     .arg(blurLiteral);
 
     return runProcess(dbus, {
         QStringLiteral("org.kde.plasmashell"),
@@ -115,7 +166,73 @@ bool canSetWallpaperForPath(const QString &path)
 #endif
 }
 
+QVariantMap previewInfo(const QString &path)
+{
+    QVariantMap info;
+    const QString normalizedPath = normalizedExistingFilePath(path);
+    const QFileInfo fileInfo(normalizedPath.isEmpty() ? path : normalizedPath);
+
+    info.insert(QStringLiteral("valid"), !normalizedPath.isEmpty());
+    info.insert(QStringLiteral("filePath"), normalizedPath.isEmpty() ? path : normalizedPath);
+    info.insert(QStringLiteral("fileUrl"), normalizedPath.isEmpty()
+                                               ? QString()
+                                               : QUrl::fromLocalFile(normalizedPath).toString());
+    info.insert(QStringLiteral("fileName"), fileInfo.fileName());
+    info.insert(QStringLiteral("fileSizeText"),
+                fileInfo.exists() ? QLocale().formattedDataSize(fileInfo.size()) : QString());
+
+    QSize imageSize;
+    if (!normalizedPath.isEmpty()) {
+        QImageReader reader(normalizedPath);
+        reader.setAutoTransform(true);
+        imageSize = reader.size();
+    }
+    info.insert(QStringLiteral("imageWidth"), imageSize.isValid() ? imageSize.width() : 0);
+    info.insert(QStringLiteral("imageHeight"), imageSize.isValid() ? imageSize.height() : 0);
+
+    QVariantList screens;
+    const QList<QScreen *> appScreens = QGuiApplication::screens();
+    const QScreen *primaryScreen = QGuiApplication::primaryScreen();
+    for (int i = 0; i < appScreens.size(); ++i) {
+        const QScreen *screen = appScreens.at(i);
+        if (!screen) {
+            continue;
+        }
+        const QSize geometry = screen->size();
+        const qreal dpr = screen->devicePixelRatio();
+        const int pixelW = qMax(1, qRound(geometry.width() * dpr));
+        const int pixelH = qMax(1, qRound(geometry.height() * dpr));
+        QVariantMap entry;
+        entry.insert(QStringLiteral("index"), i);
+        entry.insert(QStringLiteral("name"), screen->name().isEmpty()
+                                                 ? QStringLiteral("Display %1").arg(i + 1)
+                                                 : screen->name());
+        entry.insert(QStringLiteral("width"), pixelW);
+        entry.insert(QStringLiteral("height"), pixelH);
+        entry.insert(QStringLiteral("aspectRatio"), static_cast<qreal>(pixelW) / static_cast<qreal>(pixelH));
+        entry.insert(QStringLiteral("primary"), screen == primaryScreen);
+        screens.append(entry);
+    }
+    info.insert(QStringLiteral("screens"), screens);
+
+#ifdef Q_OS_LINUX
+    const bool kde = isKdeSession();
+    info.insert(QStringLiteral("supportsBlur"), kde);
+    info.insert(QStringLiteral("supportsPerScreen"), kde && screens.size() > 1);
+#else
+    info.insert(QStringLiteral("supportsBlur"), false);
+    info.insert(QStringLiteral("supportsPerScreen"), false);
+#endif
+
+    return info;
+}
+
 bool setWallpaper(const QString &path, QString *errorMessage)
+{
+    return setWallpaper(path, Options{}, errorMessage);
+}
+
+bool setWallpaper(const QString &path, const Options &options, QString *errorMessage)
 {
     const QString normalizedPath = normalizedExistingFilePath(path);
     if (normalizedPath.isEmpty()) {
@@ -126,6 +243,36 @@ bool setWallpaper(const QString &path, QString *errorMessage)
     }
 
 #ifdef Q_OS_WIN
+    const QString mode = normalizedFillMode(options.fillMode);
+    QString wallpaperStyle = QStringLiteral("10");
+    QString tileWallpaper = QStringLiteral("0");
+    if (mode == QLatin1String("fit")) {
+        wallpaperStyle = QStringLiteral("6");
+    } else if (mode == QLatin1String("stretch")) {
+        wallpaperStyle = QStringLiteral("2");
+    } else if (mode == QLatin1String("tile")) {
+        wallpaperStyle = QStringLiteral("0");
+        tileWallpaper = QStringLiteral("1");
+    } else if (mode == QLatin1String("center")) {
+        wallpaperStyle = QStringLiteral("0");
+    }
+
+    QSettings desktopSettings(QStringLiteral("HKEY_CURRENT_USER\\Control Panel\\Desktop"), QSettings::NativeFormat);
+    desktopSettings.setValue(QStringLiteral("WallpaperStyle"), wallpaperStyle);
+    desktopSettings.setValue(QStringLiteral("TileWallpaper"), tileWallpaper);
+    desktopSettings.sync();
+
+    if (options.backgroundColor.isValid()) {
+        const QColor bg = options.backgroundColor;
+        QSettings colorSettings(QStringLiteral("HKEY_CURRENT_USER\\Control Panel\\Colors"), QSettings::NativeFormat);
+        colorSettings.setValue(QStringLiteral("Background"),
+                               QStringLiteral("%1 %2 %3").arg(bg.red()).arg(bg.green()).arg(bg.blue()));
+        colorSettings.sync();
+        int element = COLOR_DESKTOP;
+        COLORREF colorRef = RGB(bg.red(), bg.green(), bg.blue());
+        SetSysColors(1, &element, &colorRef);
+    }
+
     const QString nativePath = QDir::toNativeSeparators(normalizedPath);
     wchar_t *buffer = const_cast<wchar_t *>(reinterpret_cast<const wchar_t *>(nativePath.utf16()));
     const BOOL ok = SystemParametersInfoW(SPI_SETDESKWALLPAPER,
@@ -143,7 +290,7 @@ bool setWallpaper(const QString &path, QString *errorMessage)
         }
         return false;
     }
-    const bool ok = setKdeWallpaper(normalizedPath);
+    const bool ok = setKdeWallpaper(normalizedPath, options);
     if (!ok && errorMessage) {
         *errorMessage = QStringLiteral("Failed to set wallpaper through KDE Plasma.");
     }

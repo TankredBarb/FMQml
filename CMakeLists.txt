@@ -402,6 +402,8 @@ qt_add_executable(fm
     src/controllers/PropertiesController.h
     src/controllers/ProviderPropertiesController.cpp
     src/controllers/ProviderPropertiesController.h
+    src/controllers/WallpaperPreviewController.cpp
+    src/controllers/WallpaperPreviewController.h
     src/core/MetadataExtractor.cpp
     src/core/MetadataExtractor.h
     src/core/WinThumbnailExtractor.cpp
@@ -566,6 +568,7 @@ set(MY_QML_FILES
     qml/components/TextColorOverridesOverlay.qml
     qml/components/IconOverridesOverlay.qml
     qml/components/TransparencySettingsOverlay.qml
+    qml/components/WallpaperPreviewOverlay.qml
     qml/components/CommandPalette.qml
     qml/components/ColumnPickerMenu.qml
     qml/components/FileBriefAdaptiveDelegate.qml
@@ -812,6 +815,7 @@ qt_add_qml_module(fm
         src/controllers/PropertiesPreviewController.h
         src/controllers/PropertiesController.h
         src/controllers/ProviderPropertiesController.h
+        src/controllers/WallpaperPreviewController.h
         src/core/ChecksumCalculator.h
         src/ui/PropertiesLayout.h
         src/ui/PanelResizeController.h
@@ -1918,6 +1922,18 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(disk_usage_treemap_layout_test PRIVATE src/ui)
     target_link_libraries(disk_usage_treemap_layout_test PRIVATE Qt6::Core)
     add_test(NAME disk_usage_treemap_layout_test COMMAND disk_usage_treemap_layout_test)
+
+    add_executable(wallpaper_preview_controller_test
+        tests/core/WallpaperPreviewControllerTest.cpp
+        src/controllers/WallpaperPreviewController.cpp
+        src/controllers/WallpaperPreviewController.h
+        src/core/WallpaperSetter.cpp
+        src/core/WallpaperSetter.h
+    )
+    target_include_directories(wallpaper_preview_controller_test PRIVATE src/controllers src/core)
+    target_link_libraries(wallpaper_preview_controller_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    add_test(NAME wallpaper_preview_controller_test
+        COMMAND ${CMAKE_COMMAND} -E env QT_QPA_PLATFORM=offscreen $<TARGET_FILE:wallpaper_preview_controller_test>)
 
     add_executable(folder_map_test
         src/core/LocalFileBadgeResolver.cpp src/core/LocalMountPointIndex.cpp

@@ -53,6 +53,7 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
     m_engine->rootContext()->setContextProperty(QStringLiteral("fileTypeIconResolver"), services->fileTypeIcons());
     m_engine->rootContext()->setContextProperty(QStringLiteral("systemTrayController"), services->systemTray());
     m_engine->rootContext()->setContextProperty(QStringLiteral("thumbnailController"), services->thumbnails());
+    m_engine->rootContext()->setContextProperty(QStringLiteral("wallpaperPreviewController"), services->wallpaperPreview());
     m_engine->rootContext()->setContextProperty(QStringLiteral("thumbnailDebugOverlayEnabled"),
                                                 qEnvironmentVariableIntValue("FM_THUMBNAIL_DEBUG_OVERLAY") != 0);
     m_engine->rootContext()->setContextProperty(QStringLiteral("thumbnailTraceEnabled"),

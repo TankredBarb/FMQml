@@ -480,7 +480,13 @@ Item {
             iconColor: Theme.actionIconColor("image")
             visible: menuPolicy.canSetContextWallpaper()
             enabled: visible
-            onTriggered: root.controller.setPathAsWallpaper(root.contextPathValue)
+            onTriggered: {
+                if (root.windowObject && root.windowObject.openWallpaperPreview) {
+                    root.windowObject.openWallpaperPreview(root.controller, root.contextPathValue)
+                } else {
+                    root.controller.setPathAsWallpaper(root.contextPathValue)
+                }
+            }
         }
         FmMenuItem {
             text: "Properties"

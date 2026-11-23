@@ -18,6 +18,7 @@
 #include "../controllers/SystemTrayController.h"
 #include "../controllers/ThemeController.h"
 #include "../controllers/ThumbnailController.h"
+#include "../controllers/WallpaperPreviewController.h"
 #include "../controllers/WorkspaceController.h"
 #include "../core/SystemInfoProvider.h"
 #include "../core/FileTypeIconResolver.h"
@@ -46,6 +47,7 @@ public:
     FileTypeIconResolver *fileTypeIcons();
     SystemTrayController *systemTray();
     ThumbnailController *thumbnails();
+    WallpaperPreviewController *wallpaperPreview();
 
 public slots:
     void shutdown();
@@ -76,4 +78,5 @@ private:
     FileTypeIconResolver m_fileTypeIcons;
     SystemTrayController m_systemTray;
     ThumbnailController m_thumbnails;
+    WallpaperPreviewController m_wallpaperPreview;
 };

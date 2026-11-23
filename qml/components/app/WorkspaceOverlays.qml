@@ -40,6 +40,7 @@ Item {
     property string settingsReturnTabId: "general"
     property var steamProtonLaunchDialog: null
     property var openWithDialog: null
+    property var wallpaperPreviewOverlay: null
     property bool searchReturnAvailable: false
     property bool diskUsageReturnAvailable: false
 
@@ -161,6 +162,11 @@ Item {
         return root.openWithDialog
     }
 
+    function ensureWallpaperPreviewOverlay() {
+        if (!root.wallpaperPreviewOverlay) root.wallpaperPreviewOverlay = wallpaperPreviewOverlayComponent.createObject(root)
+        return root.wallpaperPreviewOverlay
+    }
+
     function ensureCommandPalette() {
         if (!root.commandPalette) root.commandPalette = commandPaletteComponent.createObject(root)
         return root.commandPalette
@@ -197,6 +203,7 @@ Item {
                                                  || root.isOpen(root.uiLabOverlay)
                                                  || root.isOpen(root.steamProtonLaunchDialog)
                                                  || root.isOpen(root.openWithDialog)
+                                                 || root.isOpen(root.wallpaperPreviewOverlay)
                                                  || root.isOpen(root.pluginActionResultDialog)
                                                  || root.isOpen(root.pluginUiDialog)
     readonly property bool anyOverlayOpen: root.workspaceOverlayOpen
@@ -422,6 +429,10 @@ Item {
             root.iconOverridesOverlay.close()
             return true
         }
+        if (root.isOpen(root.wallpaperPreviewOverlay)) {
+            root.wallpaperPreviewOverlay.close()
+            return true
+        }
         if (root.isOpen(root.helpDialog)) {
             root.helpDialog.close()
             return true
@@ -529,6 +540,10 @@ Item {
 
     function openOpenWith(controller, paths) {
         if (controller && paths && paths.length > 0) root.ensureOpenWithDialog().openFor(controller, paths)
+    }
+
+    function openWallpaperPreview(controller, path) {
+        if (path && path.length > 0) root.ensureWallpaperPreviewOverlay().openFor(controller, path)
     }
 
     function reopenFileSearchResults() {
@@ -804,6 +819,13 @@ Item {
     Component {
         id: pluginActionResultDialogComponent
         PluginActionResultDialog {}
+    }
+
+    Component {
+        id: wallpaperPreviewOverlayComponent
+        WallpaperPreviewOverlay {
+            backdropSource: root.backdropSource
+        }
     }
 
     Connections {

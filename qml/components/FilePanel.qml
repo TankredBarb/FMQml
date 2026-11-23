@@ -1508,10 +1508,14 @@ Pane {
     }
 
     function setHoverPreviewWallpaper(path) {
-        if (!path || !root.controller || !root.controller.setPathAsWallpaper) {
+        if (!path || !root.controller) {
             return
         }
-        root.controller.setPathAsWallpaper(path)
+        if (root.Window.window && root.Window.window.openWallpaperPreview) {
+            root.Window.window.openWallpaperPreview(root.controller, path)
+        } else if (root.controller.setPathAsWallpaper) {
+            root.controller.setPathAsWallpaper(path)
+        }
         root.clearHoveredItem()
     }
 

@@ -376,3 +376,8 @@ void FilePanelController::setPathAsWallpaper(const QString &path)
 
     setStatusMessage(QStringLiteral("Wallpaper updated"));
 }
+
+void FilePanelController::setPathAsWallpaperStatus(const QString &message)
+{
+    setStatusMessage(message);
+}

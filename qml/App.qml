@@ -836,6 +836,10 @@ ApplicationWindow {
         workspaceOverlays.openOpenWith(controller, paths)
     }
 
+    function openWallpaperPreview(controller, path) {
+        workspaceOverlays.openWallpaperPreview(controller, path)
+    }
+
     function systemTrayModeActive() {
         return typeof systemTrayController !== "undefined"
             && systemTrayController
