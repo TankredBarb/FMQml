@@ -83,13 +83,13 @@ ToolbarSegment {
                     sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/search.svg"
                     sourceSize: Qt.size(16, 16)
                     recolorEnabled: true
-                    recolorColor: Theme.readableOn(Theme.accent, Theme.accentText)
+                    recolorColor: searchResultsBtn.effectiveTextColor
                 }
 
                 Label {
                     Layout.fillWidth: true
                     text: "Search Results"
-                    color: Theme.readableOn(Theme.accent, Theme.accentText)
+                    color: searchResultsBtn.effectiveTextColor
                     elide: Text.ElideRight
                     font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
@@ -138,13 +138,13 @@ ToolbarSegment {
                     sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
                     sourceSize: Qt.size(16, 16)
                     recolorEnabled: true
-                    recolorColor: Theme.readableOn(Theme.categoryUtility, Theme.accentText)
+                    recolorColor: diskUsageResultsBtn.effectiveTextColor
                 }
 
                 Label {
                     Layout.fillWidth: true
                     text: "Disk Usage"
-                    color: Theme.readableOn(Theme.categoryUtility, Theme.accentText)
+                    color: diskUsageResultsBtn.effectiveTextColor
                     elide: Text.ElideRight
                     font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
