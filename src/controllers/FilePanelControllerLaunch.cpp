@@ -1,5 +1,6 @@
 #include "FilePanelController.h"
 
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
@@ -366,15 +367,21 @@ void FilePanelController::setPathAsWallpaper(const QString &path)
         return;
     }
 
-    QString errorMessage;
-    if (!WallpaperSetter::setWallpaper(path, &errorMessage)) {
-        setStatusMessage(errorMessage.isEmpty()
-            ? QStringLiteral("Failed to set wallpaper.")
-            : errorMessage);
-        return;
-    }
-
-    setStatusMessage(QStringLiteral("Wallpaper updated"));
+    QPointer<FilePanelController> self(this);
+    (void)QtConcurrent::run([self, path]() {
+        QString errorMessage;
+        const bool ok = WallpaperSetter::setWallpaper(path, &errorMessage);
+        const QString status = ok
+            ? QStringLiteral("Wallpaper updated")
+            : (errorMessage.isEmpty() ? QStringLiteral("Failed to set wallpaper.") : errorMessage);
+        if (auto *app = QCoreApplication::instance()) {
+            QMetaObject::invokeMethod(app, [self, status]() {
+                if (self) {
+                    self->setStatusMessage(status);
+                }
+            }, Qt::QueuedConnection);
+        }
+    });
 }
 
 void FilePanelController::setPathAsWallpaperStatus(const QString &message)

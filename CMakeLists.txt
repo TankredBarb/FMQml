@@ -376,6 +376,8 @@ qt_add_executable(fm
     src/controllers/BatchRenameSession.h
     src/preview/PropertiesImageProvider.cpp
     src/preview/PropertiesImageProvider.h
+    src/preview/WallpaperPreviewImageProvider.cpp
+    src/preview/WallpaperPreviewImageProvider.h
     src/preview/AudioCoverExtractor.cpp
     src/preview/AudioCoverExtractor.h
     src/preview/ImagePreviewInspector.cpp

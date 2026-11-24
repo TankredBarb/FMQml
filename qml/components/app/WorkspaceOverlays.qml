@@ -430,6 +430,9 @@ Item {
             return true
         }
         if (root.isOpen(root.wallpaperPreviewOverlay)) {
+            if (wallpaperPreviewController.applying) {
+                return true
+            }
             root.wallpaperPreviewOverlay.close()
             return true
         }

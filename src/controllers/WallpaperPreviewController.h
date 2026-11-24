@@ -1,11 +1,17 @@
 #pragma once
 
 #include <QColor>
+#include <QImage>
+#include <QMutex>
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QThreadPool>
 #include <QVariantList>
 #include <QVariantMap>
+
+#include <atomic>
+#include <memory>
 
 class WallpaperPreviewController final : public QObject {
     Q_OBJECT
@@ -37,9 +43,25 @@ class WallpaperPreviewController final : public QObject {
     Q_PROPERTY(bool showDesktopChrome READ showDesktopChrome WRITE setShowDesktopChrome NOTIFY stateChanged)
     Q_PROPERTY(QString errorText READ errorText NOTIFY stateChanged)
     Q_PROPERTY(bool canApply READ canApply NOTIFY stateChanged)
+    Q_PROPERTY(bool loading READ loading NOTIFY stateChanged)
+    Q_PROPERTY(bool applying READ applying NOTIFY stateChanged)
+    Q_PROPERTY(bool previewReady READ previewReady NOTIFY stateChanged)
+    Q_PROPERTY(QString previewImageUrl READ previewImageUrl NOTIFY stateChanged)
+    Q_PROPERTY(QString blurImageUrl READ blurImageUrl NOTIFY stateChanged)
+    Q_PROPERTY(QString previewErrorText READ previewErrorText NOTIFY stateChanged)
 
 public:
+    struct PreviewImageStore {
+        QMutex mutex;
+        quint64 generation = 0;
+        QImage previewImage;
+        QImage blurImage;
+    };
+
     explicit WallpaperPreviewController(QObject *parent = nullptr);
+    ~WallpaperPreviewController() override;
+
+    std::shared_ptr<PreviewImageStore> previewImageStore() const;
 
     bool visible() const;
     void setVisible(bool visible);
@@ -70,6 +92,12 @@ public:
     bool showDesktopChrome() const;
     QString errorText() const;
     bool canApply() const;
+    bool loading() const;
+    bool applying() const;
+    bool previewReady() const;
+    QString previewImageUrl() const;
+    QString blurImageUrl() const;
+    QString previewErrorText() const;
 
     Q_INVOKABLE void openFor(const QString &path, QObject *panelController = nullptr);
     Q_INVOKABLE void close();
@@ -88,6 +116,7 @@ signals:
 
 private:
     void recomputeDerivedState();
+    void clearPreviewImageStore(quint64 generation);
 
     bool m_visible = false;
     QPointer<QObject> m_panelController;
@@ -115,4 +144,15 @@ private:
     bool m_showDesktopChrome = true;
     QString m_errorText;
     bool m_valid = false;
+    bool m_loading = false;
+    bool m_applying = false;
+    bool m_previewReady = false;
+    QString m_previewImageUrl;
+    QString m_blurImageUrl;
+    QString m_previewErrorText;
+
+    std::shared_ptr<PreviewImageStore> m_imageStore = std::make_shared<PreviewImageStore>();
+    std::shared_ptr<std::atomic<quint64>> m_loadGeneration = std::make_shared<std::atomic<quint64>>(0);
+    std::shared_ptr<std::atomic<quint64>> m_applyGeneration = std::make_shared<std::atomic<quint64>>(0);
+    QThreadPool m_workerPool;
 };

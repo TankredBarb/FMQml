@@ -1,9 +1,12 @@
 #include "WallpaperPreviewController.h"
 #include "WallpaperSetter.h"
 
+#include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QGuiApplication>
 #include <QImage>
+#include <QMutexLocker>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtMath>
@@ -18,6 +21,17 @@ bool expect(bool condition, const char *message)
         return false;
     }
     return true;
+}
+
+template <typename Predicate>
+bool waitUntil(Predicate &&predicate, int timeoutMs = 5000)
+{
+    QElapsedTimer timer;
+    timer.start();
+    while (!predicate() && timer.elapsed() < timeoutMs) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    }
+    return predicate();
 }
 
 } // namespace
@@ -58,6 +72,15 @@ int main(int argc, char **argv)
         }
     }
 
+    const QString hugeJpegPath = tempDir.filePath(QStringLiteral("huge.jpg"));
+    {
+        QImage img(3200, 1800, QImage::Format_RGB32);
+        img.fill(Qt::darkGreen);
+        if (!expect(img.save(hugeJpegPath, "JPG", 85), "must save huge JPEG fixture")) {
+            return 1;
+        }
+    }
+
     // 1. WallpaperSetter::previewInfo & validation
     if (!expect(!WallpaperSetter::canSetWallpaperForPath(textPath),
                 "text file must not be eligible as wallpaper")) {
@@ -93,7 +116,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // 2. WallpaperPreviewController invalid open
+    // 2. WallpaperPreviewController invalid open (async)
     WallpaperPreviewController controller;
     if (!expect(!controller.visible(), "controller starts hidden")) {
         return 1;
@@ -110,21 +133,42 @@ int main(int argc, char **argv)
 
     controller.openFor(textPath);
     if (!expect(controller.visible() && visibleSpy.count() == 1,
-                "openFor must set visible and emit visibleChanged")) {
+                "openFor must set visible and emit visibleChanged immediately")) {
+        return 1;
+    }
+    if (!expect(controller.loading(), "openFor must enter async loading state immediately")) {
+        return 1;
+    }
+    if (!expect(waitUntil([&]() { return !controller.loading(); }),
+                "invalid image open must finish loading asynchronously")) {
         return 1;
     }
     if (!expect(!controller.canApply() && !controller.errorText().isEmpty(),
                 "invalid image must disable apply and populate errorText")) {
         return 1;
     }
-    if (!expect(!controller.apply(), "apply must fail on invalid file")) {
+    if (!expect(!controller.apply() && !controller.applying(),
+                "apply must fail synchronously on invalid file without entering applying state")) {
         return 1;
     }
 
-    // 3. Valid small image: upscaling warning and fillMode transitions
+    // 3. Valid small image: async load, upscaling warning, and fillMode transitions
     controller.openFor(smallImagePath);
+    if (!expect(controller.loading(), "openFor must enter loading state immediately")) {
+        return 1;
+    }
+    if (!expect(waitUntil([&]() { return !controller.loading(); }),
+                "small PNG must finish loading asynchronously")) {
+        return 1;
+    }
     if (!expect(controller.canApply() && controller.errorText().isEmpty(),
                 "valid PNG must be applicable with empty errorText")) {
+        return 1;
+    }
+    if (!expect(controller.previewReady()
+                && controller.previewImageUrl().startsWith(QStringLiteral("image://wallpaperpreview/"))
+                && controller.blurImageUrl().startsWith(QStringLiteral("image://wallpaperpreview/")),
+                "loaded PNG must expose previewReady and image provider URLs")) {
         return 1;
     }
     if (!expect(controller.imageResolutionText() == QStringLiteral("320 × 180"),
@@ -201,14 +245,78 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // 5. Large image: no upscaling warning on standard displays
+    // 5. Large PNG image: async downscaled preview + no upscaling warning on standard displays
     controller.setFillMode(QStringLiteral("fill"));
     controller.openFor(largeImagePath);
+    if (!expect(waitUntil([&]() { return !controller.loading(); }),
+                "large PNG must finish loading asynchronously")) {
+        return 1;
+    }
+    if (!expect(controller.previewReady() && controller.imageWidth() == 2560 && controller.imageHeight() == 1440,
+                "large PNG must report original dimensions while preparing preview")) {
+        return 1;
+    }
+    {
+        const auto store = controller.previewImageStore();
+        QMutexLocker locker(&store->mutex);
+        if (!expect(!store->previewImage.isNull()
+                    && store->previewImage.width() <= 1600
+                    && store->previewImage.height() <= 1600
+                    && (store->previewImage.format() == QImage::Format_RGB32
+                        || store->previewImage.format() == QImage::Format_ARGB32_Premultiplied),
+                    "large PNG previewImage must be capped at <= 1600px in native 32-bit format")) {
+            return 1;
+        }
+        if (!expect(!store->blurImage.isNull()
+                    && store->blurImage.width() <= 256
+                    && store->blurImage.height() <= 256,
+                    "large PNG blurImage must be capped at <= 256px")) {
+            return 1;
+        }
+    }
     if (controller.targetScreenWidth() <= 2560 && controller.targetScreenHeight() <= 1440) {
         if (!expect(!controller.upscalingWarning(),
                     "2560x1440 image must not warn about upscaling on <= 2560x1440 display")) {
             return 1;
         }
+    }
+
+    // 5b. Huge JPEG: fast ScaledSize decode + downscaled store
+    controller.openFor(hugeJpegPath);
+    if (!expect(waitUntil([&]() { return !controller.loading(); }),
+                "huge JPEG must finish loading asynchronously")) {
+        return 1;
+    }
+    if (!expect(controller.previewReady() && controller.imageWidth() == 3200 && controller.imageHeight() == 1800,
+                "huge JPEG must report full dimensions and previewReady")) {
+        return 1;
+    }
+    {
+        const auto store = controller.previewImageStore();
+        QMutexLocker locker(&store->mutex);
+        if (!expect(!store->previewImage.isNull()
+                    && store->previewImage.width() <= 1600
+                    && store->previewImage.height() <= 1600
+                    && !store->blurImage.isNull()
+                    && store->blurImage.width() <= 256
+                    && store->blurImage.height() <= 256,
+                    "huge JPEG preview and blur images must be bounded")) {
+            return 1;
+        }
+    }
+
+    // 5c. Rapid generation cancellation: second openFor must win
+    controller.openFor(hugeJpegPath);
+    controller.openFor(smallImagePath);
+    if (!expect(waitUntil([&]() { return !controller.loading(); }),
+                "rapid openFor switch must settle")) {
+        return 1;
+    }
+    if (!expect(controller.filePath() == smallImagePath
+                && controller.imageWidth() == 320
+                && controller.imageHeight() == 180,
+                "stale huge JPEG load must not overwrite newer small PNG openFor")) {
+        return 1;
     }
 
     // 6. Preview geometry math
@@ -239,9 +347,29 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // 7. Close
+    // 7. Close clears cached preview images and resets loading/preview state
     controller.close();
-    if (!expect(!controller.visible(), "close must hide controller")) {
+    if (!expect(!controller.visible()
+                && !controller.loading()
+                && !controller.previewReady()
+                && controller.previewImageUrl().isEmpty()
+                && controller.blurImageUrl().isEmpty(),
+                "close must hide controller and reset preview state")) {
+        return 1;
+    }
+    {
+        const auto store = controller.previewImageStore();
+        QMutexLocker locker(&store->mutex);
+        if (!expect(store->previewImage.isNull() && store->blurImage.isNull(),
+                    "close must release cached preview images")) {
+            return 1;
+        }
+    }
+
+    const int stateCountAfterClose = stateSpy.count();
+    controller.close();
+    if (!expect(stateSpy.count() == stateCountAfterClose,
+                "redundant close on already hidden controller must be idempotent")) {
         return 1;
     }
 

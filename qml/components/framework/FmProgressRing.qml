@@ -7,7 +7,9 @@ Item {
 
     property real value: 0
     property bool running: false
+    property bool cometStyle: false
     property color accentColor: Theme.accent
+    property color secondaryAccentColor: Theme.useGradientColors ? Theme.secondaryAccent : accentColor
     property color trackColor: Theme.withAlpha(Theme.panelBorder, 0.76)
     property real lineWidth: 2.4
     property int rotationDuration: 1100
@@ -33,10 +35,12 @@ Item {
 
     FmProgressRingVisual {
         anchors.fill: parent
-        textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
+        textureSize: Qt.size(Math.max(1, Math.ceil(width * 3)), Math.max(1, Math.ceil(height * 3)))
         progress: root.running ? 0.34 : root.displayedValue
         lineWidth: root.lineWidth
+        comet: root.cometStyle
         trackColor: root.trackColor
         accentColor: root.accentColor
+        secondaryAccentColor: root.secondaryAccentColor
     }
 }

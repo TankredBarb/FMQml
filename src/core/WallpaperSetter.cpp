@@ -78,7 +78,7 @@ bool runProcess(const QString &program, const QStringList &arguments)
 {
     QProcess process;
     process.start(program, arguments);
-    return process.waitForFinished(4000)
+    return process.waitForFinished(10000)
         && process.exitStatus() == QProcess::NormalExit
         && process.exitCode() == 0;
 }
@@ -103,13 +103,14 @@ int kdeFillModeValue(const QString &mode)
 
 bool setKdeWallpaper(const QString &path, const WallpaperSetter::Options &options)
 {
-    QString dbus;
-    for (const QString &candidate : {QStringLiteral("qdbus6"), QStringLiteral("qdbus"), QStringLiteral("qdbus-qt5")}) {
-        if (!QStandardPaths::findExecutable(candidate).isEmpty()) {
-            dbus = candidate;
-            break;
+    static const QString dbus = []() {
+        for (const QString &candidate : {QStringLiteral("qdbus6"), QStringLiteral("qdbus"), QStringLiteral("qdbus-qt5")}) {
+            if (!QStandardPaths::findExecutable(candidate).isEmpty()) {
+                return candidate;
+            }
         }
-    }
+        return QString();
+    }();
     if (dbus.isEmpty()) {
         return false;
     }
@@ -166,30 +167,9 @@ bool canSetWallpaperForPath(const QString &path)
 #endif
 }
 
-QVariantMap previewInfo(const QString &path)
+QVariantMap screenCapabilitiesInfo()
 {
     QVariantMap info;
-    const QString normalizedPath = normalizedExistingFilePath(path);
-    const QFileInfo fileInfo(normalizedPath.isEmpty() ? path : normalizedPath);
-
-    info.insert(QStringLiteral("valid"), !normalizedPath.isEmpty());
-    info.insert(QStringLiteral("filePath"), normalizedPath.isEmpty() ? path : normalizedPath);
-    info.insert(QStringLiteral("fileUrl"), normalizedPath.isEmpty()
-                                               ? QString()
-                                               : QUrl::fromLocalFile(normalizedPath).toString());
-    info.insert(QStringLiteral("fileName"), fileInfo.fileName());
-    info.insert(QStringLiteral("fileSizeText"),
-                fileInfo.exists() ? QLocale().formattedDataSize(fileInfo.size()) : QString());
-
-    QSize imageSize;
-    if (!normalizedPath.isEmpty()) {
-        QImageReader reader(normalizedPath);
-        reader.setAutoTransform(true);
-        imageSize = reader.size();
-    }
-    info.insert(QStringLiteral("imageWidth"), imageSize.isValid() ? imageSize.width() : 0);
-    info.insert(QStringLiteral("imageHeight"), imageSize.isValid() ? imageSize.height() : 0);
-
     QVariantList screens;
     const QList<QScreen *> appScreens = QGuiApplication::screens();
     const QScreen *primaryScreen = QGuiApplication::primaryScreen();
@@ -224,6 +204,136 @@ QVariantMap previewInfo(const QString &path)
     info.insert(QStringLiteral("supportsPerScreen"), false);
 #endif
 
+    return info;
+}
+
+PreviewLoadResult probeFileMetadata(const QString &path)
+{
+    PreviewLoadResult result;
+    const QString normalizedPath = normalizedExistingFilePath(path);
+    const QFileInfo fileInfo(normalizedPath.isEmpty() ? path : normalizedPath);
+
+    result.valid = !normalizedPath.isEmpty();
+    result.filePath = normalizedPath.isEmpty() ? path : normalizedPath;
+    result.fileUrl = normalizedPath.isEmpty()
+        ? QString()
+        : QUrl::fromLocalFile(normalizedPath).toString();
+    result.fileName = fileInfo.fileName();
+    result.fileSizeText = fileInfo.exists() ? QLocale().formattedDataSize(fileInfo.size()) : QString();
+
+    if (result.valid) {
+        QImageReader reader(normalizedPath);
+        reader.setAutoTransform(true);
+        QSize imageSize = reader.size();
+        if (imageSize.isValid() && (reader.transformation() & QImageIOHandler::TransformationRotate90)) {
+            imageSize.transpose();
+        }
+        result.imageWidth = imageSize.isValid() ? imageSize.width() : 0;
+        result.imageHeight = imageSize.isValid() ? imageSize.height() : 0;
+    } else {
+        result.errorText = QStringLiteral("Wallpaper is only supported for local PNG, JPG, JPEG, or BMP files.");
+    }
+
+    return result;
+}
+
+void decodePreviewImages(PreviewLoadResult &result,
+                         int maxPreviewDimension,
+                         int maxBlurDimension,
+                         const std::function<bool()> &isCancelled)
+{
+    if (!result.valid || result.filePath.isEmpty() || (isCancelled && isCancelled())) {
+        return;
+    }
+
+    QImageReader reader(result.filePath);
+    reader.setAutoTransform(true);
+
+    const QSize rawSize = reader.size();
+    const int boundedPreviewDim = qMax(64, maxPreviewDimension);
+    const int boundedBlurDim = qMax(32, maxBlurDimension);
+    const QSize targetBounds(boundedPreviewDim, boundedPreviewDim);
+
+    if (reader.supportsOption(QImageIOHandler::ScaledSize)
+        && rawSize.isValid()
+        && (rawSize.width() > boundedPreviewDim || rawSize.height() > boundedPreviewDim)) {
+        QSize scaled = rawSize.scaled(targetBounds, Qt::KeepAspectRatio);
+        scaled.setWidth(qMax(1, scaled.width()));
+        scaled.setHeight(qMax(1, scaled.height()));
+        reader.setScaledSize(scaled);
+    }
+
+    QImage image = reader.read();
+    if (isCancelled && isCancelled()) {
+        return;
+    }
+
+    if (image.isNull()) {
+        const QString readerError = reader.errorString().trimmed();
+        result.previewErrorText = readerError.isEmpty()
+            ? QStringLiteral("Preview could not be decoded for this image.")
+            : readerError;
+        return;
+    }
+
+    if (result.imageWidth <= 0 || result.imageHeight <= 0) {
+        if (rawSize.isValid()) {
+            QSize effective = rawSize;
+            if (reader.transformation() & QImageIOHandler::TransformationRotate90) {
+                effective.transpose();
+            }
+            result.imageWidth = effective.width();
+            result.imageHeight = effective.height();
+        } else {
+            result.imageWidth = image.width();
+            result.imageHeight = image.height();
+        }
+    }
+
+    if (image.width() > boundedPreviewDim || image.height() > boundedPreviewDim) {
+        if (image.width() > boundedPreviewDim * 2 || image.height() > boundedPreviewDim * 2) {
+            image = image.scaled(QSize(boundedPreviewDim * 2, boundedPreviewDim * 2),
+                                 Qt::KeepAspectRatio,
+                                 Qt::FastTransformation);
+            if (isCancelled && isCancelled()) {
+                return;
+            }
+        }
+        image = image.scaled(targetBounds, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        if (isCancelled && isCancelled()) {
+            return;
+        }
+    }
+
+    if (image.format() != QImage::Format_RGB32 && image.format() != QImage::Format_ARGB32_Premultiplied) {
+        image = image.convertToFormat(image.hasAlphaChannel()
+                                      ? QImage::Format_ARGB32_Premultiplied
+                                      : QImage::Format_RGB32);
+    }
+    image.setDevicePixelRatio(1.0);
+
+    if (image.width() > boundedBlurDim || image.height() > boundedBlurDim) {
+        result.blurImage = image.scaled(QSize(boundedBlurDim, boundedBlurDim),
+                                        Qt::KeepAspectRatio,
+                                        Qt::SmoothTransformation);
+    } else {
+        result.blurImage = image;
+    }
+    result.blurImage.setDevicePixelRatio(1.0);
+    result.previewImage = std::move(image);
+}
+
+QVariantMap previewInfo(const QString &path)
+{
+    const PreviewLoadResult meta = probeFileMetadata(path);
+    QVariantMap info = screenCapabilitiesInfo();
+    info.insert(QStringLiteral("valid"), meta.valid);
+    info.insert(QStringLiteral("filePath"), meta.filePath);
+    info.insert(QStringLiteral("fileUrl"), meta.fileUrl);
+    info.insert(QStringLiteral("fileName"), meta.fileName);
+    info.insert(QStringLiteral("fileSizeText"), meta.fileSizeText);
+    info.insert(QStringLiteral("imageWidth"), meta.imageWidth);
+    info.insert(QStringLiteral("imageHeight"), meta.imageHeight);
     return info;
 }
 

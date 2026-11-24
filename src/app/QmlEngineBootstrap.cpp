@@ -5,6 +5,7 @@
 #include "../core/SvgRecolorProvider.h"
 #include "../core/ThumbnailProvider.h"
 #include "../preview/PropertiesImageProvider.h"
+#include "../preview/WallpaperPreviewImageProvider.h"
 
 #include <QCoreApplication>
 #include <QQmlContext>
@@ -35,6 +36,9 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
         [propertiesThumbnails](const VisualThumbnailRequest &request) {
             return propertiesThumbnails->requestVisualImage(request);
         }));
+    m_engine->addImageProvider(
+        QStringLiteral("wallpaperpreview"),
+        new WallpaperPreviewImageProvider(services->wallpaperPreview()->previewImageStore()));
     m_engine->rootContext()->setContextProperty(QStringLiteral("workspaceController"), services->workspace());
     m_engine->rootContext()->setContextProperty(QStringLiteral("themeController"), services->theme());
     m_engine->rootContext()->setContextProperty(QStringLiteral("quickLookController"), services->quickLook());

@@ -26,7 +26,9 @@ Popup {
     padding: 0
     modal: true
     focus: true
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    closePolicy: wallpaperPreviewController.applying
+                 ? Popup.NoAutoClose
+                 : (Popup.CloseOnEscape | Popup.CloseOnPressOutside)
 
     function openFor(panelController, path) {
         wallpaperPreviewController.openFor(path, panelController)
@@ -99,7 +101,11 @@ Popup {
                   + (wallpaperPreviewController.fileSizeText.length > 0
                      ? " · " + wallpaperPreviewController.fileSizeText
                      : "")
-        onCloseRequested: root.close()
+        onCloseRequested: {
+            if (!wallpaperPreviewController.applying) {
+                root.close()
+            }
+        }
     }
 
     DialogFooter {
@@ -111,6 +117,17 @@ Popup {
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
+
+            FmProgressRing {
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                visible: wallpaperPreviewController.applying
+                running: root.visible && visible
+                cometStyle: true
+                lineWidth: 2.2
+                accentColor: root.dialogAccent
+                trackColor: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.12 : 0.10)
+            }
 
             Label {
                 Layout.fillWidth: true
@@ -127,11 +144,12 @@ Popup {
             FmButton {
                 text: "Cancel"
                 highlighted: false
+                enabled: !wallpaperPreviewController.applying
                 onClicked: root.close()
             }
 
             FmButton {
-                text: "Apply Wallpaper"
+                text: wallpaperPreviewController.applying ? "Applying..." : "Apply Wallpaper"
                 highlighted: true
                 primaryColor: root.dialogAccent
                 enabled: wallpaperPreviewController.canApply
@@ -248,14 +266,39 @@ Popup {
                             width: previewStage.monitorMetrics.width
                             height: previewStage.monitorMetrics.height
                             radius: Theme.radiusSm
-                            color: wallpaperPreviewController.backgroundColor
+                            color: previewVisible
+                                   ? wallpaperPreviewController.backgroundColor
+                                   : Theme.panelSurfaceStrong
                             clip: true
+
+                            readonly property bool isApplying: wallpaperPreviewController.applying
+                            readonly property bool tileModeNeedsSubImage: wallpaperPreviewController.fillMode === "tile"
+                                                                          && (previewStage.imageMetrics.scaledWidth < width
+                                                                              || previewStage.imageMetrics.scaledHeight < height)
+                            readonly property bool isLoadingPreview: !isApplying
+                                                                     && (wallpaperPreviewController.loading
+                                                                         || (wallpaperPreviewController.previewImageUrl.length > 0
+                                                                             && mainPreviewImage.status !== Image.Ready
+                                                                             && mainPreviewImage.status !== Image.Error))
+                            readonly property bool hasPreviewError: !isApplying
+                                                                    && !isLoadingPreview
+                                                                    && (mainPreviewImage.status === Image.Error
+                                                                        || wallpaperPreviewController.previewErrorText.length > 0
+                                                                        || (!wallpaperPreviewController.canApply
+                                                                            && wallpaperPreviewController.errorText.length > 0))
+                            readonly property bool previewVisible: !isLoadingPreview
+                                                                   && !hasPreviewError
+                                                                   && mainPreviewImage.status === Image.Ready
 
                             // Blurred backdrop source (KDE Blur option for Fit / Center)
                             Image {
                                 id: blurBackdropSource
                                 anchors.fill: parent
-                                source: wallpaperPreviewController.fileUrl
+                                source: wallpaperPreviewController.backgroundOptionsEnabled
+                                        && wallpaperPreviewController.blurBackground
+                                        && wallpaperPreviewController.blurImageUrl.length > 0
+                                        ? wallpaperPreviewController.blurImageUrl
+                                        : ""
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 cache: false
@@ -265,50 +308,83 @@ Popup {
                             MultiEffect {
                                 anchors.fill: parent
                                 source: blurBackdropSource
-                                visible: wallpaperPreviewController.backgroundOptionsEnabled
+                                opacity: monitorFrame.previewVisible
+                                         && wallpaperPreviewController.backgroundOptionsEnabled
                                          && wallpaperPreviewController.blurBackground
                                          && blurBackdropSource.status === Image.Ready
+                                         ? 1.0
+                                         : 0.0
+                                visible: opacity > 0.01
                                 blurEnabled: true
                                 blur: 0.85
-                                blurMax: 48
+                                blurMax: 36
                                 autoPaddingEnabled: false
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+                                }
                             }
 
-                            // Fill / Fit / Stretch / Tile preview image
+                            // Single decoded preview image for Fill / Fit / Stretch / Center (and large Tile fallback)
                             Image {
-                                anchors.fill: parent
-                                visible: wallpaperPreviewController.fillMode !== "center"
-                                source: wallpaperPreviewController.fileUrl
+                                id: mainPreviewImage
+                                x: wallpaperPreviewController.fillMode === "center"
+                                   ? Math.round((parent.width - width) / 2)
+                                   : 0
+                                y: wallpaperPreviewController.fillMode === "center"
+                                   ? Math.round((parent.height - height) / 2)
+                                   : 0
+                                width: (wallpaperPreviewController.fillMode === "center"
+                                        || (wallpaperPreviewController.fillMode === "tile" && !monitorFrame.tileModeNeedsSubImage))
+                                       ? previewStage.imageMetrics.scaledWidth
+                                       : parent.width
+                                height: (wallpaperPreviewController.fillMode === "center"
+                                         || (wallpaperPreviewController.fillMode === "tile" && !monitorFrame.tileModeNeedsSubImage))
+                                        ? previewStage.imageMetrics.scaledHeight
+                                        : parent.height
+                                source: wallpaperPreviewController.previewImageUrl
                                 asynchronous: true
                                 cache: false
                                 smooth: true
                                 mipmap: true
                                 fillMode: {
                                     switch (wallpaperPreviewController.fillMode) {
-                                    case "fit": return Image.PreserveAspectFit
-                                    case "stretch": return Image.Stretch
-                                    case "tile": return Image.Tile
-                                    default: return Image.PreserveAspectCrop
+                                    case "fit":
+                                    case "center":
+                                    case "tile":
+                                        return Image.PreserveAspectFit
+                                    case "stretch":
+                                        return Image.Stretch
+                                    default:
+                                        return Image.PreserveAspectCrop
                                     }
                                 }
-                                sourceSize: wallpaperPreviewController.fillMode === "tile"
-                                            ? Qt.size(Math.max(16, previewStage.imageMetrics.scaledWidth),
-                                                      Math.max(16, previewStage.imageMetrics.scaledHeight))
-                                            : Qt.size(0, 0)
+                                opacity: monitorFrame.previewVisible ? 1.0 : 0.0
+                                visible: opacity > 0.01
+                                         && (!monitorFrame.tileModeNeedsSubImage || tilePreviewImage.status !== Image.Ready)
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                                }
                             }
 
-                            // Center preview image (scaled proportionally to target screen resolution)
+                            // Tiled preview image (only active when scaled tile is smaller than monitor frame)
                             Image {
-                                anchors.centerIn: parent
-                                visible: wallpaperPreviewController.fillMode === "center"
-                                width: previewStage.imageMetrics.scaledWidth
-                                height: previewStage.imageMetrics.scaledHeight
-                                source: wallpaperPreviewController.fileUrl
-                                fillMode: Image.PreserveAspectFit
+                                id: tilePreviewImage
+                                anchors.fill: parent
+                                source: monitorFrame.tileModeNeedsSubImage
+                                        && wallpaperPreviewController.previewImageUrl.length > 0
+                                        ? wallpaperPreviewController.previewImageUrl
+                                        : ""
+                                fillMode: Image.Tile
+                                sourceSize: Qt.size(Math.max(16, Math.round(previewStage.imageMetrics.scaledWidth)),
+                                                    Math.max(16, Math.round(previewStage.imageMetrics.scaledHeight)))
                                 asynchronous: true
                                 cache: false
                                 smooth: true
-                                mipmap: true
+                                visible: monitorFrame.previewVisible
+                                         && monitorFrame.tileModeNeedsSubImage
+                                         && status === Image.Ready
                             }
 
                             // Mock desktop taskbar / panel
@@ -354,6 +430,144 @@ Popup {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: 22; height: 5; radius: 2.5
                                     color: Theme.withAlpha(Theme.textPrimary, 0.42)
+                                }
+                            }
+
+                            // Preview error overlay
+                            Rectangle {
+                                id: previewErrorOverlay
+                                z: 9
+                                anchors.fill: parent
+                                visible: monitorFrame.hasPreviewError
+                                color: Theme.panelSurfaceStrong
+
+                                Label {
+                                    anchors.centerIn: parent
+                                    width: Math.min(parent.width - 48, 360)
+                                    horizontalAlignment: Text.AlignHCenter
+                                    wrapMode: Text.WordWrap
+                                    text: wallpaperPreviewController.previewErrorText.length > 0
+                                          ? wallpaperPreviewController.previewErrorText
+                                          : (wallpaperPreviewController.errorText.length > 0
+                                             ? wallpaperPreviewController.errorText
+                                             : "Unable to load preview")
+                                    color: Theme.textSecondary
+                                    font.pixelSize: Theme.fontSizeCaption
+                                }
+                            }
+
+                            // Polished processing spinner overlay (loading preview or applying wallpaper)
+                            Item {
+                                id: processingOverlay
+                                z: 10
+                                anchors.fill: parent
+                                readonly property bool active: monitorFrame.isLoadingPreview || monitorFrame.isApplying
+                                opacity: active ? 1.0 : 0.0
+                                visible: opacity > 0.01
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    visible: !monitorFrame.isApplying
+                                    gradient: Gradient {
+                                        GradientStop { position: 0.0; color: Theme.mixColors(Theme.panelSurfaceStrong, Theme.bg, 0.28) }
+                                        GradientStop { position: 1.0; color: Theme.panelSurfaceStrong }
+                                    }
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    visible: monitorFrame.isApplying
+                                    color: Qt.rgba(0.05, 0.07, 0.11, themeController.isDark ? 0.56 : 0.48)
+                                }
+
+                                ColumnLayout {
+                                    id: spinnerCol
+                                    anchors.centerIn: parent
+                                    spacing: 12
+
+                                    Item {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        implicitWidth: 80
+                                        implicitHeight: 80
+
+                                        Item {
+                                            id: glowCanvas
+                                            anchors.fill: parent
+                                            visible: false
+
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                width: 28
+                                                height: 28
+                                                radius: 14
+                                                color: root.dialogAccent
+                                            }
+                                        }
+
+                                        MultiEffect {
+                                            anchors.fill: parent
+                                            source: glowCanvas
+                                            blurEnabled: true
+                                            blur: 1.0
+                                            blurMax: 28
+                                            autoPaddingEnabled: false
+                                            opacity: themeController.isDark ? 0.30 : 0.18
+                                        }
+
+                                        FmProgressRing {
+                                            anchors.centerIn: parent
+                                            width: 44
+                                            height: 44
+                                            cometStyle: true
+                                            lineWidth: 3.5
+                                            rotationDuration: 950
+                                            accentColor: root.dialogAccent
+                                            secondaryAccentColor: Theme.useGradientColors ? Theme.secondaryAccent : root.dialogAccent
+                                            trackColor: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.10 : 0.09)
+                                            running: root.visible && processingOverlay.visible && processingOverlay.active
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        spacing: 3
+
+                                        Label {
+                                            id: processingPrimaryLabel
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: monitorFrame.isApplying
+                                                  ? "Applying wallpaper"
+                                                  : "Preparing preview"
+                                            color: monitorFrame.isApplying ? "#F8FAFC" : Theme.textPrimary
+                                            font.pixelSize: Theme.fontSizeLabel
+                                            font.weight: Font.Medium
+                                        }
+
+                                        Label {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            Layout.maximumWidth: Math.max(140, monitorFrame.width - 56)
+                                            elide: Text.ElideRight
+                                            text: monitorFrame.isApplying
+                                                  ? "Updating desktop background"
+                                                  : (wallpaperPreviewController.imageWidth > 0
+                                                     ? wallpaperPreviewController.imageResolutionText
+                                                       + (wallpaperPreviewController.fileSizeText.length > 0
+                                                          ? " · " + wallpaperPreviewController.fileSizeText
+                                                          : "")
+                                                     : (wallpaperPreviewController.fileSizeText.length > 0
+                                                        ? wallpaperPreviewController.fileSizeText
+                                                        : "Reading image…"))
+                                            color: monitorFrame.isApplying
+                                                   ? Qt.rgba(0.95, 0.97, 1.0, 0.78)
+                                                   : Theme.textSecondary
+                                            opacity: 0.85
+                                            font.pixelSize: Theme.fontSizeMicro
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -416,7 +630,13 @@ Popup {
             contentHeight: optionsColumn.implicitHeight
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            enabled: !wallpaperPreviewController.applying
+            opacity: wallpaperPreviewController.applying ? 0.65 : 1.0
             ScrollBar.vertical: FmScrollBar { policy: ScrollBar.AsNeeded }
+
+            Behavior on opacity {
+                NumberAnimation { duration: 150 }
+            }
 
             ColumnLayout {
                 id: optionsColumn
