@@ -7,7 +7,7 @@
 namespace CodeHighlighter {
 namespace {
 
-enum class Language : unsigned char { None, Cpp, Python, Bash };
+enum class Language : unsigned char { None, Cpp, Python, Bash, Java, Kotlin };
 enum Role { Keyword = 1, String = 2, Comment = 3, LiteralOrType = 4 };
 
 void addSpan(QVector<TextDecorationSpan> &spans, int start, int end, int role)
@@ -27,12 +27,136 @@ bool identifierPart(QChar ch)
     return ch == QLatin1Char('_') || ch.isLetterOrNumber();
 }
 
+bool isHexDigit(QChar ch)
+{
+    return ch.isDigit()
+        || (ch >= QLatin1Char('a') && ch <= QLatin1Char('f'))
+        || (ch >= QLatin1Char('A') && ch <= QLatin1Char('F'));
+}
+
+int scanNumberLiteral(const QString &text, int start)
+{
+    const bool hasBasePrefix = text.at(start) == QLatin1Char('0') && start + 1 < text.size();
+    const QChar prefixChar = hasBasePrefix ? text.at(start + 1).toLower() : QChar();
+    const bool isHex = prefixChar == QLatin1Char('x');
+    const bool isBinary = prefixChar == QLatin1Char('b');
+    int i = start + 1;
+    while (i < text.size()) {
+        const QChar ch = text.at(i);
+        if (ch.isLetterOrNumber() || ch == QLatin1Char('_')) {
+            ++i;
+            continue;
+        }
+        if (ch == QLatin1Char('.') && i + 1 < text.size()
+            && (isHex ? isHexDigit(text.at(i + 1)) : text.at(i + 1).isDigit())) {
+            ++i;
+            continue;
+        }
+        if ((ch == QLatin1Char('+') || ch == QLatin1Char('-')) && i > start) {
+            const QChar prev = text.at(i - 1).toLower();
+            const bool exponentSign = (isHex && prev == QLatin1Char('p'))
+                || (!isHex && !isBinary && prev == QLatin1Char('e'));
+            if (exponentSign && i + 1 < text.size() && text.at(i + 1).isDigit()) {
+                ++i;
+                continue;
+            }
+        }
+        break;
+    }
+    return i;
+}
+
+bool hasShebangCommand(QStringView firstLine, QLatin1StringView command)
+{
+    int i = 2;
+    while (i < firstLine.size()) {
+        while (i < firstLine.size() && firstLine.at(i).isSpace()) {
+            ++i;
+        }
+        const int start = i;
+        while (i < firstLine.size() && !firstLine.at(i).isSpace()) {
+            ++i;
+        }
+        const QStringView token = firstLine.mid(start, i - start);
+        if (token == command
+            || (token.endsWith(command) && token.size() > command.size()
+                && token.at(token.size() - command.size() - 1) == QLatin1Char('/'))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int scanSingleLineLiteral(const QString &text, int start)
+{
+    const QChar quote = text.at(start);
+    int i = start + 1;
+    bool escaped = false;
+    while (i < text.size()) {
+        const QChar ch = text.at(i);
+        if (ch == QLatin1Char('\n')) {
+            break;
+        }
+        ++i;
+        if (!escaped && ch == quote) {
+            break;
+        }
+        escaped = !escaped && ch == QLatin1Char('\\');
+    }
+    return i;
+}
+
+bool scanJavaTextBlockBody(const QString &text, int &i)
+{
+    bool escaped = false;
+    while (i < text.size()) {
+        if (!escaped && QStringView(text).mid(i, 3) == QLatin1String("\"\"\"")) {
+            i += 3;
+            return true;
+        }
+        const QChar ch = text.at(i++);
+        escaped = !escaped && ch == QLatin1Char('\\');
+    }
+    return false;
+}
+
+bool scanKotlinRawStringBody(const QString &text, int &i)
+{
+    const int end = text.indexOf(QLatin1String("\"\"\""), i);
+    if (end < 0) {
+        i = text.size();
+        return false;
+    }
+    i = end + 3;
+    while (i < text.size() && text.at(i) == QLatin1Char('"')) {
+        ++i;
+    }
+    return true;
+}
+
+int scanKotlinNestedComment(const QString &text, int &i, int depth)
+{
+    while (i < text.size() && depth > 0) {
+        const QStringView view = QStringView(text).mid(i, 2);
+        if (view == QLatin1String("/*")) {
+            ++depth;
+            i += 2;
+        } else if (view == QLatin1String("*/")) {
+            --depth;
+            i += 2;
+        } else {
+            ++i;
+        }
+    }
+    return depth > 0 ? qMin(depth + 1, 255) : 0;
+}
+
 Language detectLanguage(const TextDecorationRequest &request)
 {
     if (!request.initialState.isEmpty()) {
         const int value = static_cast<unsigned char>(request.initialState.at(0));
         if (value >= static_cast<int>(Language::Cpp)
-            && value <= static_cast<int>(Language::Bash)) {
+            && value <= static_cast<int>(Language::Kotlin)) {
             return static_cast<Language>(value);
         }
     }
@@ -50,14 +174,33 @@ Language detectLanguage(const TextDecorationRequest &request)
     if (suffix == QLatin1String("sh") || suffix == QLatin1String("bash")) {
         return Language::Bash;
     }
+    if (suffix == QLatin1String("java")) {
+        return Language::Java;
+    }
+    if (suffix == QLatin1String("kt") || suffix == QLatin1String("kts")) {
+        return Language::Kotlin;
+    }
+    const QString mime = request.mimeName.toLower();
+    if (mime == QLatin1String("text/x-java") || mime == QLatin1String("text/x-java-source")) {
+        return Language::Java;
+    }
+    if (mime == QLatin1String("text/x-kotlin") || mime == QLatin1String("text/x-kotlin-source")) {
+        return Language::Kotlin;
+    }
     if (request.content.startsWith(QLatin1String("#!"))) {
-        const QString firstLine = request.content.left(request.content.indexOf(QLatin1Char('\n'))).toLower();
+        const QString firstLine = request.content.left(request.content.indexOf(QLatin1Char('\n'))).trimmed().toLower();
         if (firstLine.contains(QLatin1String("python"))) {
             return Language::Python;
         }
         if (firstLine.contains(QLatin1String("bash"))
             || firstLine.contains(QLatin1String("/sh"))) {
             return Language::Bash;
+        }
+        if (firstLine.contains(QLatin1String("kotlin"))) {
+            return Language::Kotlin;
+        }
+        if (hasShebangCommand(firstLine, QLatin1StringView("java"))) {
+            return Language::Java;
         }
     }
     return Language::None;
@@ -314,6 +457,308 @@ int scanBash(const QString &text, int state, QVector<TextDecorationSpan> &spans)
     return state;
 }
 
+int scanJava(const QString &text, int state, QVector<TextDecorationSpan> &spans)
+{
+    static const QSet<QString> keywords = {
+        QStringLiteral("abstract"), QStringLiteral("assert"), QStringLiteral("break"),
+        QStringLiteral("case"), QStringLiteral("catch"), QStringLiteral("class"),
+        QStringLiteral("const"), QStringLiteral("continue"), QStringLiteral("default"),
+        QStringLiteral("do"), QStringLiteral("else"), QStringLiteral("enum"),
+        QStringLiteral("extends"), QStringLiteral("final"), QStringLiteral("finally"),
+        QStringLiteral("for"), QStringLiteral("goto"), QStringLiteral("if"),
+        QStringLiteral("implements"), QStringLiteral("import"), QStringLiteral("instanceof"),
+        QStringLiteral("interface"), QStringLiteral("native"), QStringLiteral("new"),
+        QStringLiteral("package"), QStringLiteral("permits"), QStringLiteral("private"),
+        QStringLiteral("protected"), QStringLiteral("public"), QStringLiteral("record"),
+        QStringLiteral("return"), QStringLiteral("sealed"), QStringLiteral("static"),
+        QStringLiteral("strictfp"), QStringLiteral("super"), QStringLiteral("switch"),
+        QStringLiteral("synchronized"), QStringLiteral("this"), QStringLiteral("throw"),
+        QStringLiteral("throws"), QStringLiteral("transient"), QStringLiteral("try"),
+        QStringLiteral("var"), QStringLiteral("volatile"), QStringLiteral("while"),
+        QStringLiteral("yield")};
+    static const QSet<QString> types = {
+        QStringLiteral("boolean"), QStringLiteral("byte"), QStringLiteral("char"),
+        QStringLiteral("double"), QStringLiteral("float"), QStringLiteral("int"),
+        QStringLiteral("long"), QStringLiteral("short"), QStringLiteral("void"),
+        QStringLiteral("true"), QStringLiteral("false"), QStringLiteral("null"),
+        QStringLiteral("Boolean"), QStringLiteral("Byte"), QStringLiteral("Character"),
+        QStringLiteral("Double"), QStringLiteral("Float"), QStringLiteral("Integer"),
+        QStringLiteral("Long"), QStringLiteral("Object"), QStringLiteral("Short"),
+        QStringLiteral("String"), QStringLiteral("Void")};
+    int i = 0;
+    while (i < text.size()) {
+        if (state == 1) {
+            const int start = i;
+            const int end = text.indexOf(QLatin1String("*/"), i);
+            i = end < 0 ? text.size() : end + 2;
+            addSpan(spans, start, i, Comment);
+            if (end < 0) {
+                return 1;
+            }
+            state = 0;
+            continue;
+        }
+        if (state == 2) {
+            const int start = i;
+            const bool closed = scanJavaTextBlockBody(text, i);
+            addSpan(spans, start, i, String);
+            if (!closed) {
+                return 2;
+            }
+            state = 0;
+            continue;
+        }
+        if (QStringView(text).mid(i, 2) == QLatin1String("//")) {
+            const int end = text.indexOf(QLatin1Char('\n'), i);
+            const int stop = end < 0 ? text.size() : end;
+            addSpan(spans, i, stop, Comment);
+            i = stop;
+            continue;
+        }
+        if (QStringView(text).mid(i, 2) == QLatin1String("/*")) {
+            const int start = i;
+            const int end = text.indexOf(QLatin1String("*/"), i + 2);
+            i = end < 0 ? text.size() : end + 2;
+            addSpan(spans, start, i, Comment);
+            if (end < 0) {
+                return 1;
+            }
+            continue;
+        }
+        if (QStringView(text).mid(i, 3) == QLatin1String("\"\"\"")) {
+            const int start = i;
+            i += 3;
+            const bool closed = scanJavaTextBlockBody(text, i);
+            addSpan(spans, start, i, String);
+            if (!closed) {
+                return 2;
+            }
+            continue;
+        }
+        if (text.at(i) == QLatin1Char('"') || text.at(i) == QLatin1Char('\'')) {
+            const int start = i;
+            i = scanSingleLineLiteral(text, start);
+            addSpan(spans, start, i, String);
+            continue;
+        }
+        if (text.at(i) == QLatin1Char('@')
+            && (i == 0 || !identifierPart(text.at(i - 1)))
+            && i + 1 < text.size() && identifierStart(text.at(i + 1))) {
+            const int atPos = i++;
+            const int wordStart = i++;
+            while (i < text.size() && identifierPart(text.at(i))) {
+                ++i;
+            }
+            if (QStringView(text).mid(wordStart, i - wordStart) == QLatin1String("interface")) {
+                addSpan(spans, wordStart, i, Keyword);
+            } else {
+                addSpan(spans, atPos, i, LiteralOrType);
+            }
+            continue;
+        }
+        if (text.at(i).isDigit()) {
+            const int start = i;
+            i = scanNumberLiteral(text, start);
+            addSpan(spans, start, i, LiteralOrType);
+            continue;
+        }
+        if (identifierStart(text.at(i))) {
+            const int start = i++;
+            while (i < text.size() && identifierPart(text.at(i))) {
+                ++i;
+            }
+            const QString word = text.mid(start, i - start);
+            if (keywords.contains(word)) {
+                addSpan(spans, start, i, Keyword);
+            } else if (types.contains(word)) {
+                addSpan(spans, start, i, LiteralOrType);
+            }
+            continue;
+        }
+        ++i;
+    }
+    return state;
+}
+
+int scanKotlin(const QString &text, int state, QVector<TextDecorationSpan> &spans)
+{
+    static const QSet<QString> keywords = {
+        QStringLiteral("abstract"), QStringLiteral("actual"), QStringLiteral("annotation"),
+        QStringLiteral("as"), QStringLiteral("break"), QStringLiteral("by"),
+        QStringLiteral("catch"), QStringLiteral("class"), QStringLiteral("companion"),
+        QStringLiteral("const"), QStringLiteral("constructor"), QStringLiteral("continue"),
+        QStringLiteral("crossinline"), QStringLiteral("data"), QStringLiteral("do"),
+        QStringLiteral("else"), QStringLiteral("enum"), QStringLiteral("expect"),
+        QStringLiteral("external"), QStringLiteral("final"), QStringLiteral("finally"),
+        QStringLiteral("for"), QStringLiteral("fun"), QStringLiteral("if"),
+        QStringLiteral("import"), QStringLiteral("in"), QStringLiteral("infix"),
+        QStringLiteral("init"), QStringLiteral("inline"), QStringLiteral("inner"),
+        QStringLiteral("interface"), QStringLiteral("internal"), QStringLiteral("is"),
+        QStringLiteral("lateinit"), QStringLiteral("noinline"), QStringLiteral("object"),
+        QStringLiteral("open"), QStringLiteral("operator"), QStringLiteral("out"),
+        QStringLiteral("override"), QStringLiteral("package"), QStringLiteral("private"),
+        QStringLiteral("protected"), QStringLiteral("public"), QStringLiteral("reified"),
+        QStringLiteral("return"), QStringLiteral("sealed"), QStringLiteral("super"),
+        QStringLiteral("suspend"), QStringLiteral("tailrec"), QStringLiteral("this"),
+        QStringLiteral("throw"), QStringLiteral("try"), QStringLiteral("typealias"),
+        QStringLiteral("typeof"), QStringLiteral("val"), QStringLiteral("var"),
+        QStringLiteral("vararg"), QStringLiteral("when"), QStringLiteral("where"),
+        QStringLiteral("while")};
+    static const QSet<QString> types = {
+        QStringLiteral("true"), QStringLiteral("false"), QStringLiteral("null"),
+        QStringLiteral("Any"), QStringLiteral("Array"), QStringLiteral("Boolean"),
+        QStringLiteral("Byte"), QStringLiteral("Char"), QStringLiteral("CharSequence"),
+        QStringLiteral("Double"), QStringLiteral("Float"), QStringLiteral("Int"),
+        QStringLiteral("List"), QStringLiteral("Long"), QStringLiteral("Map"),
+        QStringLiteral("MutableList"), QStringLiteral("MutableMap"), QStringLiteral("MutableSet"),
+        QStringLiteral("Nothing"), QStringLiteral("Number"), QStringLiteral("Pair"),
+        QStringLiteral("Sequence"), QStringLiteral("Set"), QStringLiteral("Short"),
+        QStringLiteral("String"), QStringLiteral("Triple"), QStringLiteral("UByte"),
+        QStringLiteral("UInt"), QStringLiteral("ULong"), QStringLiteral("UShort"),
+        QStringLiteral("Unit")};
+    int i = 0;
+    while (i < text.size()) {
+        if (state == 1) {
+            const int start = i;
+            const bool closed = scanKotlinRawStringBody(text, i);
+            addSpan(spans, start, i, String);
+            if (!closed) {
+                return 1;
+            }
+            state = 0;
+            continue;
+        }
+        if (state >= 2) {
+            const int start = i;
+            const int nextState = scanKotlinNestedComment(text, i, state - 1);
+            addSpan(spans, start, i, Comment);
+            if (nextState != 0) {
+                return nextState;
+            }
+            state = 0;
+            continue;
+        }
+        if (QStringView(text).mid(i, 2) == QLatin1String("//")) {
+            const int end = text.indexOf(QLatin1Char('\n'), i);
+            const int stop = end < 0 ? text.size() : end;
+            addSpan(spans, i, stop, Comment);
+            i = stop;
+            continue;
+        }
+        if (QStringView(text).mid(i, 2) == QLatin1String("/*")) {
+            const int start = i;
+            i += 2;
+            const int nextState = scanKotlinNestedComment(text, i, 1);
+            addSpan(spans, start, i, Comment);
+            if (nextState != 0) {
+                return nextState;
+            }
+            continue;
+        }
+        if (QStringView(text).mid(i, 3) == QLatin1String("\"\"\"")) {
+            const int start = i;
+            i += 3;
+            const bool closed = scanKotlinRawStringBody(text, i);
+            addSpan(spans, start, i, String);
+            if (!closed) {
+                return 1;
+            }
+            continue;
+        }
+        if (text.at(i) == QLatin1Char('"')) {
+            const int start = i++;
+            bool escaped = false;
+            int templateDepth = 0;
+            while (i < text.size()) {
+                const QChar ch = text.at(i);
+                if (ch == QLatin1Char('\n')) {
+                    break;
+                }
+                if (templateDepth > 0) {
+                    if (ch == QLatin1Char('"') || ch == QLatin1Char('\'')) {
+                        i = scanSingleLineLiteral(text, i);
+                        continue;
+                    }
+                    ++i;
+                    if (ch == QLatin1Char('{')) {
+                        ++templateDepth;
+                    } else if (ch == QLatin1Char('}')) {
+                        --templateDepth;
+                    }
+                    continue;
+                }
+                ++i;
+                if (!escaped && ch == QLatin1Char('$')
+                    && i < text.size() && text.at(i) == QLatin1Char('{')) {
+                    ++i;
+                    templateDepth = 1;
+                    continue;
+                }
+                if (!escaped && ch == QLatin1Char('"')) {
+                    break;
+                }
+                escaped = !escaped && ch == QLatin1Char('\\');
+            }
+            addSpan(spans, start, i, String);
+            continue;
+        }
+        if (text.at(i) == QLatin1Char('\'')) {
+            const int start = i;
+            i = scanSingleLineLiteral(text, start);
+            addSpan(spans, start, i, String);
+            continue;
+        }
+        if (text.at(i) == QLatin1Char('`')) {
+            ++i;
+            while (i < text.size() && text.at(i) != QLatin1Char('\n')) {
+                if (text.at(i++) == QLatin1Char('`')) {
+                    break;
+                }
+            }
+            continue;
+        }
+        if (text.at(i) == QLatin1Char('@')
+            && (i == 0 || !identifierPart(text.at(i - 1)))
+            && i + 1 < text.size() && identifierStart(text.at(i + 1))) {
+            const int start = i;
+            i += 2;
+            while (i < text.size() && identifierPart(text.at(i))) {
+                ++i;
+            }
+            if (i + 1 < text.size() && text.at(i) == QLatin1Char(':')
+                && identifierStart(text.at(i + 1))) {
+                i += 2;
+                while (i < text.size() && identifierPart(text.at(i))) {
+                    ++i;
+                }
+            }
+            addSpan(spans, start, i, LiteralOrType);
+            continue;
+        }
+        if (text.at(i).isDigit()) {
+            const int start = i;
+            i = scanNumberLiteral(text, start);
+            addSpan(spans, start, i, LiteralOrType);
+            continue;
+        }
+        if (identifierStart(text.at(i))) {
+            const int start = i++;
+            while (i < text.size() && identifierPart(text.at(i))) {
+                ++i;
+            }
+            const QString word = text.mid(start, i - start);
+            if (keywords.contains(word)) {
+                addSpan(spans, start, i, Keyword);
+            } else if (types.contains(word)) {
+                addSpan(spans, start, i, LiteralOrType);
+            }
+            continue;
+        }
+        ++i;
+    }
+    return state;
+}
+
 } // namespace
 
 TextDecorationResult decorate(const TextDecorationRequest &request)
@@ -326,10 +771,38 @@ TextDecorationResult decorate(const TextDecorationRequest &request)
     result.supported = true;
     result.defaultWrap = false;
     result.defaultLineNumbers = true;
-    result.languageId = language == Language::Cpp ? QStringLiteral("cpp")
-        : language == Language::Python ? QStringLiteral("python") : QStringLiteral("bash");
-    result.languageLabel = language == Language::Cpp ? QStringLiteral("C/C++")
-        : language == Language::Python ? QStringLiteral("Python") : QStringLiteral("Bash");
+
+    const int state = initialLexerState(request);
+    int finalState = 0;
+    switch (language) {
+    case Language::Cpp:
+        result.languageId = QStringLiteral("cpp");
+        result.languageLabel = QStringLiteral("C/C++");
+        finalState = scanCpp(request.content, state, result.spans);
+        break;
+    case Language::Python:
+        result.languageId = QStringLiteral("python");
+        result.languageLabel = QStringLiteral("Python");
+        finalState = scanPython(request.content, state, result.spans);
+        break;
+    case Language::Bash:
+        result.languageId = QStringLiteral("bash");
+        result.languageLabel = QStringLiteral("Bash");
+        finalState = scanBash(request.content, state, result.spans);
+        break;
+    case Language::Java:
+        result.languageId = QStringLiteral("java");
+        result.languageLabel = QStringLiteral("Java");
+        finalState = scanJava(request.content, state, result.spans);
+        break;
+    case Language::Kotlin:
+        result.languageId = QStringLiteral("kotlin");
+        result.languageLabel = QStringLiteral("Kotlin");
+        finalState = scanKotlin(request.content, state, result.spans);
+        break;
+    case Language::None:
+        return {};
+    }
 
     QSettings settings;
     settings.beginGroup(QStringLiteral("CodeHighlighting"));
@@ -343,13 +816,6 @@ TextDecorationResult decorate(const TextDecorationRequest &request)
                                                QStringLiteral("#667085")).toString());
     result.role4Color = QColor(settings.value(QStringLiteral("literalColor"),
                                                QStringLiteral("#b45309")).toString());
-
-    const int state = initialLexerState(request);
-    const int finalState = language == Language::Cpp
-        ? scanCpp(request.content, state, result.spans)
-        : language == Language::Python
-            ? scanPython(request.content, state, result.spans)
-            : scanBash(request.content, state, result.spans);
     const bool roleBold[] = {
         settings.value(QStringLiteral("keywordBold"), false).toBool(),
         settings.value(QStringLiteral("stringBold"), false).toBool(),

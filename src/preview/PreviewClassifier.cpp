@@ -277,6 +277,8 @@ bool isTextSuffix(const QString &suffix)
         QStringLiteral("hpp"),
         QStringLiteral("py"),
         QStringLiteral("java"),
+        QStringLiteral("kt"),
+        QStringLiteral("kts"),
         QStringLiteral("cs"),
         QStringLiteral("sh"),
         QStringLiteral("ps1"),

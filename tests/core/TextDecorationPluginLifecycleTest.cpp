@@ -32,8 +32,16 @@ int main(int argc, char **argv)
     TextDecorationRequest request;
     request.fileName = QStringLiteral("sample.sh");
     request.content = QStringLiteral("if true; then # lifecycle\n  echo ok\nfi\n");
+    TextDecorationRequest javaRequest;
+    javaRequest.fileName = QStringLiteral("Sample.java");
+    javaRequest.content = QStringLiteral("public class Sample {}\n");
+    TextDecorationRequest kotlinRequest;
+    kotlinRequest.fileName = QStringLiteral("Sample.kt");
+    kotlinRequest.content = QStringLiteral("data class Sample(val id: Int)\n");
     if (!hasSettings(registry.settingsUiDescriptors(), pluginId)
-        || !registry.decorateText(request).supported) {
+        || !registry.decorateText(request).supported
+        || !registry.decorateText(javaRequest).supported
+        || !registry.decorateText(kotlinRequest).supported) {
         return fail(QStringLiteral("loaded plugin did not expose settings and decoration"));
     }
 
@@ -43,7 +51,9 @@ int main(int argc, char **argv)
     if (hasSettings(registry.settingsUiDescriptors(), pluginId)) {
         return fail(QStringLiteral("unloaded plugin still exposed its settings UI"));
     }
-    if (registry.decorateText(request).supported) {
+    if (registry.decorateText(request).supported
+        || registry.decorateText(javaRequest).supported
+        || registry.decorateText(kotlinRequest).supported) {
         return fail(QStringLiteral("unloaded plugin still decorated text"));
     }
 

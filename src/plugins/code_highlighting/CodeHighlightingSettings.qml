@@ -102,7 +102,7 @@ SettingsContentBlock {
 
         Label {
             Layout.fillWidth: true
-            text: "Used only for C/C++, Python, and Bash previews. Ordinary text keeps the application font."
+            text: "Used only for C/C++, Python, Bash, Java, and Kotlin previews. Ordinary text keeps the application font."
             wrapMode: Text.WordWrap
             color: root.dialogRoot ? root.dialogRoot.detailText : Theme.textSecondary
             font.pixelSize: Theme.fontSizeCaption
